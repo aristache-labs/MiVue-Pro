@@ -10,7 +10,16 @@ import { DownloadError, downloadToFile, type DownloadProgress } from "../transpo
 import { HttpTransport } from "../transport/httpTransport.js";
 import { calculateProgress } from "../utils/progress.js";
 import type { Logger } from "../utils/logger.js";
-import { assertRemoteMediaPath, assertRemoteThumbnailPath, safeLocalFile } from "./pathSafety.js";
+import { assertRemoteMediaPath, assertRemoteThumbnailPath, assertRemoteSdPath, safeLocalFile } from "./pathSafety.js";
+import {
+  SETTABLE_PROPERTIES,
+  SETTABLE_PROPERTY_VALUES,
+  deleteRemoteFile,
+  isMutateAllowed,
+  setCameraProperty,
+  type CgiProbeResult,
+} from "../protocol/cameraMutate.js";
+import { MiVueProtocolError } from "../protocol/errors.js";
 
 type ConcreteCategory = Exclude<FileCategory, "unknown">;
 
@@ -279,6 +288,55 @@ export class CameraService {
       windowsHide: true,
     });
     child.unref();
+  }
+
+  cameraCapabilities(): {
+    mutateAllowed: boolean;
+    setProperties: readonly string[];
+    setPropertyValues: Readonly<Record<string, readonly string[]>>;
+  } {
+    return {
+      mutateAllowed: isMutateAllowed(),
+      setProperties: SETTABLE_PROPERTIES,
+      setPropertyValues: SETTABLE_PROPERTY_VALUES,
+    };
+  }
+
+  async setCameraProperty(property: string, value: string): Promise<CgiProbeResult> {
+    if (!isMutateAllowed()) throw new MiVueProtocolError("Mutate dezactivat: setează MIVUE_ALLOW_MUTATE=1");
+    return setCameraProperty(this.client.getTransport(), property, value, { requireAllowlist: true });
+  }
+
+  async deleteRemoteFiles(paths: readonly string[]): Promise<{
+    results: Array<{ path: string; ok: boolean; statusCode: number; message: string }>;
+  }> {
+    if (!isMutateAllowed()) throw new MiVueProtocolError("Mutate dezactivat: setează MIVUE_ALLOW_MUTATE=1");
+    if (paths.length === 0) throw new MiVueProtocolError("Nicio cale de șters");
+    if (paths.length > 50) throw new MiVueProtocolError("Prea multe fișiere (max 50)");
+    const results: Array<{ path: string; ok: boolean; statusCode: number; message: string }> = [];
+    for (const remotePath of paths) {
+      assertRemoteSdPath(remotePath);
+      try {
+        const probe = await deleteRemoteFile(this.client.getTransport(), remotePath);
+        const ok = probe.statusCode >= 200 && probe.statusCode < 300
+          && (probe.parsed === undefined || probe.parsed.code === 0);
+        results.push({
+          path: remotePath,
+          ok,
+          statusCode: probe.statusCode,
+          message: probe.parsed?.message ?? probe.bodyText,
+        });
+      } catch (error) {
+        results.push({
+          path: remotePath,
+          ok: false,
+          statusCode: error instanceof MiVueProtocolError ? (error.statusCode ?? 0) : 0,
+          message: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    if (results.some((item) => item.ok)) this.invalidateListCache();
+    return { results };
   }
 
   private rememberThumb(key: string, body: Uint8Array): void {

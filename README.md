@@ -10,7 +10,8 @@ Client CLI TypeScript experimental pentru interoperabilitate read-only cu camera
 - `download`: transferă streaming direct pe disc, cu progres, viteză, ETA, anulare și validarea dimensiunii;
 - `gpx`: convertește local sidecar-urile `.NMEA` în trasee GPX și verifică checksum-urile;
 - `web`: pornește dashboardul local cu miniaturi, filtre/sortare, progres real, redare AAC și traseu GPS sincronizat;
-- delete, setări și firmware: neimplementate;
+- delete/set pe cameră: experimental (`probe` + `MIVUE_ALLOW_MUTATE=1`);
+- firmware / format SD: neimplementate;
 - RTSP: ruta din APK este confirmată, dar firmware-ul testat nu publică live-view.
 
 ## Cerințe

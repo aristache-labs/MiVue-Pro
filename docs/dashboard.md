@@ -12,7 +12,7 @@ Interfața este disponibilă la `http://127.0.0.1:4173`. Portul poate fi schimba
 
 1. Citește secvențial informațiile și toate cele patru categorii ale camerei (cu cache listă ~25s).
 2. Filtrează local după categorie, favorite, dată (inclusiv presetări rapide), cameră, durată sau nume.
-3. Selecție multiplă: Descarcă / Șterge local în lot.
+3. Selecție multiplă: Descarcă / Șterge local / Șterge de pe cameră (camera necesită `MIVUE_ALLOW_MUTATE=1`).
 4. La selectarea unui clip, descarcă MP4 și NMEA numai dacă nu există deja.
 5. Copiază video H.264 fără recodare și convertește doar pista ADPCM în AAC.
 6. Parsează NMEA, validează checksum-urile și desenează traseul pe un canvas local (sau OSM opțional).
@@ -39,10 +39,20 @@ Interfața este disponibilă la `http://127.0.0.1:4173`. Portul poate fi schimba
 - nu există requesturi către tile-uri de hartă până la activarea hărții online;
 - căile remote trebuie să înceapă cu `/SD/`, iar dashboardul acceptă numai video pentru prepare;
 - fișierele locale sunt limitate la nume simple din folderul `downloads`;
-- DELETE `/api/local` șterge numai copii locale, niciodată pe cameră;
+- DELETE `/api/local` șterge numai copii locale;
+- `POST /api/camera/delete` / `set` sunt gated cu `MIVUE_ALLOW_MUTATE=1`;
 - corpurile JSON sunt limitate la 32 KiB;
 - răspunsurile includ CSP, `nosniff` și Referrer-Policy;
-- operațiile camerei rămân GET/HEAD read-only.
+- fără flag, operațiile camerei rămân read-only (GET/HEAD).
+
+## Administrare cameră (experimental)
+
+```powershell
+$env:MIVUE_ALLOW_MUTATE="1"
+npm run dev -- web --host 192.72.1.1
+```
+
+În Setări: citire UIMode/Broadcast/Camid + scriere `Camera.Menu.UIMode`. Ștergere pe card din Bibliotecă → Selectează. Format SD nu e în UI.
 
 ## Validare live
 

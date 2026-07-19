@@ -40,6 +40,15 @@ export interface DashboardService {
   localStorageSummary(): Promise<{ fileCount: number; totalBytes: number }>;
   deleteLocalFiles(names: readonly string[]): Promise<{ deleted: string[]; missing: string[] }>;
   openDownloadsFolder(): Promise<void>;
+  cameraCapabilities(): {
+    mutateAllowed: boolean;
+    setProperties: readonly string[];
+    setPropertyValues: Readonly<Record<string, readonly string[]>>;
+  };
+  setCameraProperty(property: string, value: string): Promise<unknown>;
+  deleteRemoteFiles(paths: readonly string[]): Promise<{
+    results: Array<{ path: string; ok: boolean; statusCode: number; message: string }>;
+  }>;
 }
 
 export function createDashboardServer(options: DashboardServerOptions): Server {
@@ -97,6 +106,49 @@ async function handleRequest(
   if (url.pathname === "/api/open-downloads" && request.method === "POST") {
     await service.openDownloadsFolder();
     sendJson(response, request, 200, { ok: true });
+    return;
+  }
+  if (url.pathname === "/api/camera/capabilities" && request.method === "GET") {
+    sendJson(response, request, 200, service.cameraCapabilities());
+    return;
+  }
+  if (url.pathname === "/api/camera/set" && request.method === "POST") {
+    const body = await readJsonBody(request);
+    const property = body["property"];
+    const value = body["value"];
+    if (typeof property !== "string" || typeof value !== "string") {
+      sendJson(response, request, 400, { error: "property și value sunt obligatorii" });
+      return;
+    }
+    try {
+      const result = await service.setCameraProperty(property, value);
+      sendJson(response, request, 200, result);
+    } catch (error) {
+      const message = publicError(error);
+      const status = /Mutate dezactivat|allowlist/i.test(message) ? 403 : 400;
+      sendJson(response, request, status, { error: message });
+    }
+    return;
+  }
+  if (url.pathname === "/api/camera/delete" && request.method === "POST") {
+    const body = await readJsonBody(request);
+    const paths = Array.isArray(body["paths"])
+      ? body["paths"].filter((item): item is string => typeof item === "string")
+      : typeof body["path"] === "string"
+        ? [body["path"]]
+        : [];
+    if (paths.length === 0) {
+      sendJson(response, request, 400, { error: "path sau paths lipsește" });
+      return;
+    }
+    try {
+      const result = await service.deleteRemoteFiles(paths);
+      sendJson(response, request, 200, result);
+    } catch (error) {
+      const message = publicError(error);
+      const status = /Mutate dezactivat/i.test(message) ? 403 : 400;
+      sendJson(response, request, status, { error: message });
+    }
     return;
   }
   if (url.pathname === "/api/local" && request.method === "DELETE") {

@@ -17,6 +17,13 @@ export function assertRemoteMediaPath(remotePath: string): void {
   if (!/\.(?:MP4|MOV)$/i.test(remotePath)) throw new Error("Dashboardul pregătește numai fișiere video");
 }
 
+/** Any file under /SD/ (video, photo, NMEA) — used for camera delete. */
+export function assertRemoteSdPath(remotePath: string): void {
+  if (!remotePath.startsWith("/SD/") || remotePath.includes("..") || /[\r\n]/.test(remotePath)) {
+    throw new Error("Cale remote invalidă");
+  }
+}
+
 export function assertRemoteThumbnailPath(remotePath: string): void {
   if (!remotePath.startsWith("/SD/") || remotePath.includes("..") || /[\r\n]/.test(remotePath)) {
     throw new Error("Cale remote invalidă");

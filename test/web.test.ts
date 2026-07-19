@@ -47,6 +47,19 @@ test("dashboard serves health, validates categories and supports media ranges", 
       return { deleted: [...names], missing: [] };
     },
     async openDownloadsFolder() {},
+    cameraCapabilities() {
+      return {
+        mutateAllowed: false,
+        setProperties: ["Camera.Menu.UIMode"],
+        setPropertyValues: { "Camera.Menu.UIMode": ["PLAYBACK"] },
+      };
+    },
+    async setCameraProperty() {
+      throw new Error("Mutate dezactivat: setează MIVUE_ALLOW_MUTATE=1");
+    },
+    async deleteRemoteFiles() {
+      throw new Error("Mutate dezactivat: setează MIVUE_ALLOW_MUTATE=1");
+    },
   };
   const server = createDashboardServer({ service, logger: silentLogger });
   await new Promise<void>((resolve, reject) => {
@@ -119,6 +132,21 @@ test("dashboard serves health, validates categories and supports media ranges", 
     assert.equal(opened.status, 200);
     assert.deepEqual(await opened.json(), { ok: true });
 
+    const caps = await fetch(`http://127.0.0.1:${port}/api/camera/capabilities`);
+    assert.equal(caps.status, 200);
+    assert.deepEqual(await caps.json(), {
+      mutateAllowed: false,
+      setProperties: ["Camera.Menu.UIMode"],
+      setPropertyValues: { "Camera.Menu.UIMode": ["PLAYBACK"] },
+    });
+
+    const blockedDelete = await fetch(`http://127.0.0.1:${port}/api/camera/delete`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paths: ["/SD/Normal/F/a.MP4"] }),
+    });
+    assert.equal(blockedDelete.status, 403);
+
     const appJs = await fetch(`http://127.0.0.1:${port}/app.js`);
     assert.equal(appJs.status, 200);
     assert.equal(appJs.headers.get("cache-control"), "no-cache");
@@ -155,6 +183,11 @@ test("dashboard gzips large /api/files when Accept-Encoding includes gzip", asyn
     async localStorageSummary() { return { fileCount: 0, totalBytes: 0 }; },
     async deleteLocalFiles() { return { deleted: [], missing: [] }; },
     async openDownloadsFolder() {},
+    cameraCapabilities() {
+      return { mutateAllowed: false, setProperties: [], setPropertyValues: {} };
+    },
+    async setCameraProperty() { throw new Error("unused"); },
+    async deleteRemoteFiles() { return { results: [] }; },
   };
   const server = createDashboardServer({ service, logger: silentLogger });
   await new Promise<void>((resolve, reject) => {

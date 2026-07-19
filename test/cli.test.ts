@@ -48,3 +48,40 @@ test("CLI parses local dashboard port", () => {
   assert.equal(result.host, "192.72.1.1");
   assert.equal(result.port, 4174);
 });
+
+test("CLI parses probe set dry-run", () => {
+  const result = parseCli([
+    "probe",
+    "set",
+    "--property",
+    "Camera.Menu.UIMode",
+    "--value",
+    "MENU",
+    "--dry-run",
+    "--host",
+    "192.72.1.1",
+  ]);
+  assert.equal(result.command, "probe");
+  assert.equal(result.probeAction, "set");
+  assert.equal(result.probeProperty, "Camera.Menu.UIMode");
+  assert.equal(result.probeValue, "MENU");
+  assert.equal(result.dryRun, true);
+  assert.equal(result.confirm, false);
+});
+
+test("CLI parses probe del with path and confirm", () => {
+  const result = parseCli([
+    "probe",
+    "del",
+    "--path",
+    "/SD/Normal/F/FILE.MP4",
+    "--confirm",
+  ]);
+  assert.equal(result.probeAction, "del");
+  assert.equal(result.remotePath, "/SD/Normal/F/FILE.MP4");
+  assert.equal(result.confirm, true);
+});
+
+test("CLI rejects probe del without path", () => {
+  assert.throws(() => parseCli(["probe", "del", "--confirm"]), /necesită --path/);
+});

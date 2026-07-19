@@ -99,7 +99,7 @@ APK-ul construiește URL-ul `rtsp://<ip>/liveRTSP/av4` când `Vendor.DeviceInfo.
 
 Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conține fraze standard `GPRMC`, `GPGGA`, `GPGSA`, `GPGSV` și extensia accelerometrului `$GSENSORD,x,y,z`. Eșantionarea observată este de un set pe secundă. Comanda `gpx` validează checksum-urile NMEA și exportă poziția, timpul UTC, altitudinea, viteza și direcția.
 
-## Comenzi observate în APK, dar neimplementate
+## Comenzi observate în APK (probe experimental)
 
 ```text
 /cgi-bin/Config.cgi?action=del&property=
@@ -109,4 +109,19 @@ Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conțin
 /cgi-bin/Config.cgi?action=set&property=SendStopLiveView&value=ON
 ```
 
-Acestea sunt dovezi statice, nu contracte confirmate pentru MiVue 866. `delete`, `set` și orice endpoint de firmware rămân dezactivate.
+Dovezi statice din APK. Pe MiVue 866 pot fi validate cu CLI:
+
+```powershell
+npm run dev -- probe get --property status --host 192.72.1.1
+npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK --dry-run
+npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK --confirm
+npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --dry-run
+npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --confirm
+```
+
+- `set` / `del` fără `--confirm` sunt dry-run.
+- Allowlist set: `Camera.Menu.UIMode` — valoare confirmată live: `PLAYBACK` (`MENU`/`UNKNOWN` → 701).
+- Delete confirmat live: `action=del&property=/SD/…` → `0 OK`, HEAD ulterior 404.
+- Format card SD: **exclus temporar**.
+- Dashboard mutate: `MIVUE_ALLOW_MUTATE=1`.
+- Firmware update rămâne dezactivat.

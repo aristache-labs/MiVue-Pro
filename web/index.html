@@ -138,6 +138,7 @@
                 <div class="bulk-actions">
                   <button id="bulkSelectAll" type="button" class="bulk-btn">Tot filtrat</button>
                   <button id="bulkDownload" type="button" class="bulk-btn primary hidden">Descarcă</button>
+                  <button id="bulkDeleteCamera" type="button" class="bulk-btn danger hidden">Șterge de pe cameră</button>
                   <button id="bulkDeleteLocal" type="button" class="bulk-btn danger hidden">Șterge local</button>
                   <button id="bulkClear" type="button" class="bulk-btn ghost hidden">Golește</button>
                 </div>
@@ -353,6 +354,25 @@
                     <li>Export GPX în lot</li>
                     <li>Preferințe descărcare avansate</li>
                   </ul>
+                </article>
+
+                <article class="settings-card" id="cameraAdminCard">
+                  <h3>Administrare cameră</h3>
+                  <p class="settings-desc">Citește și modifică setări CGI. Scrierea necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span> la pornirea serverului.</p>
+                  <dl class="settings-dl">
+                    <div><dt>Mutate</dt><dd id="cameraMutateStatus">—</dd></div>
+                    <div><dt>UIMode</dt><dd id="cameraUiMode" class="mono">—</dd></div>
+                    <div><dt>Broadcast</dt><dd id="cameraBroadcast" class="mono">—</dd></div>
+                    <div><dt>Camid</dt><dd id="cameraCamid" class="mono">—</dd></div>
+                  </dl>
+                  <div id="cameraSetControls" class="camera-set-controls hidden"></div>
+                  <p id="cameraSetEmpty" class="settings-note">Pentru a scrie setări: repornește web cu <span class="mono">$env:MIVUE_ALLOW_MUTATE="1"</span>.</p>
+                </article>
+
+                <article class="settings-card">
+                  <h3>Fișiere pe cameră / SD</h3>
+                  <p class="settings-desc">Ștergere de pe card: Bibliotecă → <strong>Selectează</strong> → bifă fișiere → <strong>Șterge de pe cameră</strong> (confirmare; bulk cere textul STERGE).</p>
+                  <p class="settings-note">Nu e același lucru cu „Șterge local”. Necesită tot <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
                 </article>
               </div>
             </section>

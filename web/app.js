@@ -14,6 +14,7 @@ const state = {
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
   lastTelemetryIndex: -1, telemetryRaf: 0,
   favorites: loadFavorites(), selection: new Set(), selectMode: false,
+  cameraCaps: { mutateAllowed: false, setProperties: [], setPropertyValues: {} },
   renderPlan: [], renderOffsets: null, stickyDateKey: null, visibleFiles: [], virtualScrollBound: false,
 };
 let thumbObserver = null;
@@ -54,6 +55,7 @@ const elements = {
   toastContainer: $("#toastContainer"), statusText: $("#statusText"), statusRetry: $("#statusRetry"),
   selectModeToggle: $("#selectModeToggle"), bulkBar: $("#bulkBar"), bulkCount: $("#bulkCount"),
   bulkSelectAll: $("#bulkSelectAll"), bulkDownload: $("#bulkDownload"),
+  bulkDeleteCamera: $("#bulkDeleteCamera"),
   bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"), bulkClose: $("#bulkClose"),
   storageFileCount: $("#storageFileCount"), storageTotalBytes: $("#storageTotalBytes"),
   refreshStorageBtn: $("#refreshStorageBtn"),
@@ -63,6 +65,9 @@ const elements = {
   sdNormalBar: $("#sdNormalBar"), sdParkingBar: $("#sdParkingBar"),
   sdEventBar: $("#sdEventBar"), sdPhotoBar: $("#sdPhotoBar"),
   listStickyDate: $("#listStickyDate"),
+  cameraMutateStatus: $("#cameraMutateStatus"),
+  cameraUiMode: $("#cameraUiMode"), cameraBroadcast: $("#cameraBroadcast"), cameraCamid: $("#cameraCamid"),
+  cameraSetControls: $("#cameraSetControls"), cameraSetEmpty: $("#cameraSetEmpty"),
 };
 
 function loadFavorites() {
@@ -266,7 +271,10 @@ function setView(view) {
   elements.topbarSearch.classList.toggle("hidden-search", view !== "library");
   elements.search.tabIndex = view === "library" ? 0 : -1;
   if (view === "library" && state.mapEnabled) setTimeout(() => state.map?.invalidateSize(), 0);
-  if (view === "settings") void refreshStorageStats();
+  if (view === "settings") {
+    void refreshStorageStats();
+    void refreshCameraAdmin();
+  }
 }
 
 document.querySelectorAll(".nav-btn[data-view]").forEach((button) => {
@@ -313,6 +321,7 @@ elements.statusRetry?.addEventListener("click", () => { void loadDashboard(true)
 elements.selectModeToggle?.addEventListener("click", toggleSelectMode);
 elements.bulkSelectAll?.addEventListener("click", selectAllFiltered);
 elements.bulkDownload?.addEventListener("click", () => { void bulkDownloadSelected(); });
+elements.bulkDeleteCamera?.addEventListener("click", () => { void bulkDeleteCameraSelected(); });
 elements.bulkDeleteLocal?.addEventListener("click", () => { void bulkDeleteLocalSelected(); });
 elements.bulkClear?.addEventListener("click", clearSelection);
 elements.bulkClose?.addEventListener("click", exitSelectMode);
@@ -391,10 +400,12 @@ async function loadDashboard(fresh = false) {
     syncSettingsPanel(true, "Camera conectată");
     setStatus("");
     renderFiles();
+    void refreshCameraAdmin();
   } catch (error) {
     elements.dot.classList.remove("online"); elements.connection.textContent = "Camera indisponibilă";
     syncSettingsPanel(false, "Camera indisponibilă");
     setStatus(error.message, true);
+    void refreshCameraAdmin();
   }
 }
 
@@ -1460,8 +1471,11 @@ function syncBulkBar() {
     : [];
   const canDownload = selected.some((file) => !file.locallyAvailable && !String(file.path).startsWith("/local/"));
   const canDeleteLocal = selected.some((file) => Boolean(file.locallyAvailable && file.localName));
+  const canDeleteCamera = state.cameraCaps.mutateAllowed
+    && selected.some((file) => !String(file.path).startsWith("/local/"));
 
   elements.bulkDownload?.classList.toggle("hidden", !canDownload);
+  elements.bulkDeleteCamera?.classList.toggle("hidden", !canDeleteCamera);
   elements.bulkDeleteLocal?.classList.toggle("hidden", !canDeleteLocal);
   elements.bulkClear?.classList.toggle("hidden", count === 0);
   elements.bulkBar?.classList.toggle("has-selection", count > 0);
@@ -1541,6 +1555,131 @@ async function bulkDeleteLocalSelected() {
     clearSelection();
     renderFiles();
     void refreshStorageStats();
+  } catch (error) {
+    showToast(error.message, "err");
+  }
+}
+
+async function bulkDeleteCameraSelected() {
+  const files = state.files.filter((file) => state.selection.has(file.path) && !String(file.path).startsWith("/local/"));
+  if (files.length === 0) {
+    showToast("Niciun fișier de pe cameră în selecție", "err");
+    return;
+  }
+  if (!state.cameraCaps.mutateAllowed) {
+    showToast("Mutate dezactivat pe server (MIVUE_ALLOW_MUTATE=1)", "err");
+    return;
+  }
+  if (!window.confirm(`Ștergi ${files.length} fișier(e) de pe cardul camerei? Acțiunea e ireversibilă.`)) return;
+  if (files.length > 1) {
+    const typed = window.prompt(`Tastează STERGE pentru a confirma ștergerea a ${files.length} fișiere:`);
+    if (typed !== "STERGE") {
+      showToast("Ștergerea a fost anulată", "err");
+      return;
+    }
+  }
+  try {
+    const result = await api("/api/camera/delete", {
+      method: "POST",
+      body: JSON.stringify({ paths: files.map((file) => file.path) }),
+    });
+    const ok = (result.results || []).filter((item) => item.ok).length;
+    const fail = (result.results || []).length - ok;
+    showToast(fail === 0 ? `Șterse de pe cameră: ${ok}` : `Șterse ${ok}, eșuate ${fail}`, fail ? "err" : "ok");
+    clearSelection();
+    await loadDashboard(true);
+  } catch (error) {
+    showToast(error.message, "err");
+  }
+}
+
+async function refreshCameraAdmin() {
+  try {
+    const caps = await api("/api/camera/capabilities");
+    state.cameraCaps = {
+      mutateAllowed: Boolean(caps.mutateAllowed),
+      setProperties: Array.isArray(caps.setProperties) ? caps.setProperties : [],
+      setPropertyValues: caps.setPropertyValues && typeof caps.setPropertyValues === "object"
+        ? caps.setPropertyValues
+        : {},
+    };
+  } catch {
+    state.cameraCaps = { mutateAllowed: false, setProperties: [], setPropertyValues: {} };
+  }
+
+  let props = {};
+  try {
+    const info = await api("/api/info");
+    props = info.properties || {};
+  } catch {
+    props = {};
+  }
+
+  if (elements.cameraMutateStatus) {
+    elements.cameraMutateStatus.textContent = state.cameraCaps.mutateAllowed ? "Activat" : "Oprit";
+  }
+  if (elements.cameraUiMode) {
+    elements.cameraUiMode.textContent = props["Camera.Menu.UIMode"] || "—";
+  }
+  if (elements.cameraBroadcast) {
+    elements.cameraBroadcast.textContent = props.broadcast || "—";
+  }
+  if (elements.cameraCamid) {
+    elements.cameraCamid.textContent = props["Camera.Preview.Source.1.Camid"] || "—";
+  }
+
+  const settable = state.cameraCaps.setProperties;
+  const canSet = state.cameraCaps.mutateAllowed && settable.length > 0;
+  elements.cameraSetEmpty?.classList.toggle("hidden", canSet);
+  elements.cameraSetControls?.classList.toggle("hidden", !canSet);
+  if (elements.cameraSetControls && canSet) {
+    elements.cameraSetControls.replaceChildren();
+    for (const property of settable) {
+      const row = document.createElement("div");
+      row.className = "camera-set-row";
+      const label = document.createElement("label");
+      label.textContent = property;
+      const known = state.cameraCaps.setPropertyValues?.[property];
+      let control;
+      if (Array.isArray(known) && known.length > 0) {
+        control = document.createElement("select");
+        for (const optionValue of known) {
+          const option = document.createElement("option");
+          option.value = optionValue;
+          option.textContent = optionValue;
+          if (optionValue === (props[property] || known[0])) option.selected = true;
+          control.append(option);
+        }
+      } else {
+        control = document.createElement("input");
+        control.type = "text";
+        control.placeholder = "valoare";
+        control.value = props[property] || "";
+      }
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = "settings-btn";
+      button.textContent = "Aplică";
+      button.addEventListener("click", () => {
+        void applyCameraSet(property, control.value);
+      });
+      row.append(label, control, button);
+      elements.cameraSetControls.append(row);
+    }
+  }
+  syncBulkBar();
+}
+
+async function applyCameraSet(property, value) {
+  if (!value.trim()) {
+    showToast("Completează valoarea", "err");
+    return;
+  }
+  if (!window.confirm(`Setezi ${property}=${value} pe cameră?`)) return;
+  try {
+    await api("/api/camera/set", { method: "POST", body: JSON.stringify({ property, value }) });
+    showToast(`Setat ${property}`, "ok");
+    void refreshCameraAdmin();
   } catch (error) {
     showToast(error.message, "err");
   }

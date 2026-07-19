@@ -1,6 +1,7 @@
 import type { FileCategory } from "./protocol/types.js";
+import type { ProbeAction } from "./commands/probe.js";
 
-export type CommandName = "discover" | "info" | "list" | "download" | "gpx" | "web" | "help";
+export type CommandName = "discover" | "info" | "list" | "download" | "gpx" | "web" | "probe" | "help";
 
 export interface CliOptions {
   readonly command: CommandName;
@@ -18,13 +19,19 @@ export interface CliOptions {
   readonly json: boolean;
   readonly debug: boolean;
   readonly port: number;
+  readonly probeAction?: ProbeAction;
+  readonly probeProperty?: string;
+  readonly probeValue?: string;
+  readonly dryRun: boolean;
+  readonly confirm: boolean;
 }
 
 const categories = new Set<FileCategory>(["normal", "event", "parking", "photo", "unknown"]);
+const probeActions = new Set<ProbeAction>(["get", "set", "del"]);
 
 export function parseCli(argv: readonly string[]): CliOptions {
   const commandText = argv[0] ?? "help";
-  const command: CommandName = commandText === "discover" || commandText === "info" || commandText === "list" || commandText === "download" || commandText === "gpx" || commandText === "web"
+  const command: CommandName = commandText === "discover" || commandText === "info" || commandText === "list" || commandText === "download" || commandText === "gpx" || commandText === "web" || commandText === "probe"
     ? commandText
     : commandText === "help" || commandText === "--help" || commandText === "-h"
       ? "help"
@@ -44,6 +51,11 @@ export function parseCli(argv: readonly string[]): CliOptions {
   let json = false;
   let debug = false;
   let port = 4_173;
+  let probeAction: ProbeAction | undefined;
+  let probeProperty: string | undefined;
+  let probeValue: string | undefined;
+  let dryRun = false;
+  let confirm = false;
 
   let firstOptionIndex = 1;
   if (command === "download" || command === "gpx") {
@@ -51,6 +63,12 @@ export function parseCli(argv: readonly string[]): CliOptions {
     if (value === undefined || value.startsWith("--")) fail(`Comanda ${command} necesită o cale`);
     if (command === "download") remotePath = value;
     else inputPath = value;
+    firstOptionIndex = 2;
+  } else if (command === "probe") {
+    const value = argv[1];
+    if (value === undefined || value.startsWith("--")) fail("probe necesită acțiunea: get|set|del");
+    if (!probeActions.has(value as ProbeAction)) fail(`Acțiune probe invalidă: ${value}`);
+    probeAction = value as ProbeAction;
     firstOptionIndex = 2;
   }
 
@@ -61,11 +79,16 @@ export function parseCli(argv: readonly string[]): CliOptions {
     else if (argument === "--debug") debug = true;
     else if (argument === "--all") all = true;
     else if (argument === "--summary") summary = true;
+    else if (argument === "--dry-run") dryRun = true;
+    else if (argument === "--confirm") confirm = true;
     else if (argument === "--host") host = requiredValue(argv, ++index, "--host");
     else if (argument === "--timeout") timeoutMs = positiveInteger(requiredValue(argv, ++index, "--timeout"), "--timeout");
     else if (argument === "--port") port = positiveInteger(requiredValue(argv, ++index, "--port"), "--port");
     else if (argument === "--count") count = positiveInteger(requiredValue(argv, ++index, "--count"), "--count");
     else if (argument === "--from") from = nonNegativeInteger(requiredValue(argv, ++index, "--from"), "--from");
+    else if (argument === "--property") probeProperty = requiredValue(argv, ++index, "--property");
+    else if (argument === "--value") probeValue = requiredValue(argv, ++index, "--value");
+    else if (argument === "--path") remotePath = requiredValue(argv, ++index, "--path");
     else if (argument === "--output") {
       const value = requiredValue(argv, ++index, "--output");
       if (command === "gpx") outputPath = value;
@@ -76,13 +99,29 @@ export function parseCli(argv: readonly string[]): CliOptions {
       if (!categories.has(value)) fail(`Categorie invalidă: ${value}`);
       category = value;
     } else if (argument === "--help" || argument === "-h") {
-      return { command: "help", timeoutMs, count, from, all, summary, outputDirectory, json, debug, port };
+      return {
+        command: "help",
+        timeoutMs,
+        count,
+        from,
+        all,
+        summary,
+        outputDirectory,
+        json,
+        debug,
+        port,
+        dryRun: false,
+        confirm: false,
+      };
     } else {
       fail(`Opțiune necunoscută: ${argument}`);
     }
   }
 
   if (all && from !== 0) fail("--all nu poate fi combinat cu --from");
+  if (command === "probe" && probeAction === "del" && remotePath === undefined) {
+    fail("probe del necesită --path /SD/...");
+  }
 
   return {
     command,
@@ -100,10 +139,15 @@ export function parseCli(argv: readonly string[]): CliOptions {
     json,
     debug,
     port,
+    ...(probeAction === undefined ? {} : { probeAction }),
+    ...(probeProperty === undefined ? {} : { probeProperty }),
+    ...(probeValue === undefined ? {} : { probeValue }),
+    dryRun,
+    confirm,
   };
 }
 
-export const usage = `MiVue 866 CLI — client read-only experimental
+export const usage = `MiVue 866 CLI — client experimental
 
 Utilizare:
   npm run dev -- discover [--host 192.72.1.1] [--debug]
@@ -114,12 +158,20 @@ Utilizare:
                          [--output ./downloads]
   npm run dev -- gpx <fișier.NMEA> [--output traseu.gpx]
   npm run dev -- web [--host 192.72.1.1] [--port 4173]
+  npm run dev -- probe get [--property status] [--host 192.72.1.1]
+  npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK [--dry-run|--confirm]
+  npm run dev -- probe del --path /SD/Parking/F/FILE.MP4 [--dry-run|--confirm]
 
 Opțiuni comune:
   --host <ip>       Folosește direct IP-ul camerei
   --timeout <ms>    Timeout per cerere (implicit 5000)
   --json            Output JSON
   --debug           Logging de diagnostic
+
+Probe (delete / set):
+  --dry-run         Afișează URL-ul fără a trimite set/del
+  --confirm         Execută set/del (un fișier / o property)
+  --property/--value/--path
 `;
 
 function requiredValue(argv: readonly string[], index: number, option: string): string {

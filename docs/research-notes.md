@@ -35,6 +35,27 @@ După reactivarea Wi-Fi-ului, executabilul compilat a validat cu succes pe dispo
 - sidecar-ul NMEA asociat are 3.730 bytes și șapte eșantioane GPS valide pentru clipul de aproximativ 6,76 secunde; exportul GPX a fost validat fără publicarea coordonatelor în log;
 - RTSP: `OPTIONS` răspunde pe portul 554, dar `DESCRIBE` primește 404 pe toate rutele cunoscute din APK; capabilitatea firmware este `LiveView=NO`.
 
-Toate cererile de validare au fost HTTP GET read-only.
+Toate cererile de validare (descoperire / list / download) au fost HTTP GET read-only.
+
+## Probe mutate (delete / set)
+
+Tooling: `npm run dev -- probe …`
+
+| Acțiune | Status pe MiVue 866 | Note |
+|---|---|---|
+| `action=get` status / UIMode | **confirmat** | UIMode citește `UNKNOWN` când e în recording |
+| `action=set` UIMode=`PLAYBACK` | **confirmat** `0 OK` | |
+| `action=set` UIMode=`MENU` / `UNKNOWN` | **701 Illegal Parameter** | |
+| `action=set` SendStopLiveView | **703** Unknown CGI-PARAM | Nu există pe 866 |
+| `action=del` | **confirmat live** | `0 OK`; HEAD post-del → 404. Ex.: `/SD/Parking/F/PARK260718-003630F.MP4` |
+| Format SD | **exclus temporar** | |
+
+Formă CGI confirmată:
+
+```text
+GET /cgi-bin/Config.cgi?action=del&property=/SD/Parking/F/<nume>.MP4
+```
+
+Path-ul trebuie să corespundă categoriei reale (`FILE…` → `/SD/Normal/…`, `PARK…` → `/SD/Parking/…`).
 
 Nu stocăm parola rețelei în repository, documentație sau loguri.

@@ -5,6 +5,7 @@ import { runDownload } from "./commands/download.js";
 import { runExportGpx } from "./commands/exportGpx.js";
 import { runInfo } from "./commands/info.js";
 import { runList } from "./commands/listFiles.js";
+import { runProbe } from "./commands/probe.js";
 import { runWeb } from "./commands/web.js";
 import type { CommandContext } from "./commands/context.js";
 import { createLogger } from "./utils/logger.js";
@@ -48,6 +49,16 @@ async function main(): Promise<void> {
     });
   } else if (options.command === "web") {
     await runWeb(context, options.port);
+  } else if (options.command === "probe") {
+    if (options.probeAction === undefined) throw new Error("Lipsește acțiunea probe");
+    await runProbe(context, {
+      action: options.probeAction,
+      dryRun: options.dryRun,
+      confirm: options.confirm,
+      ...(options.probeProperty === undefined ? {} : { property: options.probeProperty }),
+      ...(options.probeValue === undefined ? {} : { value: options.probeValue }),
+      ...(options.remotePath === undefined ? {} : { remotePath: options.remotePath }),
+    });
   }
 }
 

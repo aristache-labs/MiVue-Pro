@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MiVueClient, MiVueProtocolError } from "../src/protocol/mivueClient.js";
+import { MiVueProtocolError } from "../src/protocol/errors.js";
+import { MiVueClient } from "../src/protocol/mivueClient.js";
 import type { Transport, TransportRequest, TransportResponse } from "../src/transport/types.js";
 
 class MockTransport implements Transport {
@@ -105,6 +106,21 @@ test("listAllFiles starts pagination at zero for every category", async () => {
     transport.requests.map((request) => request.path.match(/property=([^&]+).*from=(\d+)/)?.slice(1)),
     [["Normal", "0"], ["Event", "0"], ["Parking", "0"], ["Photo", "0"]],
   );
+});
+
+test("getInfo skips properties rejected by the camera", async () => {
+  const transport = new SequenceTransport([
+    { statusCode: 200, headers: { server: "AIT" }, body: Buffer.from("0\nOK\n") },
+    { statusCode: 200, headers: {}, body: Buffer.from("799\nInternal Error\n") },
+    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nCamera.Menu.UIMode=MENU\n") },
+    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nCamera.Preview.Source.1.Camid=F\n") },
+    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nVendor.DeviceInfo.1080P=YES\n") },
+  ]);
+  const client = new MiVueClient({ host: "192.72.1.1", httpPort: 80, rtspPort: 554 }, transport);
+  const info = await client.getInfo();
+  assert.equal(info.properties["Camera.Menu.UIMode"], "MENU");
+  assert.equal(info.properties.broadcast, undefined);
+  assert.equal(info.server, "AIT");
 });
 
 function xmlResponse(xml: string): TransportResponse {

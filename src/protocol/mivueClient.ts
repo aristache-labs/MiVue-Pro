@@ -1,5 +1,12 @@
 import type { Transport, TransportResponse } from "../transport/types.js";
 import { parseConfigResponse, parseFileListXml } from "./parser.js";
+import {
+  deleteRemoteFile as mutateDeleteRemoteFile,
+  probeCgi as mutateProbeCgi,
+  setCameraProperty,
+  type CgiProbeResult,
+} from "./cameraMutate.js";
+import { MiVueProtocolError } from "./errors.js";
 import type {
   CameraEndpoint,
   CameraInfo,
@@ -9,6 +16,9 @@ import type {
   FileListResponse,
   RemoteFile,
 } from "./types.js";
+
+export { MiVueProtocolError } from "./errors.js";
+export type { CgiProbeResult };
 
 export interface ListFilesOptions {
   readonly count?: number;
@@ -33,13 +43,6 @@ const FILE_PROPERTIES: Readonly<Record<Exclude<FileCategory, "unknown">, string>
 };
 
 const ALL_FILE_CATEGORIES = Object.freeze(Object.keys(FILE_PROPERTIES) as Exclude<FileCategory, "unknown">[]);
-
-export class MiVueProtocolError extends Error {
-  constructor(message: string, readonly statusCode?: number) {
-    super(message);
-    this.name = "MiVueProtocolError";
-  }
-}
 
 export class MiVueClient {
   constructor(
@@ -67,15 +70,19 @@ export class MiVueClient {
 
   async getInfo(signal?: AbortSignal): Promise<CameraInfo> {
     const statusResponse = await this.requestConfig("status", signal);
-    const properties: Record<string, string> = {};
+    const properties: Record<string, string> = { ...statusResponse.parsed.properties };
     for (const property of [
       "broadcast",
       "Camera.Menu.UIMode",
       "Camera.Preview.Source.1.Camid",
       "Vendor.DeviceInfo.1080P",
     ]) {
-      const result = await this.getProperty(property, signal);
-      Object.assign(properties, result.properties);
+      try {
+        const result = await this.getProperty(property, signal);
+        Object.assign(properties, result.properties);
+      } catch {
+        // Camera AIT returns 799 Internal Error for some properties intermittently.
+      }
     }
 
     return {
@@ -174,6 +181,32 @@ export class MiVueClient {
       path: remotePath,
       ...(signal === undefined ? {} : { signal }),
     });
+  }
+
+  /** Low-level CGI probe (get/dir/del/set). Prefer dedicated helpers for mutate. */
+  async probeCgi(
+    action: string,
+    params: Readonly<Record<string, string>>,
+    signal?: AbortSignal,
+  ): Promise<CgiProbeResult> {
+    return mutateProbeCgi(this.transport, action, params, signal);
+  }
+
+  async setProperty(
+    property: string,
+    value: string,
+    options?: { signal?: AbortSignal; requireAllowlist?: boolean },
+  ): Promise<CgiProbeResult> {
+    return setCameraProperty(this.transport, property, value, options);
+  }
+
+  async deleteRemoteFile(remotePath: string, signal?: AbortSignal): Promise<CgiProbeResult> {
+    return mutateDeleteRemoteFile(this.transport, remotePath, signal);
+  }
+
+  /** Expose transport for probe CLI / gated mutate helpers. */
+  getTransport(): Transport {
+    return this.transport;
   }
 
   private async requestConfig(
