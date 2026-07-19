@@ -43,7 +43,7 @@ Selectarea unei filmări nu pornește niciun transfer. Descărcarea începe numa
 
 - lista de fișiere este cache-uită ~25s pe server; butonul Reîncarcă forțează refresh (`?refresh=1`);
 - `/api/files` poate fi comprimat gzip; fișierele statice folosesc ETag + `no-cache`;
-- lista din browser folosește lazy thumbnails, virtualizare peste ~80 rânduri și densitate Compact/Confortabil;
+- lista din browser folosește lazy thumbnails și virtualizare peste ~80 rânduri;
 - dacă proiectul stă pe OneDrive, exclude folderul `downloads/` din sincronizare (Settings OneDrive → Choose folders). Scrierile MP4/thumbnail pe un folder sincronizat pot încetini Node.
 
 Downloadul scrie mai întâi `<fișier>.part` și redenumește fișierul numai după ce dimensiunea primită corespunde cu `Content-Length`. `Ctrl+C` anulează transferul și păstrează fișierul `.part` pentru diagnostic. Fișierele existente nu sunt suprascrise.

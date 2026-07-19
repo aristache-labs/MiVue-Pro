@@ -1,11 +1,8 @@
 const THEME_KEY = "mivue-theme";
-const DENSITY_KEY = "mivue-density";
 const FAVORITES_KEY = "mivue-favorites";
 const VIEW_TITLES = { library: "Bibliotecă", settings: "Setări" };
-const ROW_H_COMPACT = 48;
-const ROW_H_COMFORT = 64;
-const SEP_H_COMPACT = 28;
-const SEP_H_COMFORT = 32;
+const ROW_H = 56;
+const SEP_H = 28;
 const VIRTUAL_THRESHOLD = 80;
 const VIRTUAL_BUFFER = 12;
 
@@ -77,11 +74,11 @@ function saveFavorites() {
 }
 
 function rowHeight() {
-  return document.documentElement.getAttribute("data-density") === "comfortable" ? ROW_H_COMFORT : ROW_H_COMPACT;
+  return ROW_H;
 }
 
 function sepHeight() {
-  return document.documentElement.getAttribute("data-density") === "comfortable" ? SEP_H_COMFORT : SEP_H_COMPACT;
+  return SEP_H;
 }
 
 function itemHeight(item) {
@@ -238,7 +235,6 @@ function cycleTheme() {
 }
 
 applyTheme(readThemePref());
-applyDensity(localStorage.getItem(DENSITY_KEY) === "comfortable" ? "comfortable" : "compact");
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (readThemePref() === "system") applyTheme("system");
 });
@@ -246,19 +242,6 @@ elements.themeToggle.addEventListener("click", cycleTheme);
 document.querySelectorAll('input[name="themePref"]').forEach((input) => {
   input.addEventListener("change", () => { if (input.checked) applyTheme(input.value); });
 });
-document.querySelectorAll('input[name="densityPref"]').forEach((input) => {
-  input.addEventListener("change", () => { if (input.checked) applyDensity(input.value); });
-});
-
-function applyDensity(pref) {
-  const density = pref === "comfortable" ? "comfortable" : "compact";
-  document.documentElement.setAttribute("data-density", density);
-  localStorage.setItem(DENSITY_KEY, density);
-  document.querySelectorAll('input[name="densityPref"]').forEach((input) => {
-    input.checked = input.value === density;
-  });
-  if (state.renderPlan.length) renderFiles();
-}
 
 /* ——— Views ——— */
 function setView(view) {
@@ -601,15 +584,28 @@ function fileRow(file) {
     thumbnail.addEventListener("load", () => placeholder.classList.add("hidden"));
     thumbnail.addEventListener("error", () => thumbnail.remove()); icon.append(thumbnail);
   }
+
   const main = document.createElement("div"); main.className = "file-main";
+  const titleRow = document.createElement("div"); titleRow.className = "file-title-row";
   const title = document.createElement("strong"); title.textContent = file.name;
-  const date = document.createElement("span"); date.textContent = formatDate(file.recordedAt);
   const category = document.createElement("i"); category.className = "category-pill"; category.textContent = file.category;
-  main.append(title, date, category);
+  titleRow.append(title, category);
+  const date = document.createElement("span"); date.className = "file-date"; date.textContent = formatDate(file.recordedAt);
+  main.append(titleRow, date);
+
   const meta = document.createElement("div"); meta.className = "file-meta";
-  const details = document.createElement("span"); details.className = "file-meta-details";
-  details.innerHTML = `${formatDuration(file.durationSeconds)}<br>${formatBytes(file.sizeBytes)}`;
+  const details = document.createElement("div"); details.className = "file-meta-details";
+  const timeLine = document.createElement("div"); timeLine.textContent = `Time: ${formatDuration(file.durationSeconds)}`;
+  const sizeLine = document.createElement("div"); sizeLine.textContent = `Mărime: ${formatBytes(file.sizeBytes)}`;
+  details.append(timeLine, sizeLine);
+
   const actions = document.createElement("div"); actions.className = "download-actions"; actions.dataset.path = file.path;
+  const download = document.createElement("button"); download.className = "download-button"; download.type = "button"; download.dataset.path = file.path;
+  const cancel = document.createElement("button"); cancel.className = "download-cancel hidden"; cancel.type = "button"; cancel.dataset.path = file.path; cancel.textContent = "✕"; cancel.title = "Anulează"; cancel.setAttribute("aria-label", "Anulează descărcarea");
+  updateDownloadActions(actions, download, cancel, file, state.downloadJobs.get(file.path));
+  download.addEventListener("click", (event) => { event.stopPropagation(); void queueDownload(file); });
+  cancel.addEventListener("click", (event) => { event.stopPropagation(); void cancelDownload(file.path); });
+
   const fav = document.createElement("button");
   fav.type = "button";
   fav.className = `fav-btn${state.favorites.has(file.path) ? " active" : ""}`;
@@ -622,12 +618,8 @@ function fileRow(file) {
     fav.classList.toggle("active", state.favorites.has(file.path));
     fav.textContent = state.favorites.has(file.path) ? "★" : "☆";
   });
-  const download = document.createElement("button"); download.className = "download-button"; download.type = "button"; download.dataset.path = file.path;
-  const cancel = document.createElement("button"); cancel.className = "download-cancel hidden"; cancel.type = "button"; cancel.dataset.path = file.path; cancel.textContent = "✕"; cancel.title = "Anulează"; cancel.setAttribute("aria-label", "Anulează descărcarea");
-  updateDownloadActions(actions, download, cancel, file, state.downloadJobs.get(file.path));
-  download.addEventListener("click", (event) => { event.stopPropagation(); void queueDownload(file); });
-  cancel.addEventListener("click", (event) => { event.stopPropagation(); void cancelDownload(file.path); });
-  actions.append(fav, download, cancel);
+
+  actions.append(download, cancel);
   if (file.locallyAvailable && file.localName) {
     const del = document.createElement("button");
     del.type = "button";
@@ -640,7 +632,7 @@ function fileRow(file) {
     });
     actions.append(del);
   }
-  meta.append(details, actions);
+  meta.append(details, actions, fav);
   row.append(check, icon, main, meta);
   row.addEventListener("click", () => {
     if (state.selectMode) {
