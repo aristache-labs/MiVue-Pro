@@ -43,12 +43,14 @@ export type PrepareProgressCallback = (progress: PrepareProgress) => void;
 export class CameraService {
   private readonly client: MiVueClient;
   private readonly thumbnailTransport: HttpTransport;
-  private thumbnailQueue: Promise<void> = Promise.resolve();
+  private thumbnailActive = 0;
+  private readonly thumbnailWaiters: Array<() => void> = [];
   private listCache: { key: string; files: DashboardFile[]; fetchedAt: number } | null = null;
   private readonly thumbMemory = new Map<string, Uint8Array>();
   private readonly thumbMemoryOrder: string[] = [];
   private static readonly LIST_TTL_MS = 25_000;
   private static readonly THUMB_MEM_MAX = 64;
+  private static readonly THUMB_CONCURRENCY = 2;
 
   constructor(
     private readonly endpoint: CameraEndpoint,
@@ -187,7 +189,8 @@ export class CameraService {
       return fromDisk;
     }
 
-    const task = this.thumbnailQueue.then(async () => {
+    await this.acquireThumbnailSlot();
+    try {
       const again = this.thumbMemory.get(cacheName);
       if (again) return again;
       if (await exists(cachePath)) {
@@ -208,9 +211,74 @@ export class CameraService {
       }
       this.rememberThumb(cacheName, response.body);
       return response.body;
+    } finally {
+      this.releaseThumbnailSlot();
+    }
+  }
+
+  private acquireThumbnailSlot(): Promise<void> {
+    if (this.thumbnailActive < CameraService.THUMB_CONCURRENCY) {
+      this.thumbnailActive += 1;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      this.thumbnailWaiters.push(() => {
+        this.thumbnailActive += 1;
+        resolve();
+      });
     });
-    this.thumbnailQueue = task.then(() => undefined, () => undefined);
-    return task;
+  }
+
+  private releaseThumbnailSlot(): void {
+    this.thumbnailActive = Math.max(0, this.thumbnailActive - 1);
+    const next = this.thumbnailWaiters.shift();
+    if (next) next();
+  }
+
+  async localStorageSummary(): Promise<{ fileCount: number; totalBytes: number }> {
+    let fileCount = 0;
+    let totalBytes = 0;
+    try {
+      for (const entry of await readdir(this.downloadsDirectory, { withFileTypes: true })) {
+        if (!entry.isFile()) continue;
+        fileCount += 1;
+        try {
+          totalBytes += (await stat(safeLocalFile(this.downloadsDirectory, entry.name))).size;
+        } catch {
+          // skip unreadable entries
+        }
+      }
+    } catch (error) {
+      if (!isNodeError(error) || error.code !== "ENOENT") throw error;
+    }
+    return { fileCount, totalBytes };
+  }
+
+  async deleteLocalFiles(names: readonly string[]): Promise<{ deleted: string[]; missing: string[] }> {
+    const deleted: string[] = [];
+    const missing: string[] = [];
+    for (const name of names) {
+      const path = safeLocalFile(this.downloadsDirectory, name);
+      try {
+        await unlink(path);
+        deleted.push(name);
+      } catch (error) {
+        if (isNodeError(error) && error.code === "ENOENT") missing.push(name);
+        else throw error;
+      }
+    }
+    if (deleted.length > 0) this.invalidateListCache();
+    return { deleted, missing };
+  }
+
+  async openDownloadsFolder(): Promise<void> {
+    await mkdir(this.downloadsDirectory, { recursive: true });
+    const child = spawn("explorer.exe", [this.downloadsDirectory], {
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    child.unref();
   }
 
   private rememberThumb(key: string, body: Uint8Array): void {

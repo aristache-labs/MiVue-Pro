@@ -117,13 +117,27 @@
                   <button class="tab" data-category="parking" type="button">Parking</button>
                   <button class="tab" data-category="event" type="button">Eveniment</button>
                   <button class="tab" data-category="photo" type="button">Poze</button>
+                  <button class="tab" data-category="favorites" type="button">Favorite</button>
                 </div>
-                <button id="filtersToggle" class="filters-toggle" type="button" aria-expanded="false" aria-controls="filtersPanel">
-                  Filtre
-                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
-                    <path d="M2 4.2 6 8l4-3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </button>
+                <div class="toolbar-actions">
+                  <button id="selectModeToggle" class="filters-toggle" type="button" aria-pressed="false" title="Mod selecție">Selectează</button>
+                  <button id="filtersToggle" class="filters-toggle" type="button" aria-expanded="false" aria-controls="filtersPanel">
+                    Filtre
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M2 4.2 6 8l4-3.8" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div id="bulkBar" class="bulk-bar hidden" aria-label="Acțiuni lot">
+                <span id="bulkCount">0 selectate</span>
+                <div class="bulk-actions">
+                  <button id="bulkSelectAll" type="button" class="bulk-btn">Tot filtrat</button>
+                  <button id="bulkDownload" type="button" class="bulk-btn">Descarcă</button>
+                  <button id="bulkDeleteLocal" type="button" class="bulk-btn">Șterge local</button>
+                  <button id="bulkClear" type="button" class="bulk-btn ghost">Anulează</button>
+                </div>
               </div>
 
               <div id="filtersPanel" class="filters collapsed" aria-label="Filtre și sortare" hidden>
@@ -175,6 +189,12 @@
                       <span id="datePickerLabel">Orice dată</span>
                     </button>
                     <div id="datePickerPopup" class="date-picker-popup hidden" role="dialog" aria-label="Selector perioadă">
+                      <div class="dp-presets" role="group" aria-label="Presetări rapide">
+                        <button type="button" class="dp-preset" data-preset="today">Azi</button>
+                        <button type="button" class="dp-preset" data-preset="7d">7 zile</button>
+                        <button type="button" class="dp-preset" data-preset="month">Luna aceasta</button>
+                        <button type="button" class="dp-preset" data-preset="all">Tot</button>
+                      </div>
                       <div class="dp-modes" role="tablist" aria-label="Mod perioadă">
                         <button type="button" class="dp-mode active" data-mode="single">O zi</button>
                         <button type="button" class="dp-mode" data-mode="range">Interval</button>
@@ -206,7 +226,10 @@
               </div>
 
               <div id="resultCount" class="result-count"></div>
-              <div id="statusMessage" class="status-message">Se citesc fișierele camerei…</div>
+              <div id="statusMessage" class="status-message">
+                <span id="statusText">Se citesc fișierele camerei…</span>
+                <button id="statusRetry" class="status-retry hidden" type="button">Reîncearcă</button>
+              </div>
               <div id="fileList" class="file-list" aria-live="polite"></div>
             </div>
 
@@ -304,6 +327,17 @@
                   <span>Sistem</span>
                 </label>
               </div>
+              <p class="settings-desc" style="margin-top:14px">Densitate listă</p>
+              <div class="theme-options" role="radiogroup" aria-label="Densitate">
+                <label class="theme-option">
+                  <input type="radio" name="densityPref" value="compact" checked>
+                  <span>Compact</span>
+                </label>
+                <label class="theme-option">
+                  <input type="radio" name="densityPref" value="comfortable">
+                  <span>Confortabil</span>
+                </label>
+              </div>
             </article>
 
             <article class="settings-card">
@@ -320,13 +354,25 @@
               </dl>
             </article>
 
+            <article class="settings-card">
+              <h2>Spațiu local</h2>
+              <p class="settings-desc">Copii descărcate pe acest laptop (folderul <span class="mono">downloads/</span>).</p>
+              <dl class="settings-dl">
+                <div><dt>Fișiere</dt><dd id="storageFileCount">—</dd></div>
+                <div><dt>Ocupat</dt><dd id="storageTotalBytes">—</dd></div>
+              </dl>
+              <div class="settings-actions">
+                <button id="openDownloadsBtn" class="settings-btn" type="button">Deschide folderul</button>
+                <button id="refreshStorageBtn" class="settings-btn ghost" type="button">Reîmprospătează</button>
+              </div>
+            </article>
+
             <article class="settings-card settings-soon">
               <h2>În curând</h2>
-              <p class="settings-desc">Spațiu rezervat pentru setări și funcții viitoare (export, preferințe download, etc.).</p>
+              <p class="settings-desc">Spațiu rezervat pentru setări și funcții viitoare.</p>
               <ul class="soon-list">
-                <li>Preferințe descărcare</li>
                 <li>Export GPX în lot</li>
-                <li>Alte instrumente locale</li>
+                <li>Preferințe descărcare avansate</li>
               </ul>
             </article>
 
@@ -336,6 +382,8 @@
       </main>
     </div>
   </div>
+
+  <div id="toastContainer" class="toast-container" aria-live="polite" aria-relevant="additions"></div>
 
   <script src="/vendor/leaflet.js"></script>
   <script type="module" src="/app.js"></script>

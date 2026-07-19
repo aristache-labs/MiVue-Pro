@@ -1,5 +1,11 @@
 const THEME_KEY = "mivue-theme";
+const DENSITY_KEY = "mivue-density";
+const FAVORITES_KEY = "mivue-favorites";
 const VIEW_TITLES = { library: "Bibliotecă", settings: "Setări" };
+const ROW_H_COMPACT = 56;
+const ROW_H_COMFORT = 68;
+const VIRTUAL_THRESHOLD = 80;
+const VIRTUAL_BUFFER = 12;
 
 const state = {
   files: [], category: "all", query: "", telemetry: [], selectedPath: null,
@@ -8,6 +14,8 @@ const state = {
   map: null, mapRoute: null, mapProgress: null, mapMarker: null, mapHasFit: false, mapFollow: true,
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
   lastTelemetryIndex: -1, telemetryRaf: 0,
+  favorites: loadFavorites(), selection: new Set(), selectMode: false,
+  renderPlan: [], visibleFiles: [], virtualScrollBound: false,
 };
 let thumbObserver = null;
 const datePicker = {
@@ -44,7 +52,44 @@ const elements = {
   settingsParking: $("#settingsParking"), settingsEvent: $("#settingsEvent"), settingsPhoto: $("#settingsPhoto"),
   downloadsButton: $("#downloadsButton"), downloadsPanel: $("#downloadsPanel"),
   downloadsBadge: $("#downloadsBadge"), downloadsList: $("#downloadsList"), downloadsEmpty: $("#downloadsEmpty"),
+  toastContainer: $("#toastContainer"), statusText: $("#statusText"), statusRetry: $("#statusRetry"),
+  selectModeToggle: $("#selectModeToggle"), bulkBar: $("#bulkBar"), bulkCount: $("#bulkCount"),
+  bulkSelectAll: $("#bulkSelectAll"), bulkDownload: $("#bulkDownload"),
+  bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"),
+  storageFileCount: $("#storageFileCount"), storageTotalBytes: $("#storageTotalBytes"),
+  openDownloadsBtn: $("#openDownloadsBtn"), refreshStorageBtn: $("#refreshStorageBtn"),
 };
+
+function loadFavorites() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(FAVORITES_KEY) || "[]");
+    return new Set(Array.isArray(raw) ? raw.filter((item) => typeof item === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveFavorites() {
+  localStorage.setItem(FAVORITES_KEY, JSON.stringify([...state.favorites]));
+}
+
+function rowHeight() {
+  return document.documentElement.getAttribute("data-density") === "comfortable" ? ROW_H_COMFORT : ROW_H_COMPACT;
+}
+
+function scheduleIdle(fn) {
+  if (typeof requestIdleCallback === "function") requestIdleCallback(() => fn(), { timeout: 180 });
+  else setTimeout(fn, 32);
+}
+
+function showToast(message, variant = "ok") {
+  if (!elements.toastContainer) return;
+  const toast = document.createElement("div");
+  toast.className = `toast ${variant}`;
+  toast.textContent = message;
+  elements.toastContainer.append(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
 
 /* ——— Theme ——— */
 function readThemePref() {
@@ -76,6 +121,7 @@ function cycleTheme() {
 }
 
 applyTheme(readThemePref());
+applyDensity(localStorage.getItem(DENSITY_KEY) === "comfortable" ? "comfortable" : "compact");
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
   if (readThemePref() === "system") applyTheme("system");
 });
@@ -83,6 +129,19 @@ elements.themeToggle.addEventListener("click", cycleTheme);
 document.querySelectorAll('input[name="themePref"]').forEach((input) => {
   input.addEventListener("change", () => { if (input.checked) applyTheme(input.value); });
 });
+document.querySelectorAll('input[name="densityPref"]').forEach((input) => {
+  input.addEventListener("change", () => { if (input.checked) applyDensity(input.value); });
+});
+
+function applyDensity(pref) {
+  const density = pref === "comfortable" ? "comfortable" : "compact";
+  document.documentElement.setAttribute("data-density", density);
+  localStorage.setItem(DENSITY_KEY, density);
+  document.querySelectorAll('input[name="densityPref"]').forEach((input) => {
+    input.checked = input.value === density;
+  });
+  if (state.renderPlan.length) scheduleIdle(() => renderFiles());
+}
 
 /* ——— Views ——— */
 function setView(view) {
@@ -102,6 +161,7 @@ function setView(view) {
   elements.topbarSearch.classList.toggle("hidden-search", view !== "library");
   elements.search.tabIndex = view === "library" ? 0 : -1;
   if (view === "library" && state.mapEnabled) setTimeout(() => state.map?.invalidateSize(), 0);
+  if (view === "settings") void refreshStorageStats();
 }
 
 document.querySelectorAll(".nav-btn[data-view]").forEach((button) => {
@@ -138,14 +198,23 @@ document.querySelectorAll(".tab").forEach((button) => button.addEventListener("c
 document.querySelectorAll(".stat-chip[data-category]").forEach((chip) => {
   chip.addEventListener("click", () => setCategory(chip.dataset.category));
 });
-elements.search.addEventListener("input", () => { state.query = elements.search.value.toLowerCase(); scheduleRenderFiles(); });
-elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; scheduleRenderFiles(); });
-elements.cameraFilter.addEventListener("change", () => { state.camera = elements.cameraFilter.value; scheduleRenderFiles(); });
-elements.durationFilter.addEventListener("change", () => { state.duration = elements.durationFilter.value; scheduleRenderFiles(); });
-elements.availabilityFilter.addEventListener("change", () => { state.availability = elements.availabilityFilter.value; scheduleRenderFiles(); });
+elements.search.addEventListener("input", () => { state.query = elements.search.value.toLowerCase(); scheduleRenderFiles(true); });
+elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; scheduleRenderFiles(false); });
+elements.cameraFilter.addEventListener("change", () => { state.camera = elements.cameraFilter.value; scheduleRenderFiles(false); });
+elements.durationFilter.addEventListener("change", () => { state.duration = elements.durationFilter.value; scheduleRenderFiles(false); });
+elements.availabilityFilter.addEventListener("change", () => { state.availability = elements.availabilityFilter.value; scheduleRenderFiles(false); });
 elements.clearFilters.addEventListener("click", clearFilters);
+elements.statusRetry?.addEventListener("click", () => { void loadDashboard(true); });
+elements.selectModeToggle?.addEventListener("click", toggleSelectMode);
+elements.bulkSelectAll?.addEventListener("click", selectAllFiltered);
+elements.bulkDownload?.addEventListener("click", () => { void bulkDownloadSelected(); });
+elements.bulkDeleteLocal?.addEventListener("click", () => { void bulkDeleteLocalSelected(); });
+elements.bulkClear?.addEventListener("click", clearSelection);
+elements.openDownloadsBtn?.addEventListener("click", () => { void openDownloadsFolder(); });
+elements.refreshStorageBtn?.addEventListener("click", () => { void refreshStorageStats(); });
 wireDatePicker();
 syncDatePickerLabel();
+syncBulkBar();
 elements.mapToggle.addEventListener("click", toggleMap);
 elements.mapRecenter.addEventListener("click", () => recenterMapOnPin(true));
 elements.mapFitRoute.addEventListener("click", fitMapToRoute);
@@ -155,6 +224,10 @@ elements.prepareCancel.addEventListener("click", () => {
 });
 elements.video.addEventListener("timeupdate", updateTelemetryMarker);
 window.addEventListener("resize", () => { if (state.mapEnabled) state.map?.invalidateSize(); else drawRoute(currentSampleIndex()); });
+elements.list.addEventListener("scroll", () => {
+  if (!state.virtualScrollBound || state.renderPlan.length < VIRTUAL_THRESHOLD) return;
+  scheduleIdle(() => paintVirtualWindow(state.renderToken));
+});
 
 function setCategory(category) {
   state.category = category || "all";
@@ -164,7 +237,7 @@ function setCategory(category) {
   document.querySelectorAll(".stat-chip[data-category]").forEach((chip) => {
     chip.classList.toggle("active", chip.dataset.category === state.category);
   });
-  scheduleRenderFiles();
+  scheduleRenderFiles(false);
 }
 
 function countByCategory(category) {
@@ -199,6 +272,7 @@ function syncSettingsPanel(online, message) {
 }
 
 async function loadDashboard(fresh = false) {
+  showSkeleton();
   setStatus(fresh ? "Se reîmprospătează lista…" : "Se citesc camera și înregistrările…");
   try {
     // Serverul AIT vechi răspunde intermitent cu 404 la cereri CGI concurente.
@@ -208,7 +282,8 @@ async function loadDashboard(fresh = false) {
     updateLibraryStats(info.endpoint.host);
     elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
     syncSettingsPanel(true, "Camera conectată");
-    setStatus(""); renderFiles();
+    setStatus("");
+    renderFiles();
   } catch (error) {
     elements.dot.classList.remove("online"); elements.connection.textContent = "Camera indisponibilă";
     syncSettingsPanel(false, "Camera indisponibilă");
@@ -216,9 +291,25 @@ async function loadDashboard(fresh = false) {
   }
 }
 
-function scheduleRenderFiles() {
+function showSkeleton() {
+  resetThumbObserver();
+  const fragment = document.createDocumentFragment();
+  for (let i = 0; i < 8; i += 1) {
+    const row = document.createElement("div");
+    row.className = "skeleton-row";
+    row.innerHTML = '<div class="skeleton-block skeleton-thumb"></div><div><div class="skeleton-block" style="width:70%;margin-bottom:8px"></div><div class="skeleton-block" style="width:40%"></div></div><div class="skeleton-block" style="width:64px"></div>';
+    fragment.append(row);
+  }
+  elements.list.replaceChildren(fragment);
+}
+
+function scheduleRenderFiles(fromTyping = false) {
   clearTimeout(state.renderTimer);
-  state.renderTimer = setTimeout(() => renderFiles(), 100);
+  const delay = fromTyping ? 100 : 40;
+  state.renderTimer = setTimeout(() => {
+    if (fromTyping) renderFiles();
+    else scheduleIdle(() => renderFiles());
+  }, delay);
 }
 
 function resetThumbObserver() {
@@ -243,16 +334,24 @@ function ensureThumbObserver() {
   return thumbObserver;
 }
 
+function filteredFiles() {
+  return state.files.filter((file) => {
+    if (state.category === "favorites") {
+      if (!state.favorites.has(file.path)) return false;
+    } else if (state.category !== "all" && file.category !== state.category) {
+      return false;
+    }
+    return (state.camera === "all" || file.camera === state.camera)
+      && durationMatches(file.durationSeconds)
+      && dateMatches(file)
+      && availabilityMatches(file)
+      && (`${file.name} ${file.recordedAt}`.toLowerCase().includes(state.query));
+  });
+}
+
 function renderFiles() {
   clearTimeout(state.renderTimer);
-  const visible = state.files.filter((file) =>
-    (state.category === "all" || file.category === state.category) &&
-    (state.camera === "all" || file.camera === state.camera) &&
-    durationMatches(file.durationSeconds) &&
-    dateMatches(file) &&
-    availabilityMatches(file) &&
-    (`${file.name} ${file.recordedAt}`.toLowerCase().includes(state.query))
-  );
+  const visible = filteredFiles();
   const ordered = orderWithinDateGroups(visible);
   const plan = [];
   let previousDate = null;
@@ -264,13 +363,21 @@ function renderFiles() {
     }
     plan.push({ kind: "file", file });
   }
+  state.visibleFiles = visible;
+  state.renderPlan = plan;
   elements.resultCount.textContent = `${visible.length} din ${state.files.length} fișiere`;
-  elements.status.classList.toggle("hidden", visible.length > 0);
-  if (visible.length === 0) setStatus("Nu există înregistrări pentru filtrul ales.");
-  else setStatus("");
+  elements.status.classList.toggle("hidden", visible.length > 0 || state.files.length === 0);
+  if (visible.length === 0 && state.files.length > 0) setStatus("Nu există înregistrări pentru filtrul ales.");
+  else if (visible.length > 0) setStatus("");
 
   const token = ++state.renderToken;
   resetThumbObserver();
+  if (plan.length >= VIRTUAL_THRESHOLD) {
+    state.virtualScrollBound = true;
+    paintVirtualWindow(token);
+    return;
+  }
+  state.virtualScrollBound = false;
   elements.list.replaceChildren();
   let index = 0;
   const chunkSize = 40;
@@ -294,10 +401,56 @@ function renderFiles() {
   requestAnimationFrame(pump);
 }
 
+function paintVirtualWindow(token) {
+  if (token !== state.renderToken) return;
+  const plan = state.renderPlan;
+  const h = rowHeight();
+  const scrollTop = elements.list.scrollTop;
+  const viewH = elements.list.clientHeight || 480;
+  const start = Math.max(0, Math.floor(scrollTop / h) - VIRTUAL_BUFFER);
+  const end = Math.min(plan.length, Math.ceil((scrollTop + viewH) / h) + VIRTUAL_BUFFER);
+  const topPad = start * h;
+  const bottomPad = Math.max(0, (plan.length - end) * h);
+  resetThumbObserver();
+  const fragment = document.createDocumentFragment();
+  const top = document.createElement("div");
+  top.className = "virtual-spacer";
+  top.style.height = `${topPad}px`;
+  fragment.append(top);
+  const observer = ensureThumbObserver();
+  for (let i = start; i < end; i += 1) {
+    const item = plan[i];
+    const node = item.kind === "sep" ? dateSeparator(item.date) : fileRow(item.file);
+    if (item.kind === "sep") node.style.minHeight = `${h}px`;
+    if (node instanceof HTMLElement) {
+      node.querySelectorAll("img.file-thumbnail[data-src]").forEach((img) => observer.observe(img));
+    }
+    fragment.append(node);
+  }
+  const bottom = document.createElement("div");
+  bottom.className = "virtual-spacer";
+  bottom.style.height = `${bottomPad}px`;
+  fragment.append(bottom);
+  elements.list.replaceChildren(fragment);
+}
+
 function fileRow(file) {
   const row = document.createElement("article");
   row.className = `file-row${state.selectedPath === file.path ? " selected" : ""}`;
   row.tabIndex = 0;
+  row.dataset.path = file.path;
+
+  const check = document.createElement("input");
+  check.type = "checkbox";
+  check.className = "file-check";
+  check.checked = state.selection.has(file.path);
+  check.title = "Selectează";
+  check.addEventListener("click", (event) => event.stopPropagation());
+  check.addEventListener("change", (event) => {
+    event.stopPropagation();
+    toggleSelection(file.path, check.checked);
+  });
+
   const icon = document.createElement("div"); icon.className = "file-icon";
   const placeholder = document.createElement("span");
   placeholder.className = "file-icon-placeholder";
@@ -321,16 +474,48 @@ function fileRow(file) {
   const details = document.createElement("span"); details.className = "file-meta-details";
   details.innerHTML = `${formatDuration(file.durationSeconds)}<br>${formatBytes(file.sizeBytes)}`;
   const actions = document.createElement("div"); actions.className = "download-actions"; actions.dataset.path = file.path;
+  const fav = document.createElement("button");
+  fav.type = "button";
+  fav.className = `fav-btn${state.favorites.has(file.path) ? " active" : ""}`;
+  fav.title = "Favorite";
+  fav.setAttribute("aria-label", "Marchează favorite");
+  fav.textContent = state.favorites.has(file.path) ? "★" : "☆";
+  fav.addEventListener("click", (event) => {
+    event.stopPropagation();
+    toggleFavorite(file.path);
+    fav.classList.toggle("active", state.favorites.has(file.path));
+    fav.textContent = state.favorites.has(file.path) ? "★" : "☆";
+  });
   const download = document.createElement("button"); download.className = "download-button"; download.type = "button"; download.dataset.path = file.path;
   const cancel = document.createElement("button"); cancel.className = "download-cancel hidden"; cancel.type = "button"; cancel.dataset.path = file.path; cancel.textContent = "✕"; cancel.title = "Anulează"; cancel.setAttribute("aria-label", "Anulează descărcarea");
   updateDownloadActions(actions, download, cancel, file, state.downloadJobs.get(file.path));
   download.addEventListener("click", (event) => { event.stopPropagation(); void queueDownload(file); });
   cancel.addEventListener("click", (event) => { event.stopPropagation(); void cancelDownload(file.path); });
-  actions.append(download, cancel);
+  actions.append(fav, download, cancel);
+  if (file.locallyAvailable && file.localName) {
+    const del = document.createElement("button");
+    del.type = "button";
+    del.className = "delete-local-btn";
+    del.textContent = "Șterge";
+    del.title = "Șterge copia locală";
+    del.addEventListener("click", (event) => {
+      event.stopPropagation();
+      void deleteLocalForFile(file);
+    });
+    actions.append(del);
+  }
   meta.append(details, actions);
-  row.append(icon, main, meta);
-  row.addEventListener("click", () => selectFile(file, row));
-  row.addEventListener("keydown", (event) => { if (event.target === row && (event.key === "Enter" || event.key === " ")) selectFile(file, row); });
+  row.append(check, icon, main, meta);
+  row.addEventListener("click", () => {
+    if (state.selectMode) {
+      toggleSelection(file.path, !state.selection.has(file.path));
+      return;
+    }
+    selectFile(file, row);
+  });
+  row.addEventListener("keydown", (event) => {
+    if (event.target === row && (event.key === "Enter" || event.key === " ")) selectFile(file, row);
+  });
   return row;
 }
 
@@ -422,6 +607,7 @@ async function trackDownload(file, jobState) {
       file.locallyAvailable = true; file.localName = job.result.playableName;
       if (job.result.nmeaName) file.localTelemetryName = job.result.nmeaName;
       state.downloadJobs.delete(file.path); renderFiles(); renderDownloadsPanel();
+      showToast(`Descărcat: ${file.name}`, "ok");
       if (state.selectedPath === file.path) { elements.progress.classList.add("hidden"); await loadPrepared(file, job.result); }
       return;
     }
@@ -441,7 +627,11 @@ async function trackDownload(file, jobState) {
           elements.notice.textContent = job.error; elements.notice.classList.remove("hidden");
         }
       }
-      if (!cancelled) throw new Error(job.error);
+      if (!cancelled) {
+        showToast(job.error || `Eroare: ${file.name}`, "err");
+        throw new Error(job.error);
+      }
+      showToast(`Anulat: ${file.name}`, "err");
       return;
     }
     await new Promise((resolve) => setTimeout(resolve, 350));
@@ -630,7 +820,7 @@ function clearFilters() {
   datePicker.mode = "single"; datePicker.draftFrom = ""; datePicker.draftTo = ""; datePicker.pickingEnd = false;
   closeDatePicker();
   syncDatePickerLabel();
-  scheduleRenderFiles();
+  scheduleRenderFiles(false);
 }
 
 function isoDay(date) {
@@ -720,7 +910,7 @@ function applyDatePicker() {
   state.dateMode = datePicker.mode;
   closeDatePicker();
   syncDatePickerLabel();
-  scheduleRenderFiles();
+  scheduleRenderFiles(false);
 }
 
 function clearDatePickerDraft() {
@@ -798,6 +988,9 @@ function wireDatePicker() {
   document.querySelectorAll(".dp-mode").forEach((button) => {
     button.addEventListener("click", () => setDateMode(button.dataset.mode));
   });
+  document.querySelectorAll(".dp-preset").forEach((button) => {
+    button.addEventListener("click", () => applyDatePreset(button.dataset.preset));
+  });
   elements.dpPrev.addEventListener("click", () => shiftDatePickerMonth(-1));
   elements.dpNext.addEventListener("click", () => shiftDatePickerMonth(1));
   elements.dpClear.addEventListener("click", () => {
@@ -805,12 +998,42 @@ function wireDatePicker() {
     state.dateFrom = ""; state.dateTo = ""; state.timeFrom = ""; state.timeTo = "";
     state.dateMode = datePicker.mode;
     syncDatePickerLabel();
-    scheduleRenderFiles();
+    scheduleRenderFiles(false);
   });
   elements.dpApply.addEventListener("click", applyDatePicker);
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && datePicker.open) closeDatePicker();
   });
+}
+
+function applyDatePreset(key) {
+  const now = new Date();
+  const today = isoDay(now);
+  if (key === "today") {
+    setDateMode("single");
+    datePicker.draftFrom = today;
+    datePicker.draftTo = today;
+  } else if (key === "7d") {
+    const from = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+    setDateMode("range");
+    datePicker.draftFrom = isoDay(from);
+    datePicker.draftTo = today;
+    datePicker.pickingEnd = false;
+  } else if (key === "month") {
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    setDateMode("range");
+    datePicker.draftFrom = isoDay(from);
+    datePicker.draftTo = today;
+    datePicker.pickingEnd = false;
+  } else {
+    clearDatePickerDraft();
+  }
+  const anchor = parseIsoDay(datePicker.draftFrom || datePicker.draftTo) || now;
+  datePicker.month = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  document.querySelectorAll(".dp-preset").forEach((button) => {
+    button.classList.toggle("active", button.dataset.preset === key);
+  });
+  renderDatePickerCalendar();
 }
 
 function durationMatches(seconds) {
@@ -1034,7 +1257,154 @@ function drawGrid(ctx, width, height) {
 function canvasContext() { const scale = devicePixelRatio || 1; const rect = elements.canvas.getBoundingClientRect(); elements.canvas.width = Math.max(1, Math.round(rect.width * scale)); elements.canvas.height = Math.max(1, Math.round(rect.height * scale)); const ctx = elements.canvas.getContext("2d"); ctx.scale(scale, scale); return { ctx, width: rect.width, height: rect.height }; }
 
 async function api(path, options) { const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options }); const value = await response.json(); if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`); return value; }
-function setStatus(message, error = false) { elements.status.textContent = message; elements.status.classList.toggle("hidden", message === ""); elements.status.style.color = error ? "var(--danger)" : ""; }
+function setStatus(message, error = false) {
+  if (elements.statusText) elements.statusText.textContent = message;
+  else elements.status.textContent = message;
+  elements.status.classList.toggle("hidden", message === "");
+  elements.status.style.color = error ? "var(--danger)" : "";
+  elements.statusRetry?.classList.toggle("hidden", !error);
+}
+
+function toggleFavorite(path) {
+  if (state.favorites.has(path)) state.favorites.delete(path);
+  else state.favorites.add(path);
+  saveFavorites();
+  if (state.category === "favorites") scheduleRenderFiles(false);
+}
+
+function toggleSelectMode() {
+  state.selectMode = !state.selectMode;
+  document.body.classList.toggle("select-mode", state.selectMode);
+  elements.selectModeToggle?.setAttribute("aria-pressed", state.selectMode ? "true" : "false");
+  elements.selectModeToggle.textContent = state.selectMode ? "Gata" : "Selectează";
+  if (!state.selectMode) clearSelection();
+  else syncBulkBar();
+  scheduleRenderFiles(false);
+}
+
+function toggleSelection(path, selected) {
+  if (selected) state.selection.add(path);
+  else state.selection.delete(path);
+  syncBulkBar();
+  const row = elements.list.querySelector(`.file-row[data-path="${CSS.escape(path)}"]`);
+  const check = row?.querySelector(".file-check");
+  if (check) check.checked = selected;
+}
+
+function clearSelection() {
+  state.selection.clear();
+  syncBulkBar();
+  elements.list.querySelectorAll(".file-check").forEach((check) => { check.checked = false; });
+}
+
+function syncBulkBar() {
+  const count = state.selection.size;
+  const show = state.selectMode && count >= 0;
+  elements.bulkBar?.classList.toggle("hidden", !state.selectMode);
+  if (elements.bulkCount) elements.bulkCount.textContent = `${count} selectate`;
+  if (!show) return;
+}
+
+function selectAllFiltered() {
+  for (const file of state.visibleFiles) state.selection.add(file.path);
+  syncBulkBar();
+  scheduleRenderFiles(false);
+}
+
+async function bulkDownloadSelected() {
+  const files = state.files.filter((file) => state.selection.has(file.path) && !file.locallyAvailable && !String(file.path).startsWith("/local/"));
+  if (files.length === 0) {
+    showToast("Nimic de descărcat din selecție", "err");
+    return;
+  }
+  showToast(`Se adaugă ${files.length} descărcări…`, "ok");
+  for (const file of files) void queueDownload(file);
+}
+
+function localNamesForFile(file) {
+  const names = [];
+  if (file.localName) names.push(file.localName);
+  if (file.localTelemetryName) names.push(file.localTelemetryName);
+  if (file.localName) {
+    const stem = file.localName.replace(/-AAC(?=\.[^.]+$)/i, "").replace(/\.[^.]+$/u, "");
+    const aac = `${stem}-AAC.MP4`;
+    const raw = `${stem}.MP4`;
+    if (!names.includes(aac)) names.push(aac);
+    if (!names.includes(raw)) names.push(raw);
+    const nmea = `${stem}.NMEA`;
+    if (!names.includes(nmea)) names.push(nmea);
+  }
+  return [...new Set(names)];
+}
+
+async function deleteLocalForFile(file) {
+  const names = localNamesForFile(file);
+  if (names.length === 0) return;
+  if (!window.confirm(`Ștergi copia locală pentru ${file.name}?`)) return;
+  try {
+    await api("/api/local", { method: "DELETE", body: JSON.stringify({ names }) });
+    file.locallyAvailable = false;
+    delete file.localName;
+    delete file.localTelemetryName;
+    showToast(`Șters local: ${file.name}`, "ok");
+    if (state.selectedPath === file.path) {
+      elements.video.removeAttribute("src");
+      elements.video.load();
+      elements.gpsState.textContent = "Nedescărcat";
+      drawEmptyRoute("Fișier disponibil pe cameră");
+    }
+    renderFiles();
+    void refreshStorageStats();
+  } catch (error) {
+    showToast(error.message, "err");
+  }
+}
+
+async function bulkDeleteLocalSelected() {
+  const files = state.files.filter((file) => state.selection.has(file.path) && file.locallyAvailable);
+  if (files.length === 0) {
+    showToast("Nicio copie locală în selecție", "err");
+    return;
+  }
+  if (!window.confirm(`Ștergi ${files.length} copii locale?`)) return;
+  const names = files.flatMap((file) => localNamesForFile(file));
+  try {
+    await api("/api/local", { method: "DELETE", body: JSON.stringify({ names: [...new Set(names)] }) });
+    for (const file of files) {
+      file.locallyAvailable = false;
+      delete file.localName;
+      delete file.localTelemetryName;
+    }
+    showToast(`Șterse ${files.length} copii locale`, "ok");
+    clearSelection();
+    renderFiles();
+    void refreshStorageStats();
+  } catch (error) {
+    showToast(error.message, "err");
+  }
+}
+
+async function refreshStorageStats() {
+  if (!elements.storageFileCount) return;
+  try {
+    const summary = await api("/api/storage");
+    elements.storageFileCount.textContent = String(summary.fileCount);
+    elements.storageTotalBytes.textContent = formatBytes(summary.totalBytes);
+  } catch (error) {
+    elements.storageFileCount.textContent = "—";
+    elements.storageTotalBytes.textContent = "—";
+  }
+}
+
+async function openDownloadsFolder() {
+  try {
+    await api("/api/open-downloads", { method: "POST", body: "{}" });
+    showToast("Folderul downloads a fost deschis", "ok");
+  } catch (error) {
+    showToast(error.message, "err");
+  }
+}
+
 function formatBytes(bytes) { const units = ["B", "KB", "MB", "GB"]; let value = bytes, index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; }
 function formatDuration(seconds) { if (!Number.isFinite(seconds)) return "—"; const minutes = Math.floor(seconds / 60); return `${minutes}:${String(Math.round(seconds % 60)).padStart(2, "0")}`; }
 function formatDate(value) { const date = new Date(value.replace(" ", "T")); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("ro-RO", { dateStyle: "medium", timeStyle: "short" }); }

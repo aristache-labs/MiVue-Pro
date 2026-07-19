@@ -1,8 +1,9 @@
+import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
-import { randomUUID } from "node:crypto";
 import { readFile, stat } from "node:fs/promises";
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { extname, join } from "node:path";
+import { gzipSync } from "node:zlib";
 import type { FileCategory } from "../protocol/types.js";
 import type { Logger } from "../utils/logger.js";
 import type { PreparedMedia, PrepareProgress, PrepareProgressCallback } from "./cameraService.js";
@@ -20,6 +21,7 @@ const STATIC_FILES: Readonly<Record<string, string>> = {
   "/fonts/IBMPlexMono-Medium.woff2": "fonts/IBMPlexMono-Medium.woff2",
 };
 const CATEGORIES = new Set<Exclude<FileCategory, "unknown">>(["normal", "event", "parking", "photo"]);
+const GZIP_MIN_BYTES = 1024;
 
 export interface DashboardServerOptions {
   readonly service: DashboardService;
@@ -35,6 +37,9 @@ export interface DashboardService {
   prepare(remotePath: string, onProgress?: PrepareProgressCallback, signal?: AbortSignal): Promise<PreparedMedia>;
   thumbnail(remotePath: string): Promise<Uint8Array>;
   telemetry(name: string): Promise<readonly GpsSample[]>;
+  localStorageSummary(): Promise<{ fileCount: number; totalBytes: number }>;
+  deleteLocalFiles(names: readonly string[]): Promise<{ deleted: string[]; missing: string[] }>;
+  openDownloadsFolder(): Promise<void>;
 }
 
 export function createDashboardServer(options: DashboardServerOptions): Server {
@@ -45,7 +50,7 @@ export function createDashboardServer(options: DashboardServerOptions): Server {
   return createServer((request, response) => {
     void handleRequest(request, response, options.service, webDirectory, jobs, controllers, prepareQueue).catch((error: unknown) => {
       options.logger.error(error instanceof Error ? error.message : String(error));
-      if (!response.headersSent) sendJson(response, 500, { error: publicError(error) });
+      if (!response.headersSent) sendJson(response, request, 500, { error: publicError(error) });
       else response.destroy();
     });
   });
@@ -66,34 +71,62 @@ async function handleRequest(
   response.setHeader("Content-Security-Policy", "default-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org");
 
   if (url.pathname === "/api/health" && request.method === "GET") {
-    sendJson(response, 200, { ok: true });
+    sendJson(response, request, 200, { ok: true });
     return;
   }
   if (url.pathname === "/api/info" && request.method === "GET") {
-    sendJson(response, 200, await service.info());
+    sendJson(response, request, 200, await service.info());
     return;
   }
   if (url.pathname === "/api/files" && request.method === "GET") {
     const categoryText = url.searchParams.get("category");
     const category = categoryText === null || categoryText === "all" ? undefined : categoryText;
     if (category !== undefined && !CATEGORIES.has(category as Exclude<FileCategory, "unknown">)) {
-      sendJson(response, 400, { error: "Categorie invalidă" });
+      sendJson(response, request, 400, { error: "Categorie invalidă" });
       return;
     }
     const fresh = url.searchParams.get("refresh") === "1";
     const files = await service.list(category as Exclude<FileCategory, "unknown"> | undefined, { fresh });
-    sendJson(response, 200, { files, amount: files.length, cached: !fresh });
+    sendJson(response, request, 200, { files, amount: files.length, cached: !fresh }, { preferGzip: true });
+    return;
+  }
+  if (url.pathname === "/api/storage" && request.method === "GET") {
+    sendJson(response, request, 200, await service.localStorageSummary());
+    return;
+  }
+  if (url.pathname === "/api/open-downloads" && request.method === "POST") {
+    await service.openDownloadsFolder();
+    sendJson(response, request, 200, { ok: true });
+    return;
+  }
+  if (url.pathname === "/api/local" && request.method === "DELETE") {
+    const body = await readJsonBody(request);
+    const names = Array.isArray(body["names"])
+      ? body["names"].filter((item): item is string => typeof item === "string")
+      : typeof body["name"] === "string"
+        ? [body["name"]]
+        : [];
+    if (names.length === 0) {
+      sendJson(response, request, 400, { error: "name sau names lipsește" });
+      return;
+    }
+    if (names.length > 200) {
+      sendJson(response, request, 400, { error: "Prea multe fișiere (max 200)" });
+      return;
+    }
+    const result = await service.deleteLocalFiles(names);
+    sendJson(response, request, 200, result);
     return;
   }
   if (url.pathname === "/api/prepare" && request.method === "POST") {
     const body = await readJsonBody(request);
     if (typeof body["remotePath"] !== "string") {
-      sendJson(response, 400, { error: "remotePath lipsește" });
+      sendJson(response, request, 400, { error: "remotePath lipsește" });
       return;
     }
     for (const [existingId, existing] of jobs) {
       if ((existing.status === "queued" || existing.status === "running") && existing.remotePath === body["remotePath"]) {
-        sendJson(response, 202, { jobId: existingId });
+        sendJson(response, request, 202, { jobId: existingId });
         return;
       }
     }
@@ -106,27 +139,27 @@ async function handleRequest(
     prepareQueue.items.push({ jobId, remotePath: body["remotePath"] });
     updateQueuePositions(prepareQueue, jobs);
     void drainPrepareQueue(prepareQueue, jobs, controllers, service);
-    sendJson(response, 202, { jobId });
+    sendJson(response, request, 202, { jobId });
     return;
   }
   if (url.pathname.startsWith("/api/jobs/") && request.method === "GET") {
     const jobId = url.pathname.slice("/api/jobs/".length);
     const job = jobs.get(jobId);
-    if (job === undefined) sendJson(response, 404, { error: "Operația nu a fost găsită sau a expirat" });
-    else sendJson(response, 200, job);
+    if (job === undefined) sendJson(response, request, 404, { error: "Operația nu a fost găsită sau a expirat" });
+    else sendJson(response, request, 200, job);
     return;
   }
   if (url.pathname.startsWith("/api/jobs/") && request.method === "DELETE") {
     const jobId = url.pathname.slice("/api/jobs/".length);
     const cancelled = cancelPrepareJob(jobId, jobs, controllers, prepareQueue);
-    if (!cancelled) sendJson(response, 404, { error: "Operația nu a fost găsită sau nu mai poate fi anulată" });
-    else sendJson(response, 200, { ok: true, jobId });
+    if (!cancelled) sendJson(response, request, 404, { error: "Operația nu a fost găsită sau nu mai poate fi anulată" });
+    else sendJson(response, request, 200, { ok: true, jobId });
     return;
   }
   if (url.pathname === "/api/thumbnail" && request.method === "GET") {
     const remotePath = url.searchParams.get("path");
     if (remotePath === null) {
-      sendJson(response, 400, { error: "path lipsește" });
+      sendJson(response, request, 400, { error: "path lipsește" });
       return;
     }
     const image = await service.thumbnail(remotePath);
@@ -141,11 +174,11 @@ async function handleRequest(
   if (url.pathname === "/api/telemetry" && request.method === "GET") {
     const name = url.searchParams.get("name");
     if (name === null) {
-      sendJson(response, 400, { error: "name lipsește" });
+      sendJson(response, request, 400, { error: "name lipsește" });
       return;
     }
     const samples = await service.telemetry(name);
-    sendJson(response, 200, { samples });
+    sendJson(response, request, 200, { samples });
     return;
   }
   if (url.pathname.startsWith("/media/") && request.method === "GET") {
@@ -155,9 +188,7 @@ async function handleRequest(
   }
   const staticName = STATIC_FILES[url.pathname];
   if (staticName !== undefined && request.method === "GET") {
-    const body = await readFile(join(webDirectory, staticName));
-    response.writeHead(200, { "Content-Type": contentType(staticName), "Cache-Control": "no-store" });
-    response.end(body);
+    await serveStatic(request, response, join(webDirectory, staticName), staticName);
     return;
   }
   const leafletPath = leafletAsset(url.pathname);
@@ -167,7 +198,7 @@ async function handleRequest(
     response.end(body);
     return;
   }
-  sendJson(response, 404, { error: "Ruta nu există" });
+  sendJson(response, request, 404, { error: "Ruta nu există" });
 }
 
 type PrepareJob =
@@ -317,6 +348,31 @@ async function serveMedia(request: IncomingMessage, response: ServerResponse, pa
   createReadStream(path, { start, end }).pipe(response);
 }
 
+async function serveStatic(
+  request: IncomingMessage,
+  response: ServerResponse,
+  absolutePath: string,
+  relativeName: string,
+): Promise<void> {
+  const body = await readFile(absolutePath);
+  const etag = `"${createHash("sha1").update(body).digest("hex")}"`;
+  if (request.headers["if-none-match"] === etag) {
+    response.writeHead(304, {
+      ETag: etag,
+      "Cache-Control": "no-cache",
+    });
+    response.end();
+    return;
+  }
+  response.writeHead(200, {
+    "Content-Type": contentType(relativeName),
+    "Content-Length": body.byteLength,
+    ETag: etag,
+    "Cache-Control": "no-cache",
+  });
+  response.end(body);
+}
+
 async function readJsonBody(request: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let size = 0;
@@ -331,10 +387,34 @@ async function readJsonBody(request: IncomingMessage): Promise<Record<string, un
   return parsed as Record<string, unknown>;
 }
 
-function sendJson(response: ServerResponse, status: number, value: unknown): void {
-  const body = JSON.stringify(value);
-  response.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store" });
-  response.end(body);
+function sendJson(
+  response: ServerResponse,
+  request: IncomingMessage | undefined,
+  status: number,
+  value: unknown,
+  options: { preferGzip?: boolean } = {},
+): void {
+  const raw = Buffer.from(JSON.stringify(value), "utf8");
+  const accept = request?.headers["accept-encoding"] ?? "";
+  const wantsGzip = options.preferGzip === true && /\bgzip\b/i.test(String(accept)) && raw.byteLength >= GZIP_MIN_BYTES;
+  if (wantsGzip) {
+    const compressed = gzipSync(raw);
+    response.writeHead(status, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Encoding": "gzip",
+      "Content-Length": compressed.byteLength,
+      "Cache-Control": "no-store",
+      Vary: "Accept-Encoding",
+    });
+    response.end(compressed);
+    return;
+  }
+  response.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Content-Length": raw.byteLength,
+    "Cache-Control": "no-store",
+  });
+  response.end(raw);
 }
 
 function contentType(path: string): string {

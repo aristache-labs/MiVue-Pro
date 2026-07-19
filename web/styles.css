@@ -57,6 +57,7 @@
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --topbar-h: 52px;
   --sidebar-w: 64px;
+  --row-h: 56px;
 }
 
 [data-theme="dark"] {
@@ -96,6 +97,25 @@ html, body {
 
 button, input, select { font: inherit; }
 button { color: inherit; }
+
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html[data-density="comfortable"] {
+  --row-h: 68px;
+}
 
 .sr-only {
   position: absolute;
@@ -823,6 +843,25 @@ main {
   color: var(--muted);
   font-size: 13px;
   padding: 16px 4px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+.status-retry {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-elevated);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.status-retry:hover {
+  border-color: var(--accent);
+  color: var(--accent-strong);
 }
 
 .file-list {
@@ -854,17 +893,23 @@ main {
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: 28px 64px 1fr auto;
   gap: 10px;
   align-items: center;
-  min-height: 52px;
-  padding: 6px 8px 6px 12px;
+  min-height: var(--row-h);
+  padding: 6px 8px 6px 8px;
   border-top: 1px solid var(--line-soft);
   cursor: pointer;
   border-radius: 6px;
   content-visibility: auto;
-  contain-intrinsic-size: auto 56px;
+  contain-intrinsic-size: auto var(--row-h);
   transition: background .15s;
+}
+body:not(.select-mode) .file-row {
+  grid-template-columns: 64px 1fr auto;
+}
+body:not(.select-mode) .file-check {
+  display: none;
 }
 .file-row::before {
   content: "";
@@ -1348,6 +1393,179 @@ video {
   font-size: 12px;
 }
 
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bulk-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  font-size: 12px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.bulk-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.bulk-btn {
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-elevated);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.bulk-btn.ghost { background: transparent; color: var(--muted); }
+.bulk-btn:hover { border-color: var(--accent); color: var(--accent-strong); }
+
+.dp-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.dp-preset {
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.dp-preset:hover,
+.dp-preset.active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+
+.file-check {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.fav-btn {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.fav-btn:hover,
+.fav-btn.active { color: #f59e0b; }
+.delete-local-btn {
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+.delete-local-btn:hover {
+  border-color: var(--danger);
+  color: var(--danger);
+}
+
+.skeleton-row {
+  display: grid;
+  grid-template-columns: 64px 1fr 80px;
+  gap: 10px;
+  align-items: center;
+  min-height: var(--row-h);
+  padding: 8px;
+  border-top: 1px solid var(--line-soft);
+}
+.skeleton-block {
+  height: 12px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--line-soft), var(--line), var(--line-soft));
+  background-size: 200% 100%;
+  animation: shimmer 1.2s linear infinite;
+}
+.skeleton-thumb { width: 48px; height: 36px; border-radius: 6px; }
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.toast-container {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 200;
+  display: grid;
+  gap: 8px;
+  max-width: min(360px, calc(100vw - 32px));
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-elevated);
+  box-shadow: var(--shadow);
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 600;
+  animation: toast-in .18s ease-out;
+}
+.toast.ok { border-color: var(--accent); color: var(--accent-strong); }
+.toast.err { border-color: var(--danger); color: var(--danger); }
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.settings-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+.settings-btn {
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+}
+.settings-btn.ghost {
+  border-color: var(--line);
+  background: transparent;
+  color: var(--muted);
+}
+.settings-btn:hover { filter: brightness(1.05); }
+
+.virtual-spacer { width: 100%; pointer-events: none; }
+
 /* ——— Responsive ——— */
 @media (max-width: 1050px) {
   .workspace {
@@ -1371,5 +1589,6 @@ video {
   .date-picker-field { grid-column: 1 / -1; }
   .date-picker-popup { left: 0; right: auto; }
   .file-row { grid-template-columns: 56px 1fr; }
+  body.select-mode .file-row { grid-template-columns: 24px 56px 1fr; }
   .file-meta { grid-column: 1 / -1; justify-items: start; text-align: left; }
 }

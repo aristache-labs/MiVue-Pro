@@ -40,6 +40,13 @@ test("dashboard serves health, validates categories and supports media ranges", 
     },
     async thumbnail() { return Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]); },
     async telemetry() { return []; },
+    async localStorageSummary() {
+      return { fileCount: 1, totalBytes: 10 };
+    },
+    async deleteLocalFiles(names) {
+      return { deleted: [...names], missing: [] };
+    },
+    async openDownloadsFolder() {},
   };
   const server = createDashboardServer({ service, logger: silentLogger });
   await new Promise<void>((resolve, reject) => {
@@ -91,6 +98,77 @@ test("dashboard serves health, validates categories and supports media ranges", 
     assert.equal(media.status, 206);
     assert.equal(media.headers.get("content-range"), "bytes 2-5/10");
     assert.equal(await media.text(), "2345");
+
+    const storage = await fetch(`http://127.0.0.1:${port}/api/storage`);
+    assert.equal(storage.status, 200);
+    assert.deepEqual(await storage.json(), { fileCount: 1, totalBytes: 10 });
+
+    const deleted = await fetch(`http://127.0.0.1:${port}/api/local`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ names: ["clip.mp4"] }),
+    });
+    assert.equal(deleted.status, 200);
+    assert.deepEqual(await deleted.json(), { deleted: ["clip.mp4"], missing: [] });
+
+    const opened = await fetch(`http://127.0.0.1:${port}/api/open-downloads`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    });
+    assert.equal(opened.status, 200);
+    assert.deepEqual(await opened.json(), { ok: true });
+
+    const appJs = await fetch(`http://127.0.0.1:${port}/app.js`);
+    assert.equal(appJs.status, 200);
+    assert.equal(appJs.headers.get("cache-control"), "no-cache");
+    assert.ok(appJs.headers.get("etag"));
+    const etag = appJs.headers.get("etag");
+    const cached = await fetch(`http://127.0.0.1:${port}/app.js`, { headers: { "If-None-Match": etag ?? "" } });
+    assert.equal(cached.status, 304);
+  } finally {
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("dashboard gzips large /api/files when Accept-Encoding includes gzip", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "mivue-web-gzip-"));
+  const bigFiles = Array.from({ length: 80 }, (_, index) => ({
+    path: `/SD/Normal/F/FILE${String(index).padStart(4, "0")}.MP4`,
+    name: `FILE${String(index).padStart(4, "0")}.MP4`,
+    category: "normal" as const,
+    camera: "front" as const,
+    mediaFormat: "MP4" as const,
+    sizeBytes: 1_000_000 + index,
+    writable: false,
+    recordedAt: "2026-07-19 12:00:00",
+  }));
+  const service: DashboardService = {
+    downloadsDirectory: directory,
+    async info() { return { endpoint: { host: "192.72.1.1" } }; },
+    async list() { return bigFiles; },
+    invalidateListCache() {},
+    async prepare() { return { originalName: "clip.mp4", playableName: "clip.mp4" }; },
+    async thumbnail() { return Uint8Array.from([0xff, 0xd8, 0xff, 0xd9]); },
+    async telemetry() { return []; },
+    async localStorageSummary() { return { fileCount: 0, totalBytes: 0 }; },
+    async deleteLocalFiles() { return { deleted: [], missing: [] }; },
+    async openDownloadsFolder() {},
+  };
+  const server = createDashboardServer({ service, logger: silentLogger });
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const port = (server.address() as AddressInfo).port;
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/api/files`, {
+      headers: { "Accept-Encoding": "gzip" },
+    });
+    assert.equal(response.status, 200);
+    const payload = await response.json() as { amount: number };
+    assert.equal(payload.amount, 80);
   } finally {
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(directory, { recursive: true, force: true });

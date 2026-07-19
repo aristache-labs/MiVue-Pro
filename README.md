@@ -35,9 +35,16 @@ npm run dev -- gpx ./downloads/PARK260716-033609F.NMEA
 npm run dev -- web --host 192.72.1.1
 ```
 
-Dashboardul se deschide la `http://127.0.0.1:4173` și ascultă exclusiv pe interfața locală. Lista este ordonată implicit cu cele mai recente fișiere primele și poate fi filtrată după categorie, cameră, durată și dată sau sortată după dată, oră, durată, mărime și nume. Miniaturile sunt citite read-only din endpointul camerei, serializate și păstrate într-un cache local.
+Dashboardul se deschide la `http://127.0.0.1:4173` și ascultă exclusiv pe interfața locală. Lista este ordonată implicit cu cele mai recente fișiere primele și poate fi filtrată după categorie, cameră, durată și dată sau sortată după dată, oră, durată, mărime și nume. Miniaturile sunt citite read-only din endpointul camerei, cu pool de 2 cereri concurente, și sunt păstrate în cache pe disc + memorie.
 
-Selectarea unei filmări nu pornește niciun transfer. Descărcarea începe numai din butonul `Descarcă` al cardului; cererile multiple intră într-o coadă procesată strict una câte una. Dashboardul afișează progresul real, descarcă MP4 și sidecar-ul NMEA, creează o copie AAC cu FFmpeg, apoi schimbă eticheta în `Descărcat`. Traseul schematic rămâne complet local. Harta OpenStreetMap este opțională și nu solicită tile-uri externe până când utilizatorul apasă „Activează harta online”.
+Selectarea unei filmări nu pornește niciun transfer. Descărcarea începe numai din butonul `Descarcă` al cardului (sau din selecția multiplă); cererile multiple intră într-o coadă procesată una câte una. Dashboardul afișează progresul real, toast-uri la finalizare, favorite locale, spațiu ocupat în `downloads/`, și poate deschide folderul în Explorer. Traseul schematic rămâne complet local. Harta OpenStreetMap este opțională.
+
+## Performanță
+
+- lista de fișiere este cache-uită ~25s pe server; butonul Reîncarcă forțează refresh (`?refresh=1`);
+- `/api/files` poate fi comprimat gzip; fișierele statice folosesc ETag + `no-cache`;
+- lista din browser folosește lazy thumbnails, virtualizare peste ~80 rânduri și densitate Compact/Confortabil;
+- dacă proiectul stă pe OneDrive, exclude folderul `downloads/` din sincronizare (Settings OneDrive → Choose folders). Scrierile MP4/thumbnail pe un folder sincronizat pot încetini Node.
 
 Downloadul scrie mai întâi `<fișier>.part` și redenumește fișierul numai după ce dimensiunea primită corespunde cu `Content-Length`. `Ctrl+C` anulează transferul și păstrează fișierul `.part` pentru diagnostic. Fișierele existente nu sunt suprascrise.
 
