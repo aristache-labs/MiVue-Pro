@@ -11,17 +11,57 @@ export interface CgiProbeResult {
   readonly parsed?: ConfigResponse;
 }
 
+/** Properties fetched for dashboard “Administrare cameră” (get; skip on 7xx). */
+export const READABLE_CAMERA_PROPERTIES = Object.freeze([
+  "broadcast",
+  "Camera.Menu.UIMode",
+  "Camera.Menu.VideoRes",
+  "Camera.Menu.GSensor",
+  "Camera.Menu.HDR",
+  "Camera.Menu.EV",
+  "Camera.Menu.LCDPower",
+  "Camera.Preview.Source.1.Camid",
+  "Vendor.DeviceInfo.1080P",
+  "Vendor.DeviceInfo.LiveView",
+  "Vendor.DeviceInfo.SupportMjpegStream",
+] as const);
+
 /**
  * Properties allowed for action=set when MIVUE_ALLOW_MUTATE=1.
- * Live MiVue 866: UIMode=PLAYBACK → 0 OK; MENU/UNKNOWN → 701 Illegal Parameter.
+ * UIMode PLAYBACK/VIDEO confirmed on 866; others are candidates from live get values.
  */
 export const SETTABLE_PROPERTIES = Object.freeze([
   "Camera.Menu.UIMode",
+  "Camera.Menu.VideoRes",
+  "Camera.Menu.GSensor",
+  "Camera.Menu.HDR",
+  "Camera.Menu.EV",
+  "Camera.Menu.LCDPower",
 ] as const);
 
-/** Known-good values per settable property (866 live). */
+/** Dropdown values per settable property. */
 export const SETTABLE_PROPERTY_VALUES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  "Camera.Menu.UIMode": Object.freeze(["PLAYBACK"]),
+  "Camera.Menu.UIMode": Object.freeze(["VIDEO", "PLAYBACK"]),
+  "Camera.Menu.VideoRes": Object.freeze(["1080P60", "1080P30", "720P60", "720P30"]),
+  "Camera.Menu.GSensor": Object.freeze(["OFF", "LEVEL1", "LEVEL2", "LEVEL3"]),
+  "Camera.Menu.HDR": Object.freeze(["ON", "OFF"]),
+  "Camera.Menu.EV": Object.freeze(["EV-2", "EV-1", "EV0", "EV+1", "EV+2"]),
+  "Camera.Menu.LCDPower": Object.freeze(["OFF", "30SEC", "1MIN", "3MIN", "ALWAYS"]),
+});
+
+/** Short labels for settings UI. */
+export const CAMERA_PROPERTY_LABELS: Readonly<Record<string, string>> = Object.freeze({
+  broadcast: "Broadcast",
+  "Camera.Menu.UIMode": "Mod UI",
+  "Camera.Menu.VideoRes": "Rezoluție",
+  "Camera.Menu.GSensor": "G-Sensor",
+  "Camera.Menu.HDR": "HDR",
+  "Camera.Menu.EV": "Expunere (EV)",
+  "Camera.Menu.LCDPower": "Ecran LCD",
+  "Camera.Preview.Source.1.Camid": "Cameră activă",
+  "Vendor.DeviceInfo.1080P": "1080P device",
+  "Vendor.DeviceInfo.LiveView": "Live view",
+  "Vendor.DeviceInfo.SupportMjpegStream": "MJPEG stream",
 });
 
 /** @deprecated use SETTABLE_PROPERTIES */

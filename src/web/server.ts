@@ -44,6 +44,8 @@ export interface DashboardService {
     mutateAllowed: boolean;
     setProperties: readonly string[];
     setPropertyValues: Readonly<Record<string, readonly string[]>>;
+    readableProperties: readonly string[];
+    propertyLabels: Readonly<Record<string, string>>;
   };
   setCameraProperty(property: string, value: string): Promise<unknown>;
   deleteRemoteFiles(paths: readonly string[]): Promise<{

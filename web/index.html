@@ -358,13 +358,12 @@
 
                 <article class="settings-card" id="cameraAdminCard">
                   <h3>Administrare cameră</h3>
-                  <p class="settings-desc">Opțional: schimbă modul UI al camerei (CGI). Nu e necesar pentru ștergerea fișierelor. Scrierea necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
+                  <p class="settings-desc">Citește setările CGI de pe dispozitiv. Scrierea (dropdown + Aplică) necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span> și nu e legată de ștergerea fișierelor.</p>
                   <dl class="settings-dl">
                     <div><dt>Mutate</dt><dd id="cameraMutateStatus">—</dd></div>
-                    <div><dt>UIMode</dt><dd id="cameraUiMode" class="mono">—</dd></div>
-                    <div><dt>Broadcast</dt><dd id="cameraBroadcast" class="mono">—</dd></div>
-                    <div><dt>Camid</dt><dd id="cameraCamid" class="mono">—</dd></div>
                   </dl>
+                  <dl id="cameraPropsList" class="settings-dl" aria-label="Setări cameră"></dl>
+                  <h4 class="settings-subhead">Modifică</h4>
                   <div id="cameraSetControls" class="camera-set-controls hidden"></div>
                   <p id="cameraSetEmpty" class="settings-note">Pentru a scrie setări: repornește web cu <span class="mono">$env:MIVUE_ALLOW_MUTATE="1"</span>.</p>
                 </article>

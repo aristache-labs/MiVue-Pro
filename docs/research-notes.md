@@ -43,19 +43,13 @@ Tooling: `npm run dev -- probe …`
 
 | Acțiune | Status pe MiVue 866 | Note |
 |---|---|---|
-| `action=get` status / UIMode | **confirmat** | UIMode citește `UNKNOWN` când e în recording |
-| `action=set` UIMode=`PLAYBACK` | **confirmat** `0 OK` | |
-| `action=set` UIMode=`MENU` / `UNKNOWN` | **701 Illegal Parameter** | |
-| `action=set` SendStopLiveView | **703** Unknown CGI-PARAM | Nu există pe 866 |
-| `action=del` | **confirmat live** | `0 OK`; HEAD post-del → 404. Ex.: `/SD/Parking/F/PARK260718-003630F.MP4` |
+| `action=get` UIMode / VideoRes / GSensor / HDR / EV / LCDPower | **confirmat** | valori observate: VIDEO, 1080P60, LEVEL2, ON, EV0, 3MIN |
+| `action=get` LiveView / SupportMjpegStream / 1080P | **confirmat** | LiveView=NO, MJPEG=NO, 1080P=NO |
+| `action=set` UIMode=`PLAYBACK` / `VIDEO` | **confirmat** `0 OK` (PLAYBACK); VIDEO citit live | |
+| `action=set` UIMode=`MENU` / `UNKNOWN` | **701** | |
+| `action=del` | **confirmat** | HEAD post-del 404 |
 | Format SD | **exclus temporar** | |
 
-Formă CGI confirmată:
-
-```text
-GET /cgi-bin/Config.cgi?action=del&property=/SD/Parking/F/<nume>.MP4
-```
-
-Path-ul trebuie să corespundă categoriei reale (`FILE…` → `/SD/Normal/…`, `PARK…` → `/SD/Parking/…`).
+Setări UI: dropdown pentru UIMode, VideoRes, GSensor, HDR, EV, LCDPower (valori candidate; confirmă pe dispozitiv înainte de a te baza pe ele).
 
 Nu stocăm parola rețelei în repository, documentație sau loguri.

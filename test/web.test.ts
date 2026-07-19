@@ -51,7 +51,9 @@ test("dashboard serves health, validates categories and supports media ranges", 
       return {
         mutateAllowed: false,
         setProperties: ["Camera.Menu.UIMode"],
-        setPropertyValues: { "Camera.Menu.UIMode": ["PLAYBACK"] },
+        setPropertyValues: { "Camera.Menu.UIMode": ["VIDEO", "PLAYBACK"] },
+        readableProperties: ["Camera.Menu.UIMode"],
+        propertyLabels: { "Camera.Menu.UIMode": "Mod UI" },
       };
     },
     async setCameraProperty() {
@@ -137,7 +139,9 @@ test("dashboard serves health, validates categories and supports media ranges", 
     assert.deepEqual(await caps.json(), {
       mutateAllowed: false,
       setProperties: ["Camera.Menu.UIMode"],
-      setPropertyValues: { "Camera.Menu.UIMode": ["PLAYBACK"] },
+      setPropertyValues: { "Camera.Menu.UIMode": ["VIDEO", "PLAYBACK"] },
+      readableProperties: ["Camera.Menu.UIMode"],
+      propertyLabels: { "Camera.Menu.UIMode": "Mod UI" },
     });
 
     const blockedDelete = await fetch(`http://127.0.0.1:${port}/api/camera/delete`, {
@@ -184,7 +188,13 @@ test("dashboard gzips large /api/files when Accept-Encoding includes gzip", asyn
     async deleteLocalFiles() { return { deleted: [], missing: [] }; },
     async openDownloadsFolder() {},
     cameraCapabilities() {
-      return { mutateAllowed: false, setProperties: [], setPropertyValues: {} };
+      return {
+        mutateAllowed: false,
+        setProperties: [],
+        setPropertyValues: {},
+        readableProperties: [],
+        propertyLabels: {},
+      };
     },
     async setCameraProperty() { throw new Error("unused"); },
     async deleteRemoteFiles() { return { results: [] }; },

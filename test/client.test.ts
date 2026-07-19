@@ -109,16 +109,17 @@ test("listAllFiles starts pagination at zero for every category", async () => {
 });
 
 test("getInfo skips properties rejected by the camera", async () => {
-  const transport = new SequenceTransport([
+  const ok = (body: string) => ({ statusCode: 200, headers: {}, body: Buffer.from(body) });
+  const responses = [
     { statusCode: 200, headers: { server: "AIT" }, body: Buffer.from("0\nOK\n") },
-    { statusCode: 200, headers: {}, body: Buffer.from("799\nInternal Error\n") },
-    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nCamera.Menu.UIMode=MENU\n") },
-    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nCamera.Preview.Source.1.Camid=F\n") },
-    { statusCode: 200, headers: {}, body: Buffer.from("0\nOK\nVendor.DeviceInfo.1080P=YES\n") },
-  ]);
+    ok("799\nInternal Error\n"), // broadcast
+  ];
+  // Remaining readable props after broadcast in READABLE_CAMERA_PROPERTIES
+  for (let i = 0; i < 10; i += 1) responses.push(ok("0\nOK\nCamera.Menu.UIMode=VIDEO\n"));
+  const transport = new SequenceTransport(responses);
   const client = new MiVueClient({ host: "192.72.1.1", httpPort: 80, rtspPort: 554 }, transport);
   const info = await client.getInfo();
-  assert.equal(info.properties["Camera.Menu.UIMode"], "MENU");
+  assert.equal(info.properties["Camera.Menu.UIMode"], "VIDEO");
   assert.equal(info.properties.broadcast, undefined);
   assert.equal(info.server, "AIT");
 });

@@ -14,6 +14,8 @@ import { assertRemoteMediaPath, assertRemoteThumbnailPath, assertRemoteSdPath, s
 import {
   SETTABLE_PROPERTIES,
   SETTABLE_PROPERTY_VALUES,
+  CAMERA_PROPERTY_LABELS,
+  READABLE_CAMERA_PROPERTIES,
   deleteRemoteFile,
   isMutateAllowed,
   setCameraProperty,
@@ -294,11 +296,15 @@ export class CameraService {
     mutateAllowed: boolean;
     setProperties: readonly string[];
     setPropertyValues: Readonly<Record<string, readonly string[]>>;
+    readableProperties: readonly string[];
+    propertyLabels: Readonly<Record<string, string>>;
   } {
     return {
       mutateAllowed: isMutateAllowed(),
       setProperties: SETTABLE_PROPERTIES,
       setPropertyValues: SETTABLE_PROPERTY_VALUES,
+      readableProperties: READABLE_CAMERA_PROPERTIES,
+      propertyLabels: CAMERA_PROPERTY_LABELS,
     };
   }
 

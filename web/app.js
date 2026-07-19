@@ -14,7 +14,13 @@ const state = {
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
   lastTelemetryIndex: -1, telemetryRaf: 0,
   favorites: loadFavorites(), selection: new Set(), selectMode: false,
-  cameraCaps: { mutateAllowed: false, setProperties: [], setPropertyValues: {} },
+  cameraCaps: {
+    mutateAllowed: false,
+    setProperties: [],
+    setPropertyValues: {},
+    readableProperties: [],
+    propertyLabels: {},
+  },
   renderPlan: [], renderOffsets: null, stickyDateKey: null, visibleFiles: [], virtualScrollBound: false,
 };
 let thumbObserver = null;
@@ -66,7 +72,7 @@ const elements = {
   sdEventBar: $("#sdEventBar"), sdPhotoBar: $("#sdPhotoBar"),
   listStickyDate: $("#listStickyDate"),
   cameraMutateStatus: $("#cameraMutateStatus"),
-  cameraUiMode: $("#cameraUiMode"), cameraBroadcast: $("#cameraBroadcast"), cameraCamid: $("#cameraCamid"),
+  cameraPropsList: $("#cameraPropsList"),
   cameraSetControls: $("#cameraSetControls"), cameraSetEmpty: $("#cameraSetEmpty"),
 };
 
@@ -1602,9 +1608,17 @@ async function refreshCameraAdmin() {
       setPropertyValues: caps.setPropertyValues && typeof caps.setPropertyValues === "object"
         ? caps.setPropertyValues
         : {},
+      readableProperties: Array.isArray(caps.readableProperties) ? caps.readableProperties : [],
+      propertyLabels: caps.propertyLabels && typeof caps.propertyLabels === "object" ? caps.propertyLabels : {},
     };
   } catch {
-    state.cameraCaps = { mutateAllowed: false, setProperties: [], setPropertyValues: {} };
+    state.cameraCaps = {
+      mutateAllowed: false,
+      setProperties: [],
+      setPropertyValues: {},
+      readableProperties: [],
+      propertyLabels: {},
+    };
   }
 
   let props = {};
@@ -1618,14 +1632,24 @@ async function refreshCameraAdmin() {
   if (elements.cameraMutateStatus) {
     elements.cameraMutateStatus.textContent = state.cameraCaps.mutateAllowed ? "Activat" : "Oprit";
   }
-  if (elements.cameraUiMode) {
-    elements.cameraUiMode.textContent = props["Camera.Menu.UIMode"] || "—";
-  }
-  if (elements.cameraBroadcast) {
-    elements.cameraBroadcast.textContent = props.broadcast || "—";
-  }
-  if (elements.cameraCamid) {
-    elements.cameraCamid.textContent = props["Camera.Preview.Source.1.Camid"] || "—";
+
+  if (elements.cameraPropsList) {
+    elements.cameraPropsList.replaceChildren();
+    const keys = state.cameraCaps.readableProperties.length
+      ? state.cameraCaps.readableProperties
+      : Object.keys(props);
+    for (const key of keys) {
+      const value = props[key];
+      if (value === undefined || value === "") continue;
+      const row = document.createElement("div");
+      const dt = document.createElement("dt");
+      dt.textContent = state.cameraCaps.propertyLabels[key] || key;
+      const dd = document.createElement("dd");
+      dd.className = "mono";
+      dd.textContent = value;
+      row.append(dt, dd);
+      elements.cameraPropsList.append(row);
+    }
   }
 
   const settable = state.cameraCaps.setProperties;
@@ -1638,23 +1662,25 @@ async function refreshCameraAdmin() {
       const row = document.createElement("div");
       row.className = "camera-set-row";
       const label = document.createElement("label");
-      label.textContent = property;
+      label.textContent = state.cameraCaps.propertyLabels[property] || property;
       const known = state.cameraCaps.setPropertyValues?.[property];
       let control;
+      const current = props[property] || "";
       if (Array.isArray(known) && known.length > 0) {
         control = document.createElement("select");
-        for (const optionValue of known) {
+        const options = current && !known.includes(current) ? [current, ...known] : [...known];
+        for (const optionValue of options) {
           const option = document.createElement("option");
           option.value = optionValue;
           option.textContent = optionValue;
-          if (optionValue === (props[property] || known[0])) option.selected = true;
+          if (optionValue === (current || known[0])) option.selected = true;
           control.append(option);
         }
       } else {
         control = document.createElement("input");
         control.type = "text";
         control.placeholder = "valoare";
-        control.value = props[property] || "";
+        control.value = current;
       }
       const button = document.createElement("button");
       button.type = "button";

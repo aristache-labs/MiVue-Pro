@@ -4,6 +4,7 @@ import {
   deleteRemoteFile as mutateDeleteRemoteFile,
   probeCgi as mutateProbeCgi,
   setCameraProperty,
+  READABLE_CAMERA_PROPERTIES,
   type CgiProbeResult,
 } from "./cameraMutate.js";
 import { MiVueProtocolError } from "./errors.js";
@@ -71,17 +72,12 @@ export class MiVueClient {
   async getInfo(signal?: AbortSignal): Promise<CameraInfo> {
     const statusResponse = await this.requestConfig("status", signal);
     const properties: Record<string, string> = { ...statusResponse.parsed.properties };
-    for (const property of [
-      "broadcast",
-      "Camera.Menu.UIMode",
-      "Camera.Preview.Source.1.Camid",
-      "Vendor.DeviceInfo.1080P",
-    ]) {
+    for (const property of READABLE_CAMERA_PROPERTIES) {
       try {
         const result = await this.getProperty(property, signal);
         Object.assign(properties, result.properties);
       } catch {
-        // Camera AIT returns 799 Internal Error for some properties intermittently.
+        // Camera AIT returns 799/703 for some properties intermittently or unknown names.
       }
     }
 

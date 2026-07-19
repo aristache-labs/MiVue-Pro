@@ -33,13 +33,20 @@ status=
 
 Formatul general este `cod`, `mesaj`, apoi linii `cheie=valoare`.
 
-## Proprietăți read-only confirmate
+## Proprietăți CGI confirmate (get pe 866)
 
 ```text
-broadcast
-Camera.Menu.UIMode
+Camera.Menu.UIMode          (ex. VIDEO / PLAYBACK)
+Camera.Menu.VideoRes        (ex. 1080P60)
+Camera.Menu.GSensor         (ex. LEVEL2)
+Camera.Menu.HDR             (ON/OFF)
+Camera.Menu.EV              (ex. EV0)
+Camera.Menu.LCDPower        (ex. 3MIN)
 Camera.Preview.Source.1.Camid
 Vendor.DeviceInfo.1080P
+Vendor.DeviceInfo.LiveView
+Vendor.DeviceInfo.SupportMjpegStream
+broadcast                   (intermitent 799)
 ```
 
 Endpoint:
