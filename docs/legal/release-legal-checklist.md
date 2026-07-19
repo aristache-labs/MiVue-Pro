@@ -2,7 +2,7 @@
 
 # Gate juridic și de conformitate pentru release
 
-**Produs:** `[NUMELE_APLICAȚIEI]`  
+**Produs:** `Laneory`  
 **Release:** `[VERSIUNE / BUILD]`  
 **Data țintă:** `[TBD]`  
 **Stare inițială:** `BLOCAT`

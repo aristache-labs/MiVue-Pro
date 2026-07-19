@@ -12,7 +12,7 @@ Acest raport inventariază materialele existente care ar putea informa o aplica�
 - nu se modifică surse, teste, UI sau configurări de runtime;
 - nu se creează `mobile/` și nu se alege framework-ul;
 - nu se publică și nu se pregătește un submit Apple/Google;
-- numele produsului rămâne `[NUMELE_APLICAȚIEI]`;
+- numele produsului: **Laneory** (ales; clearance marcă încă pending);
 - constatările privind drepturile sunt întrebări și gate-uri pentru avocat, nu opinii juridice.
 
 ## 2. Baza factuală verificată

@@ -4,7 +4,7 @@
 **Data:** 20 iulie 2026  
 **Acceptat de titular:** 20 iulie 2026 („React cu Expo”)  
 **SDK pentru Expo Go (App Store):** **54** (`expo ~54.0.35`) — App Store Expo Go nu livra încă SDK 55+ la data downgrade-ului; producția rămâne pe development builds.  
-**Produs:** `[NUMELE_APLICAȚIEI]`
+**Produs:** `Laneory`
 
 ## 1. Context
 

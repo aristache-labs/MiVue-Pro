@@ -2,20 +2,20 @@ import { StatusBar } from "expo-status-bar";
 import { Platform, StyleSheet } from "react-native";
 
 import { Text, View } from "@/components/Themed";
+import { APP_NAME, APP_SHORT_DESCRIPTION, APP_SUBTITLE, DISCLAIMER_EN } from "@/constants/Brand";
 
 export default function ModalScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>[NUMELE_APLICAȚIEI]</Text>
+      <Text style={styles.title}>{APP_NAME}</Text>
+      <Text style={styles.subtitle}>{APP_SUBTITLE}</Text>
+      <Text style={styles.body}>{APP_SHORT_DESCRIPTION}</Text>
+      <Text style={styles.body}>{DISCLAIMER_EN}</Text>
       <Text style={styles.body}>
-        Independent local-first app for read-only interoperability with user-owned dashcams. Compatible
-        (tested): Mio MiVue 866 — see docs/compatibility.md. Not affiliated with Mio or MiTAC.
+        Compatible (tested): Mio MiVue 866. Read-only list and download. Foundation build: Expo SDK 54;
+        full camera HTTP/1.0 requires a development build.
       </Text>
-      <Text style={styles.body}>
-        Foundation build: Expo prebuild / development builds. Camera HTTP/1.0 TCP uses NativeTcpTransport
-        after prebuild (stub in this release). Demo Mode uses synthetic fixtures only.
-      </Text>
-      <Text style={styles.body}>Licenses: see About / third-party notices (populated at release).</Text>
+      <Text style={styles.body}>Licenses: see Third-Party Notices at release.</Text>
       <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
     </View>
   );
@@ -23,6 +23,7 @@ export default function ModalScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, padding: 20, gap: 12 },
-  title: { fontSize: 20, fontWeight: "700" },
+  title: { fontSize: 22, fontWeight: "700" },
+  subtitle: { fontSize: 15, fontWeight: "600", opacity: 0.85 },
   body: { fontSize: 14, lineHeight: 20, opacity: 0.85 },
 });

@@ -36,7 +36,7 @@ export class FetchTransport implements Transport {
       const response = await fetch(url, {
         method: request.method,
         headers: {
-          "User-Agent": this.options.userAgent ?? "[NUMELE_APLICAȚIEI]/0.1",
+          "User-Agent": this.options.userAgent ?? "Laneory/0.1",
           Connection: "close",
           ...request.headers,
         },

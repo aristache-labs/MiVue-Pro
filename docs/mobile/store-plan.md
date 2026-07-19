@@ -2,7 +2,8 @@
 
 **Statut:** Faza 1 — plan operațional  
 **Detalii juridice:** [../legal/store-compliance.md](../legal/store-compliance.md)  
-**Produs:** `[NUMELE_APLICAȚIEI]`  
+**Produs:** Laneory  
+**Listing draft:** [store-listing.md](store-listing.md)  
 **Data:** 20 iulie 2026
 
 Nu se creează conturi de dezvoltator și nu se trimite build fără aprobarea explicită a titularului.

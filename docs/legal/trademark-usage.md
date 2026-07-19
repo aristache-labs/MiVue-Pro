@@ -2,9 +2,13 @@
 
 # Reguli de utilizare a mărcilor „Mio” și „MiVue”
 
-**Versiune:** 0.1  
-**Data:** 19 iulie 2026  
-**Nume produs:** `[NUMELE_APLICAȚIEI]`
+**Versiune:** 0.2  
+**Data:** 20 iulie 2026  
+**Nume produs:** Laneory  
+**Subtitle (draft store):** For Mio MiVue 866  
+**Short description (draft):** Independent local dashcam library for compatible Mio MiVue cameras.  
+**Statut nume:** ales de titular; **trademark clearance încă obligatorie** înainte de publicare comercială.  
+**Listing:** [docs/mobile/store-listing.md](../mobile/store-listing.md)
 
 ## 1. Principiu
 
@@ -32,7 +36,7 @@
 
 ## 4. Disclaimer obligatoriu — draft
 
-> `[NUMELE_APLICAȚIEI]` este o aplicație independentă și nu este afiliată, aprobată, sponsorizată sau distribuită de Mio ori MiTAC. Mio și MiVue sunt mărci ale titularilor lor.
+> Laneory este o aplicație independentă și nu este afiliată, aprobată, sponsorizată sau distribuită de Mio ori MiTAC. Mio și MiVue sunt mărci ale titularilor lor.
 
 Avocatul trebuie să confirme entitatea juridică exactă, titularii mărcilor și traducerile înainte de publicare.
 

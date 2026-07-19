@@ -23,7 +23,7 @@ Acestea sunt cerințe de produs, nu constatări despre un build mobil încă ine
 ```mermaid
 flowchart LR
     C["Cameră deținută de utilizator"]
-    A["[NUMELE_APLICAȚIEI] pe telefon"]
+    A["Laneory pe telefon"]
     S["Stocare privată a aplicației"]
     V["Viewer / hartă offline pe dispozitiv"]
     E["Export ales de utilizator"]

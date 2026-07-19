@@ -1,6 +1,6 @@
 # Registru de compatibilitate
 
-**Produs:** `[NUMELE_APLICAȚIEI]`  
+**Produs:** `Laneory`  
 **Statut:** registru pregătitor; nu este certificare a producătorului  
 **Ultima actualizare:** 20 iulie 2026
 

@@ -1,7 +1,7 @@
 import type { GpsSample } from "./types";
 
-const GPX_CREATOR = "[NUMELE_APLICAȚIEI]";
-const GPX_NS = "https://example.invalid/app";
+const GPX_CREATOR = "Laneory";
+const GPX_NS = "https://laneory.app/ns/gpx";
 
 export class NmeaParseError extends Error {
   constructor(message: string) {

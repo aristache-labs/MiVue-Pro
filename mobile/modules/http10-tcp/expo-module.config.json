@@ -1,0 +1,9 @@
+{
+  "platforms": ["ios", "android"],
+  "ios": {
+    "modules": ["Http10TcpModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.http10tcp.Http10TcpModule"]
+  }
+}

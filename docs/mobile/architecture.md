@@ -3,8 +3,8 @@
 **Statut:** Faza 2 — fundație  
 **Framework:** React Native + Expo prebuild / development builds ([adr-001-framework.md](adr-001-framework.md))  
 **Locație:** subfolder `mobile/` în acest monorepo  
-**Produs:** `[NUMELE_APLICAȚIEI]`  
-**Notă:** Expo Go nu este țintă de producție; TCP HTTP/1.0 și FGS cer development build.
+**Produs:** `Laneory`  
+**Notă:** Expo Go = Demo + Fetch probe. TCP HTTP/1.0 nativ = modul `modules/http10-tcp` + EAS development build (vezi `mobile/README.md`, Faza 2b).
 
 ## 1. Principii
 

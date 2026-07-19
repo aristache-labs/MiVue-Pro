@@ -37,7 +37,7 @@ Acest document definește o evidență pentru etapele viitoare și o carantină 
 | `src/protocol/cameraMutate.ts` | `OWN` + posibil `APK` + `EXC` | exclus integral | nu se importă, nu se copiază, nu se reimplementează |
 | `src/commands/probe.ts` | `OWN` + `APK` + `EXC` | exclus integral | aceeași restricție ca mai sus |
 | `web/index.html`, `web/app.js`, `web/styles.css` | expresie UI existentă | rescriere originală | research UX independent; fără pixel matching, copy sau structură identică |
-| User-Agent și metadate GPX cu „MiVue” | brand terț | înlocuire | identificator `[NUMELE_APLICAȚIEI]` și namespace propriu controlat de titular |
+| User-Agent și metadate GPX cu „MiVue” | brand terț | înlocuire | identificator `Laneory` și namespace propriu controlat de titular |
 | Leaflet 1.9.4 | `3P`, BSD-2-Clause | doar referință curentă | păstrați notice-ul dacă este inclus; aplicația mobilă decide separat stack-ul de hărți |
 | APK/XAPK, Androguard DB, firmware, imagini/icoane MiTAC | `APK`/`EXC` | excluse | nu se copiază în `mobile/`, build, test fixtures, demo sau distribuție |
 

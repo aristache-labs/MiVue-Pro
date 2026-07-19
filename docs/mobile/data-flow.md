@@ -2,7 +2,7 @@
 
 **Statut:** Faza 1  
 **Privacy legal:** [../legal/privacy-data-flow.md](../legal/privacy-data-flow.md)  
-**Produs:** `[NUMELE_APLICAȚIEI]`
+**Produs:** `Laneory`
 
 ## 1. Flux principal (local-first)
 

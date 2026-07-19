@@ -4,7 +4,7 @@
 
 **Versiune:** 0.1  
 **Data:** 19 iulie 2026  
-**Produs:** `[NUMELE_APLICAȚIEI]`
+**Produs:** `Laneory`
 
 ## 1. Scopul revizuirii
 

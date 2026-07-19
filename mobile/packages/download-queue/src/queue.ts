@@ -1,4 +1,6 @@
-import { assertLocalFileName, assertRemoteSdPath, type Transport } from "../../camera-transport/src/index";
+import { assertLocalFileName, assertRemoteSdPath } from "../../camera-transport/src/pathSafety";
+import { isStreamingTransport } from "../../camera-transport/src/streaming";
+import type { Transport } from "../../camera-transport/src/types";
 import type { QueueItem, QueueStore } from "../../local-db/src/index";
 import type { FileSink } from "./fileSink";
 
@@ -13,8 +15,15 @@ export interface DownloadQueueOptions {
 export class DownloadQueue {
   private items: QueueItem[] = [];
   private pumping = false;
+  private transport: Transport;
 
-  constructor(private readonly options: DownloadQueueOptions) {}
+  constructor(private readonly options: DownloadQueueOptions) {
+    this.transport = options.transport;
+  }
+
+  setTransport(transport: Transport): void {
+    this.transport = transport;
+  }
 
   async init(): Promise<void> {
     this.items = await this.options.store.load();
@@ -50,7 +59,7 @@ export class DownloadQueue {
       throw new Error("Duplicate transfer already queued");
     }
 
-    const dest = `${this.options.downloadDir}/${input.localName}`;
+    const dest = joinPath(this.options.downloadDir, input.localName);
     const part = `${dest}.part`;
     if (await this.options.sink.exists(dest)) {
       throw new Error("Local file already exists");
@@ -99,11 +108,11 @@ export class DownloadQueue {
     this.patch(item.id, { status: "active", bytesReceived: 0 });
     await this.persist();
 
-    const dest = `${this.options.downloadDir}/${item.localName}`;
+    const dest = joinPath(this.options.downloadDir, item.localName);
     const part = `${dest}.part`;
 
     try {
-      const head = await this.options.transport.request({ method: "HEAD", path: item.remotePath });
+      const head = await this.transport.request({ method: "HEAD", path: item.remotePath });
       if (head.statusCode !== 200) {
         throw new Error(`HEAD HTTP ${head.statusCode}`);
       }
@@ -112,22 +121,34 @@ export class DownloadQueue {
         throw new Error(`Content-Length mismatch: expected ${item.expectedBytes}, HEAD ${headLength}`);
       }
 
-      const get = await this.options.transport.request({ method: "GET", path: item.remotePath });
-      if (get.statusCode !== 200) {
-        throw new Error(`GET HTTP ${get.statusCode}`);
-      }
-      const getLength = parseContentLength(get.headers);
-      if (getLength !== undefined && getLength !== item.expectedBytes) {
-        throw new Error(`Content-Length mismatch: HEAD/expected vs GET`);
-      }
-      if (get.body.byteLength !== item.expectedBytes) {
-        throw new Error(`Size invalid: expected ${item.expectedBytes}, got ${get.body.byteLength}`);
-      }
+      if (isStreamingTransport(this.transport)) {
+        const result = await this.transport.downloadToFile({
+          remotePath: item.remotePath,
+          destinationPath: dest,
+          expectedBytes: item.expectedBytes,
+          onProgress: (progress) => {
+            this.patch(item.id, { bytesReceived: progress.bytesReceived });
+          },
+        });
+        this.patch(item.id, { status: "completed", bytesReceived: result.bytesWritten });
+      } else {
+        const get = await this.transport.request({ method: "GET", path: item.remotePath });
+        if (get.statusCode !== 200) {
+          throw new Error(`GET HTTP ${get.statusCode}`);
+        }
+        const getLength = parseContentLength(get.headers);
+        if (getLength !== undefined && getLength !== item.expectedBytes) {
+          throw new Error(`Content-Length mismatch: HEAD/expected vs GET`);
+        }
+        if (get.body.byteLength !== item.expectedBytes) {
+          throw new Error(`Size invalid: expected ${item.expectedBytes}, got ${get.body.byteLength}`);
+        }
 
-      await this.options.sink.writeExclusive(part, get.body);
-      this.patch(item.id, { bytesReceived: get.body.byteLength });
-      await this.options.sink.rename(part, dest);
-      this.patch(item.id, { status: "completed", bytesReceived: get.body.byteLength });
+        await this.options.sink.writeExclusive(part, get.body);
+        this.patch(item.id, { bytesReceived: get.body.byteLength });
+        await this.options.sink.rename(part, dest);
+        this.patch(item.id, { status: "completed", bytesReceived: get.body.byteLength });
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       try {
@@ -164,4 +185,9 @@ function parseContentLength(headers: Readonly<Record<string, string>>): number |
   const raw = headers["content-length"];
   if (raw === undefined || !/^\d+$/.test(raw)) return undefined;
   return Number.parseInt(raw, 10);
+}
+
+function joinPath(dir: string, name: string): string {
+  if (dir.endsWith("/")) return `${dir}${name}`;
+  return `${dir}/${name}`;
 }

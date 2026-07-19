@@ -3,7 +3,7 @@
 # Apple App Store și Google Play — draft de conformitate
 
 **Versiune reguli verificată:** 19 iulie 2026  
-**Produs:** `[NUMELE_APLICAȚIEI]`  
+**Produs:** `Laneory`  
 **Stare:** plan; nu reprezintă declarații completate sau aprobarea magazinelor
 
 Regulile magazinelor se schimbă. Toate linkurile și formularele trebuie reverificate imediat înaintea fiecărui submit.

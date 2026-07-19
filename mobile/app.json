@@ -1,19 +1,21 @@
 {
   "expo": {
-    "name": "[NUMELE_APLICAȚIEI]",
-    "slug": "numele-aplicatiei",
+    "name": "Laneory",
+    "slug": "laneory",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "numeleaplicatiei",
+    "scheme": "laneory",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "app.laneory.mobile",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "The app connects to your dashcam on the local Wi-Fi network to list and download files you choose. It does not change camera settings."
+        "NSLocalNetworkUsageDescription": "Laneory connects to your dashcam on the local Wi-Fi network to list and download files you choose. It does not change camera settings."
       }
     },
     "android": {
+      "package": "app.laneory.mobile",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -40,6 +42,10 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "subtitle": "For Mio MiVue 866",
+      "shortDescription": "Independent local dashcam library for compatible Mio MiVue cameras."
     }
   }
 }

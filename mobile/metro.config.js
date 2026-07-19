@@ -4,7 +4,10 @@ const path = require("path");
 const projectRoot = __dirname;
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [path.resolve(projectRoot, "packages")];
+config.watchFolders = [
+  path.resolve(projectRoot, "packages"),
+  path.resolve(projectRoot, "modules"),
+];
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, "node_modules")];
 
 module.exports = config;

@@ -11,7 +11,7 @@ test("NMEA telemetry becomes a GPX track point with app namespace", () => {
   assert.equal(samples.length, 1);
   assert.equal(samples[0]?.latitude, 45);
   const gpx = telemetryToGpx(samples, "test.NMEA");
-  assert.match(gpx, /creator="\[NUMELE_APLICAȚIEI\]"/);
+  assert.match(gpx, /creator="Laneory"/);
   assert.match(gpx, /xmlns:app=/);
   assert.doesNotMatch(gpx, /MiVue/);
 });

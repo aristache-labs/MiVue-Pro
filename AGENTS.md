@@ -1,4 +1,4 @@
-# AGENTS.md — reguli pentru agenți în MiVue Pro / `[NUMELE_APLICAȚIEI]`
+# AGENTS.md — reguli pentru agenți în MiVue Pro / `Laneory`
 
 Acest repository conține un CLI TypeScript + dashboard local read-only pentru interoperabilitate cu camere auto deținute legal, plus documentația de tranziție către o aplicație mobilă comercială independentă (nu oficială Mio/MiTAC).
 
@@ -42,4 +42,4 @@ Acest repository conține un CLI TypeScript + dashboard local read-only pentru i
 
 ## Brand
 
-Numele produsului mobil rămâne placeholder `[NUMELE_APLICAȚIEI]` până la trademark clearance. „Mio”/„MiVue” doar factual, pentru compatibilitate testată. Vezi `docs/legal/trademark-usage.md`.
+Nume produs mobil: **Laneory** (subtitle/store drafts în `docs/mobile/store-listing.md`). Trademark clearance încă obligatorie înainte de submit. „Mio”/„MiVue” doar factual. Vezi `docs/legal/trademark-usage.md`.

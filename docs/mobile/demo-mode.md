@@ -2,7 +2,7 @@
 
 **Statut:** Faza 1  
 **Scop:** App Review Apple / Google Play fără cameră fizică  
-**Produs:** `[NUMELE_APLICAȚIEI]`
+**Produs:** `Laneory`
 
 ## 1. Cerințe
 
@@ -58,7 +58,7 @@ Licență: active create de titular sau cu licență comercială clară; inventa
 ## 5. Review Notes (schelet)
 
 ```text
-[NUMELE_APLICAȚIEI] is an independent app, not affiliated with Mio/MiTAC.
+Laneory is an independent app, not affiliated with Mio/MiTAC.
 
 Hardware: optional Mio MiVue 866 on the camera's Wi-Fi. The app only uses
 read-only HTTP to list/download files from a user-owned device.

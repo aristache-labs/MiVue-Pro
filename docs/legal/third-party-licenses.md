@@ -30,7 +30,8 @@ Harta web curentă afișează atribuirea OpenStreetMap. **Datele și tile-urile 
 
 | Candidat | Versiune | Licență proiect | Runtime livrat | Dependențe native/transitive | Decizie |
 |---|---|---|---:|---|---|
-| Expo SDK + React Native (prebuild) | Expo `~54.0.35` / RN `0.81.5` (`mobile/package.json`; aliniat Expo Go App Store) | MIT (Expo) + RN licenses | Hermes + native prebuild | inventar la lockfile | **acceptat** (ADR-001); Expo Go OK pentru Demo; producție = dev build |
+| Expo SDK + React Native (prebuild) | Expo `~54.0.35` / RN `0.81.5` (`mobile/package.json`; aliniat Expo Go App Store) | MIT (Expo) + RN licenses | Hermes + native prebuild + `http10-tcp` local | inventar la lockfile | **acceptat** (ADR-001); Expo Go OK pentru Demo; live cameră = EAS dev build |
+| AsyncStorage / expo-file-system / expo-dev-client | vezi `mobile/package.json` | MIT | runtime | lockfile | acceptate pentru Faza 2b |
 | React Native bare (fără Expo) | — | — | — | — | alternativă dacă prebuild blochează TCP |
 | Flutter | — | — | — | — | respins ca default |
 | Kotlin Multiplatform | — | — | — | — | respins ca default |

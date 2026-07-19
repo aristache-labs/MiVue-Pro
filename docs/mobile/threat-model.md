@@ -1,4 +1,4 @@
-# Threat model STRIDE — `[NUMELE_APLICAȚIEI]`
+# Threat model STRIDE — `Laneory`
 
 **Statut:** Faza 1 — draft tehnic  
 **Data:** 20 iulie 2026  
