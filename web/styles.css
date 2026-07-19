@@ -1451,6 +1451,126 @@ video {
   font-size: 12px;
   line-height: 1.45;
 }
+.camera-admin-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.camera-admin-head h3 {
+  margin: 0;
+}
+.camera-mutate-badge {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--panel-elevated) 70%, var(--line));
+  border: 1px solid var(--line);
+}
+.camera-mutate-badge.is-on {
+  color: var(--accent-strong);
+  background: var(--accent-soft);
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--line));
+}
+.camera-settings-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--panel-elevated);
+}
+.camera-setting-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px 14px;
+  align-items: center;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+}
+.camera-setting-row:last-child {
+  border-bottom: 0;
+}
+.camera-setting-row--readonly {
+  grid-template-columns: 1fr;
+  opacity: 0.92;
+}
+.camera-setting-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.camera-setting-name {
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--ink);
+  letter-spacing: -0.01em;
+}
+.camera-setting-current {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.camera-setting-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.camera-setting-select {
+  min-width: 132px;
+  max-width: 200px;
+  height: 30px;
+  padding: 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+}
+.camera-setting-select:disabled {
+  opacity: 0.55;
+}
+.camera-setting-apply {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.camera-setting-apply:hover:not(:disabled) {
+  background: var(--accent-strong);
+}
+.camera-setting-apply:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .camera-setting-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .camera-setting-actions {
+    width: 100%;
+  }
+  .camera-setting-select {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+}
+
 .camera-set-controls {
   display: grid;
   gap: 8px;

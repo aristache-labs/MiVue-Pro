@@ -357,15 +357,13 @@
                 </article>
 
                 <article class="settings-card" id="cameraAdminCard">
-                  <h3>Administrare cameră</h3>
-                  <p class="settings-desc">Citește setările CGI. Scrierea e limitată la Frequency, EV și Date&amp;Time (<span class="mono">MIVUE_ALLOW_MUTATE=1</span>). Fără rezoluție, G-Sensor, HDR sau LCD.</p>
-                  <dl class="settings-dl">
-                    <div><dt>Mutate</dt><dd id="cameraMutateStatus">—</dd></div>
-                  </dl>
-                  <dl id="cameraPropsList" class="settings-dl" aria-label="Setări cameră"></dl>
-                  <h4 class="settings-subhead">Modifică</h4>
-                  <div id="cameraSetControls" class="camera-set-controls hidden"></div>
-                  <p id="cameraSetEmpty" class="settings-note">Pentru a scrie setări: repornește web cu <span class="mono">$env:MIVUE_ALLOW_MUTATE="1"</span>.</p>
+                  <div class="camera-admin-head">
+                    <h3>Administrare cameră</h3>
+                    <span id="cameraMutateStatus" class="camera-mutate-badge" title="MIVUE_ALLOW_MUTATE">—</span>
+                  </div>
+                  <p class="settings-desc">Frequency, EV și Date&amp;Time. Scrierea necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
+                  <div id="cameraSettingsList" class="camera-settings-list" aria-label="Setări cameră"></div>
+                  <p id="cameraSetEmpty" class="settings-note hidden">Pentru scriere: repornește web cu <span class="mono">$env:MIVUE_ALLOW_MUTATE="1"</span>.</p>
                 </article>
 
                 <article class="settings-card">

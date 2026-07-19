@@ -73,8 +73,8 @@ const elements = {
   sdEventBar: $("#sdEventBar"), sdPhotoBar: $("#sdPhotoBar"),
   listStickyDate: $("#listStickyDate"),
   cameraMutateStatus: $("#cameraMutateStatus"),
-  cameraPropsList: $("#cameraPropsList"),
-  cameraSetControls: $("#cameraSetControls"), cameraSetEmpty: $("#cameraSetEmpty"),
+  cameraSettingsList: $("#cameraSettingsList"),
+  cameraSetEmpty: $("#cameraSetEmpty"),
 };
 
 function loadFavorites() {
@@ -1634,71 +1634,121 @@ async function refreshCameraAdmin() {
     props = {};
   }
 
+  const canMutate = state.cameraCaps.mutateAllowed;
   if (elements.cameraMutateStatus) {
-    elements.cameraMutateStatus.textContent = state.cameraCaps.mutateAllowed ? "Activat" : "Oprit";
+    elements.cameraMutateStatus.textContent = canMutate ? "Mutate ON" : "Read-only";
+    elements.cameraMutateStatus.classList.toggle("is-on", canMutate);
   }
 
-  if (elements.cameraPropsList) {
-    elements.cameraPropsList.replaceChildren();
-    const keys = state.cameraCaps.readableProperties.length
-      ? state.cameraCaps.readableProperties
-      : Object.keys(props);
-    for (const key of keys) {
-      const value = props[key];
-      if (value === undefined || value === "") continue;
-      const row = document.createElement("div");
-      const dt = document.createElement("dt");
-      dt.textContent = state.cameraCaps.propertyLabels[key] || key;
-      const dd = document.createElement("dd");
-      dd.className = "mono";
-      dd.textContent = value;
-      row.append(dt, dd);
-      elements.cameraPropsList.append(row);
-    }
+  const list = elements.cameraSettingsList;
+  if (!list) {
+    syncBulkBar();
+    return;
   }
+  list.replaceChildren();
 
   const settable = state.cameraCaps.setProperties;
-  const canSet = state.cameraCaps.mutateAllowed && settable.length > 0;
-  elements.cameraSetEmpty?.classList.toggle("hidden", canSet);
-  elements.cameraSetControls?.classList.toggle("hidden", !canSet);
-  if (elements.cameraSetControls && canSet) {
-    elements.cameraSetControls.replaceChildren();
-    for (const property of settable) {
-      const row = document.createElement("div");
-      row.className = "camera-set-row";
-      const label = document.createElement("label");
-      label.textContent = state.cameraCaps.propertyLabels[property] || property;
-      const known = state.cameraCaps.setPropertyValues?.[property];
-      const valueLabels = state.cameraCaps.setPropertyValueLabels?.[property] || {};
-      let control;
-      const current = props[property] || "";
-      if (Array.isArray(known) && known.length > 0) {
-        control = document.createElement("select");
-        const options = current && !known.includes(current) ? [current, ...known] : [...known];
-        for (const optionValue of options) {
-          const option = document.createElement("option");
-          option.value = optionValue;
-          option.textContent = valueLabels[optionValue] || optionValue;
-          if (optionValue === (current || known[0])) option.selected = true;
-          control.append(option);
-        }
-      } else {
-        control = document.createElement("input");
-        control.type = "text";
-        control.placeholder = "valoare";
-        control.value = current;
+  const settableSet = new Set(settable);
+  const valueLabelsFor = (property) => state.cameraCaps.setPropertyValueLabels?.[property] || {};
+  const labelFor = (property) => state.cameraCaps.propertyLabels[property] || property;
+  const displayValue = (property, raw) => {
+    if (raw === undefined || raw === "") return "—";
+    return valueLabelsFor(property)[raw] || raw;
+  };
+
+  const renderEditableRow = (property) => {
+    const known = state.cameraCaps.setPropertyValues?.[property];
+    const valueLabels = valueLabelsFor(property);
+    const current = props[property] || "";
+    const row = document.createElement("div");
+    row.className = "camera-setting-row";
+    row.dataset.property = property;
+
+    const meta = document.createElement("div");
+    meta.className = "camera-setting-meta";
+    const name = document.createElement("span");
+    name.className = "camera-setting-name";
+    name.textContent = labelFor(property);
+    const currentEl = document.createElement("span");
+    currentEl.className = "camera-setting-current";
+    currentEl.textContent = displayValue(property, current);
+    meta.append(name, currentEl);
+
+    const actions = document.createElement("div");
+    actions.className = "camera-setting-actions";
+    let control;
+    if (Array.isArray(known) && known.length > 0) {
+      control = document.createElement("select");
+      control.className = "camera-setting-select";
+      const options = current && !known.includes(current) ? [current, ...known] : [...known];
+      for (const optionValue of options) {
+        const option = document.createElement("option");
+        option.value = optionValue;
+        option.textContent = valueLabels[optionValue] || optionValue;
+        if (optionValue === (current || known[0])) option.selected = true;
+        control.append(option);
       }
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "settings-btn";
-      button.textContent = "Aplică";
-      button.addEventListener("click", () => {
-        void applyCameraSet(property, control.value);
-      });
-      row.append(label, control, button);
-      elements.cameraSetControls.append(row);
+    } else {
+      control = document.createElement("input");
+      control.type = "text";
+      control.className = "camera-setting-select";
+      control.placeholder = "valoare";
+      control.value = current;
     }
+    control.disabled = !canMutate;
+
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "camera-setting-apply";
+    button.textContent = "Aplică";
+    button.disabled = !canMutate;
+    button.addEventListener("click", () => {
+      void applyCameraSet(property, control.value);
+    });
+    actions.append(control, button);
+    row.append(meta, actions);
+    list.append(row);
+  };
+
+  for (const property of settable) {
+    renderEditableRow(property);
   }
+
+  const readable = state.cameraCaps.readableProperties.length
+    ? state.cameraCaps.readableProperties
+    : Object.keys(props);
+  for (const key of readable) {
+    if (settableSet.has(key)) continue;
+    if (key === "broadcast") continue;
+    let value = props[key];
+    if (key === "Camera.Preview.MJPEG.TimeStamp.*" && (value === undefined || value === "")) {
+      const y = props["Camera.Preview.MJPEG.TimeStamp.year"];
+      const mo = props["Camera.Preview.MJPEG.TimeStamp.month"];
+      const d = props["Camera.Preview.MJPEG.TimeStamp.day"];
+      const h = props["Camera.Preview.MJPEG.TimeStamp.hour"];
+      const mi = props["Camera.Preview.MJPEG.TimeStamp.minute"];
+      const s = props["Camera.Preview.MJPEG.TimeStamp.second"];
+      if (y !== undefined) {
+        value = `${y}-${String(mo).padStart(2, "0")}-${String(d).padStart(2, "0")} ${String(h).padStart(2, "0")}:${String(mi).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+      }
+    }
+    if (value === undefined || value === "") continue;
+    const row = document.createElement("div");
+    row.className = "camera-setting-row camera-setting-row--readonly";
+    const meta = document.createElement("div");
+    meta.className = "camera-setting-meta";
+    const name = document.createElement("span");
+    name.className = "camera-setting-name";
+    name.textContent = labelFor(key);
+    const currentEl = document.createElement("span");
+    currentEl.className = "camera-setting-current";
+    currentEl.textContent = displayValue(key, value);
+    meta.append(name, currentEl);
+    row.append(meta);
+    list.append(row);
+  }
+
+  elements.cameraSetEmpty?.classList.toggle("hidden", canMutate || settable.length === 0);
   syncBulkBar();
 }
 
@@ -1707,10 +1757,12 @@ async function applyCameraSet(property, value) {
     showToast("Completează valoarea", "err");
     return;
   }
-  if (!window.confirm(`Setezi ${property}=${value} pe cameră?`)) return;
+  const label = state.cameraCaps.propertyLabels[property] || property;
+  const shown = state.cameraCaps.setPropertyValueLabels?.[property]?.[value] || value;
+  if (!window.confirm(`Setezi ${label} = ${shown} pe cameră?`)) return;
   try {
     await api("/api/camera/set", { method: "POST", body: JSON.stringify({ property, value }) });
-    showToast(`Setat ${property}`, "ok");
+    showToast(`${label}: ${shown}`, "ok");
     void refreshCameraAdmin();
   } catch (error) {
     showToast(error.message, "err");
