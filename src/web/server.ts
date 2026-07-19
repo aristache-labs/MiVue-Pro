@@ -14,6 +14,10 @@ const STATIC_FILES: Readonly<Record<string, string>> = {
   "/": "index.html",
   "/app.js": "app.js",
   "/styles.css": "styles.css",
+  "/fonts/SourceSans3-Regular.woff2": "fonts/SourceSans3-Regular.woff2",
+  "/fonts/SourceSans3-Semibold.woff2": "fonts/SourceSans3-Semibold.woff2",
+  "/fonts/IBMPlexMono-Regular.woff2": "fonts/IBMPlexMono-Regular.woff2",
+  "/fonts/IBMPlexMono-Medium.woff2": "fonts/IBMPlexMono-Medium.woff2",
 };
 const CATEGORIES = new Set<Exclude<FileCategory, "unknown">>(["normal", "event", "parking", "photo"]);
 
@@ -27,7 +31,7 @@ export interface DashboardService {
   readonly downloadsDirectory: string;
   info(): Promise<unknown>;
   list(category?: Exclude<FileCategory, "unknown">): Promise<readonly RemoteFile[]>;
-  prepare(remotePath: string, onProgress?: PrepareProgressCallback): Promise<PreparedMedia>;
+  prepare(remotePath: string, onProgress?: PrepareProgressCallback, signal?: AbortSignal): Promise<PreparedMedia>;
   thumbnail(remotePath: string): Promise<Uint8Array>;
   telemetry(name: string): Promise<readonly GpsSample[]>;
 }
@@ -35,9 +39,10 @@ export interface DashboardService {
 export function createDashboardServer(options: DashboardServerOptions): Server {
   const webDirectory = options.webDirectory ?? join(process.cwd(), "web");
   const jobs = new Map<string, PrepareJob>();
+  const controllers = new Map<string, AbortController>();
   const prepareQueue: PrepareQueue = { running: false, items: [] };
   return createServer((request, response) => {
-    void handleRequest(request, response, options.service, webDirectory, jobs, prepareQueue).catch((error: unknown) => {
+    void handleRequest(request, response, options.service, webDirectory, jobs, controllers, prepareQueue).catch((error: unknown) => {
       options.logger.error(error instanceof Error ? error.message : String(error));
       if (!response.headersSent) sendJson(response, 500, { error: publicError(error) });
       else response.destroy();
@@ -51,12 +56,13 @@ async function handleRequest(
   service: DashboardService,
   webDirectory: string,
   jobs: Map<string, PrepareJob>,
+  controllers: Map<string, AbortController>,
   prepareQueue: PrepareQueue,
 ): Promise<void> {
   const url = new URL(request.url ?? "/", "http://127.0.0.1");
   response.setHeader("X-Content-Type-Options", "nosniff");
   response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.setHeader("Content-Security-Policy", "default-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org");
+  response.setHeader("Content-Security-Policy", "default-src 'self'; media-src 'self'; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; img-src 'self' data: https://tile.openstreetmap.org");
 
   if (url.pathname === "/api/health" && request.method === "GET") {
     sendJson(response, 200, { ok: true });
@@ -97,7 +103,7 @@ async function handleRequest(
     });
     prepareQueue.items.push({ jobId, remotePath: body["remotePath"] });
     updateQueuePositions(prepareQueue, jobs);
-    void drainPrepareQueue(prepareQueue, jobs, service);
+    void drainPrepareQueue(prepareQueue, jobs, controllers, service);
     sendJson(response, 202, { jobId });
     return;
   }
@@ -106,6 +112,13 @@ async function handleRequest(
     const job = jobs.get(jobId);
     if (job === undefined) sendJson(response, 404, { error: "Operația nu a fost găsită sau a expirat" });
     else sendJson(response, 200, job);
+    return;
+  }
+  if (url.pathname.startsWith("/api/jobs/") && request.method === "DELETE") {
+    const jobId = url.pathname.slice("/api/jobs/".length);
+    const cancelled = cancelPrepareJob(jobId, jobs, controllers, prepareQueue);
+    if (!cancelled) sendJson(response, 404, { error: "Operația nu a fost găsită sau nu mai poate fi anulată" });
+    else sendJson(response, 200, { ok: true, jobId });
     return;
   }
   if (url.pathname === "/api/thumbnail" && request.method === "GET") {
@@ -169,12 +182,15 @@ interface PrepareQueue {
 async function drainPrepareQueue(
   queue: PrepareQueue,
   jobs: Map<string, PrepareJob>,
+  controllers: Map<string, AbortController>,
   service: DashboardService,
 ): Promise<void> {
   if (queue.running) return;
   const next = queue.items.shift();
   if (next === undefined) return;
   queue.running = true;
+  const controller = new AbortController();
+  controllers.set(next.jobId, controller);
   jobs.set(next.jobId, {
     status: "running", remotePath: next.remotePath,
     progress: { stage: "starting", percent: 0, message: "Se pornește descărcarea…" },
@@ -184,15 +200,49 @@ async function drainPrepareQueue(
     const prepared = await service.prepare(next.remotePath, (progress) => {
       const job = jobs.get(next.jobId);
       if (job?.status === "running") job.progress = progress;
-    });
-    jobs.set(next.jobId, { status: "complete", result: preparedResponse(prepared) });
+    }, controller.signal);
+    if (controller.signal.aborted) {
+      jobs.set(next.jobId, { status: "error", error: "Descărcare anulată" });
+    } else {
+      jobs.set(next.jobId, { status: "complete", result: preparedResponse(prepared) });
+    }
   } catch (error) {
-    jobs.set(next.jobId, { status: "error", error: publicError(error) });
+    const message = publicError(error);
+    jobs.set(next.jobId, {
+      status: "error",
+      error: controller.signal.aborted || /anulat/i.test(message) ? "Descărcare anulată" : message,
+    });
   } finally {
+    controllers.delete(next.jobId);
     expireJob(jobs, next.jobId);
     queue.running = false;
-    void drainPrepareQueue(queue, jobs, service);
+    void drainPrepareQueue(queue, jobs, controllers, service);
   }
+}
+
+function cancelPrepareJob(
+  jobId: string,
+  jobs: Map<string, PrepareJob>,
+  controllers: Map<string, AbortController>,
+  queue: PrepareQueue,
+): boolean {
+  const job = jobs.get(jobId);
+  if (job === undefined) return false;
+  if (job.status === "queued") {
+    const index = queue.items.findIndex((item) => item.jobId === jobId);
+    if (index >= 0) queue.items.splice(index, 1);
+    jobs.set(jobId, { status: "error", error: "Descărcare anulată" });
+    updateQueuePositions(queue, jobs);
+    expireJob(jobs, jobId);
+    return true;
+  }
+  if (job.status === "running") {
+    const controller = controllers.get(jobId);
+    if (controller === undefined) return false;
+    controller.abort();
+    return true;
+  }
+  return false;
 }
 
 function updateQueuePositions(queue: PrepareQueue, jobs: Map<string, PrepareJob>): void {
@@ -293,6 +343,7 @@ function contentType(path: string): string {
   if (extension === ".jpg" || extension === ".jpeg") return "image/jpeg";
   if (extension === ".mp4") return "video/mp4";
   if (extension === ".gpx") return "application/gpx+xml";
+  if (extension === ".woff2") return "font/woff2";
   return "application/octet-stream";
 }
 

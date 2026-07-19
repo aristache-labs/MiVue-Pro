@@ -56,6 +56,11 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
 
   const started = performance.now();
   const transfer = await new Promise<Omit<DownloadResult, "destinationPath">>((resolve, reject) => {
+    if (options.signal?.aborted) {
+      reject(new DownloadError("Transfer anulat", partialPath));
+      return;
+    }
+
     const writer = createWriteStream(partialPath, { flags: "wx" });
     const socket = net.createConnection({ host: options.host, port: options.port ?? 80 });
     let headerBuffer = Buffer.alloc(0);
@@ -64,18 +69,25 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
     let settled = false;
     let responseEnded = false;
 
+    const swallowWriterErrors = (): void => {
+      writer.removeAllListeners("error");
+      writer.on("error", () => undefined);
+    };
+
     const cleanup = (): void => {
       options.signal?.removeEventListener("abort", abort);
       socket.removeAllListeners();
-      writer.removeAllListeners();
       socket.destroy();
+      writer.removeAllListeners("drain");
+      writer.removeAllListeners("finish");
+      swallowWriterErrors();
+      if (!writer.destroyed) writer.destroy();
     };
 
     const fail = (error: unknown): void => {
       if (settled) return;
       settled = true;
       cleanup();
-      writer.destroy();
       const cause = error instanceof Error ? error : new Error(String(error));
       reject(new DownloadError(cause.message, partialPath, { cause }));
     };
@@ -88,8 +100,13 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
         return;
       }
       settled = true;
+      options.signal?.removeEventListener("abort", abort);
+      socket.removeAllListeners();
+      socket.destroy();
+      writer.removeAllListeners("drain");
+      writer.removeAllListeners("error");
+      writer.removeAllListeners("finish");
       const elapsedMs = performance.now() - started;
-      cleanup();
       resolve({
         bytesWritten,
         elapsedMs,
@@ -99,7 +116,7 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
     };
 
     const writeBody = (chunk: Buffer): void => {
-      if (chunk.byteLength === 0 || settled) return;
+      if (chunk.byteLength === 0 || settled || writer.destroyed || !writer.writable) return;
       const expected = options.expectedBytes ?? responseHead?.contentLength;
       if (expected !== undefined && bytesWritten + chunk.byteLength > expected) {
         fail(new Error(`Serverul a trimis mai multe date decât dimensiunea declarată (${expected})`));
@@ -113,13 +130,20 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
         elapsedMs,
         bytesPerSecond: elapsedMs <= 0 ? 0 : bytesWritten / (elapsedMs / 1_000),
       });
-      if (!writer.write(chunk)) {
-        socket.pause();
-        writer.once("drain", () => socket.resume());
+      try {
+        if (!writer.write(chunk)) {
+          socket.pause();
+          writer.once("drain", () => {
+            if (!settled && !socket.destroyed) socket.resume();
+          });
+        }
+      } catch (error) {
+        fail(error);
       }
     };
 
     const handleData = (chunk: Buffer): void => {
+      if (settled) return;
       if (responseHead !== undefined) {
         writeBody(chunk);
         return;
@@ -158,19 +182,25 @@ export async function downloadToFile(options: DownloadOptions): Promise<Download
       fail(new TransportError("Transferul nu a primit date în intervalul configurat", "ETIMEDOUT"));
     });
     socket.once("connect", () => {
+      if (settled) return;
       socket.write(buildGetRequest(options.remotePath, options.host));
     });
     socket.on("data", handleData);
     socket.once("end", () => {
+      if (settled) return;
       responseEnded = true;
       if (responseHead === undefined) {
         fail(new Error("Camera a închis conexiunea înainte de răspunsul HTTP"));
         return;
       }
-      writer.end();
+      if (!writer.destroyed) writer.end();
     });
-    socket.once("error", fail);
-    writer.once("error", fail);
+    socket.once("error", (error) => {
+      if (!settled) fail(error);
+    });
+    writer.on("error", (error) => {
+      if (!settled) fail(error);
+    });
     writer.once("finish", () => {
       if (responseEnded) finish();
     });

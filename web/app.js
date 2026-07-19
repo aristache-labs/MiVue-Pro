@@ -1,35 +1,158 @@
+const THEME_KEY = "mivue-theme";
+const VIEW_TITLES = { library: "Bibliotecă", settings: "Setări" };
+
 const state = {
   files: [], category: "all", query: "", telemetry: [], selectedPath: null,
-  sort: "date-desc", camera: "all", duration: "all", dateFrom: "", mapEnabled: false,
+  sort: "date-desc", camera: "all", duration: "all", dateFrom: "", dateTo: "", timeFrom: "", timeTo: "", availability: "all",
+  dateMode: "single", mapEnabled: false,
   map: null, mapRoute: null, mapProgress: null, mapMarker: null, mapHasFit: false,
-  downloadJobs: new Map(),
+  downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
 };
+const datePicker = {
+  open: false,
+  mode: "single",
+  draftFrom: "",
+  draftTo: "",
+  pickingEnd: false,
+  month: new Date(),
+};
+const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie", "iulie", "august", "septembrie", "octombrie", "noiembrie", "decembrie"];
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
   dot: $("#connectionDot"), connection: $("#connectionText"), total: $("#totalCount"), parking: $("#parkingCount"), ip: $("#cameraIp"),
   list: $("#fileList"), status: $("#statusMessage"), search: $("#searchInput"), refresh: $("#refreshButton"),
-  sort: $("#sortSelect"), cameraFilter: $("#cameraSelect"), durationFilter: $("#durationSelect"), dateFrom: $("#dateFrom"), clearFilters: $("#clearFilters"), resultCount: $("#resultCount"),
+  sort: $("#sortSelect"), cameraFilter: $("#cameraSelect"), durationFilter: $("#durationSelect"),
+  availabilityFilter: $("#availabilitySelect"), clearFilters: $("#clearFilters"), resultCount: $("#resultCount"),
+  datePickerTrigger: $("#datePickerTrigger"), datePickerPopup: $("#datePickerPopup"), datePickerLabel: $("#datePickerLabel"),
+  dpGrid: $("#dpGrid"), dpMonthLabel: $("#dpMonthLabel"), dpPrev: $("#dpPrev"), dpNext: $("#dpNext"),
+  dpTimeFrom: $("#dpTimeFrom"), dpTimeTo: $("#dpTimeTo"), dpClear: $("#dpClear"), dpApply: $("#dpApply"),
   empty: $("#emptyViewer"), active: $("#activeViewer"), video: $("#videoPlayer"), viewerName: $("#viewerName"), badge: $("#viewerBadge"),
   notice: $("#viewerNotice"), canvas: $("#routeCanvas"), gpsState: $("#gpsState"), speed: $("#speedValue"), time: $("#telemetryTime"), altitude: $("#telemetryAltitude"),
   progress: $("#prepareProgress"), progressBar: $("#progressBar"), progressLabel: $("#progressLabel"), progressPercent: $("#progressPercent"), progressDetail: $("#progressDetail"),
+  prepareCancel: $("#prepareCancel"),
   map: $("#realMap"), mapToggle: $("#mapToggle"), mapPrivacy: $("#mapPrivacy"),
+  viewTitle: $("#viewTitle"), filtersToggle: $("#filtersToggle"), filtersPanel: $("#filtersPanel"),
+  themeToggle: $("#themeToggle"), topbarSearch: $("#topbarSearchWrap"),
+  settingsConnection: $("#settingsConnection"), settingsIp: $("#settingsIp"),
+  settingsTotal: $("#settingsTotal"), settingsParking: $("#settingsParking"),
+  downloadsButton: $("#downloadsButton"), downloadsPanel: $("#downloadsPanel"),
+  downloadsBadge: $("#downloadsBadge"), downloadsList: $("#downloadsList"), downloadsEmpty: $("#downloadsEmpty"),
 };
 
+/* ——— Theme ——— */
+function readThemePref() {
+  const saved = localStorage.getItem(THEME_KEY);
+  return saved === "light" || saved === "dark" || saved === "system" ? saved : "system";
+}
+
+function resolveTheme(pref) {
+  if (pref === "light" || pref === "dark") return pref;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function applyTheme(pref) {
+  const resolved = resolveTheme(pref);
+  document.documentElement.setAttribute("data-theme", resolved);
+  document.documentElement.setAttribute("data-theme-pref", pref);
+  localStorage.setItem(THEME_KEY, pref);
+  document.querySelectorAll('input[name="themePref"]').forEach((input) => {
+    input.checked = input.value === pref;
+  });
+}
+
+function cycleTheme() {
+  const order = ["light", "dark", "system"];
+  const current = readThemePref();
+  const next = order[(order.indexOf(current) + 1) % order.length];
+  applyTheme(next);
+}
+
+applyTheme(readThemePref());
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (readThemePref() === "system") applyTheme("system");
+});
+elements.themeToggle.addEventListener("click", cycleTheme);
+document.querySelectorAll('input[name="themePref"]').forEach((input) => {
+  input.addEventListener("change", () => { if (input.checked) applyTheme(input.value); });
+});
+
+/* ——— Views ——— */
+function setView(view) {
+  state.view = view;
+  document.querySelectorAll(".view").forEach((section) => {
+    const active = section.dataset.view === view;
+    section.classList.toggle("active", active);
+    section.toggleAttribute("hidden", !active);
+  });
+  document.querySelectorAll(".nav-btn[data-view]").forEach((button) => {
+    const active = button.dataset.view === view;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+  elements.viewTitle.textContent = VIEW_TITLES[view] ?? view;
+  elements.topbarSearch.classList.toggle("hidden-search", view !== "library");
+  elements.search.tabIndex = view === "library" ? 0 : -1;
+  if (view === "library" && state.mapEnabled) setTimeout(() => state.map?.invalidateSize(), 0);
+}
+
+document.querySelectorAll(".nav-btn[data-view]").forEach((button) => {
+  button.addEventListener("click", () => setView(button.dataset.view));
+});
+
+/* ——— Collapsible filters ——— */
+elements.filtersToggle.addEventListener("click", () => {
+  const open = elements.filtersPanel.hasAttribute("hidden");
+  elements.filtersPanel.toggleAttribute("hidden", !open);
+  elements.filtersPanel.classList.toggle("collapsed", !open);
+  elements.filtersToggle.setAttribute("aria-expanded", open ? "true" : "false");
+});
+
+elements.downloadsButton.addEventListener("click", (event) => {
+  event.stopPropagation();
+  const open = elements.downloadsPanel.classList.contains("hidden");
+  elements.downloadsPanel.classList.toggle("hidden", !open);
+  elements.downloadsButton.setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) renderDownloadsPanel();
+});
+document.addEventListener("click", (event) => {
+  if (!elements.downloadsPanel.classList.contains("hidden") && !event.target.closest(".downloads-menu")) {
+    elements.downloadsPanel.classList.add("hidden");
+    elements.downloadsButton.setAttribute("aria-expanded", "false");
+  }
+  if (datePicker.open && !event.target.closest(".date-picker-field")) closeDatePicker();
+});
+
+/* ——— Existing library wiring ——— */
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
-  button.classList.add("active"); state.category = button.dataset.category; renderFiles();
+  button.classList.add("active"); state.category = button.dataset.category; scheduleRenderFiles();
 }));
-elements.search.addEventListener("input", () => { state.query = elements.search.value.toLowerCase(); renderFiles(); });
-elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; renderFiles(); });
-elements.cameraFilter.addEventListener("change", () => { state.camera = elements.cameraFilter.value; renderFiles(); });
-elements.durationFilter.addEventListener("change", () => { state.duration = elements.durationFilter.value; renderFiles(); });
-elements.dateFrom.addEventListener("change", () => { state.dateFrom = elements.dateFrom.value; renderFiles(); });
+elements.search.addEventListener("input", () => { state.query = elements.search.value.toLowerCase(); scheduleRenderFiles(); });
+elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; scheduleRenderFiles(); });
+elements.cameraFilter.addEventListener("change", () => { state.camera = elements.cameraFilter.value; scheduleRenderFiles(); });
+elements.durationFilter.addEventListener("change", () => { state.duration = elements.durationFilter.value; scheduleRenderFiles(); });
+elements.availabilityFilter.addEventListener("change", () => { state.availability = elements.availabilityFilter.value; scheduleRenderFiles(); });
 elements.clearFilters.addEventListener("click", clearFilters);
+wireDatePicker();
+syncDatePickerLabel();
 elements.mapToggle.addEventListener("click", toggleMap);
 elements.refresh.addEventListener("click", loadDashboard);
+elements.prepareCancel.addEventListener("click", () => {
+  if (state.selectedPath) void cancelDownload(state.selectedPath);
+});
 elements.video.addEventListener("timeupdate", updateTelemetryMarker);
 window.addEventListener("resize", () => { if (state.mapEnabled) state.map?.invalidateSize(); else drawRoute(currentSampleIndex()); });
+
+function syncSettingsPanel(online, message) {
+  elements.settingsConnection.textContent = message;
+  elements.settingsIp.textContent = elements.ip.textContent;
+  elements.settingsTotal.textContent = elements.total.textContent;
+  elements.settingsParking.textContent = elements.parking.textContent;
+  if (!online) elements.settingsConnection.style.color = "var(--danger)";
+  else elements.settingsConnection.style.color = "";
+}
 
 async function loadDashboard() {
   setStatus("Se citesc camera și înregistrările…");
@@ -42,32 +165,70 @@ async function loadDashboard() {
     elements.parking.textContent = String(state.files.filter((file) => file.category === "parking").length);
     elements.ip.textContent = info.endpoint.host;
     elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
+    syncSettingsPanel(true, "Camera conectată");
     setStatus(""); renderFiles();
   } catch (error) {
     elements.dot.classList.remove("online"); elements.connection.textContent = "Camera indisponibilă";
+    syncSettingsPanel(false, "Camera indisponibilă");
     setStatus(error.message, true);
   }
 }
 
+function scheduleRenderFiles() {
+  clearTimeout(state.renderTimer);
+  state.renderTimer = setTimeout(() => renderFiles(), 40);
+}
+
 function renderFiles() {
+  clearTimeout(state.renderTimer);
   const visible = state.files.filter((file) =>
     (state.category === "all" || file.category === state.category) &&
     (state.camera === "all" || file.camera === state.camera) &&
     durationMatches(file.durationSeconds) &&
-    (!state.dateFrom || file.recordedAt.slice(0, 10) >= state.dateFrom) &&
+    dateMatches(file) &&
+    availabilityMatches(file) &&
     (`${file.name} ${file.recordedAt}`.toLowerCase().includes(state.query))
   );
   const ordered = orderWithinDateGroups(visible);
-  const nodes = []; let previousDate = null;
+  const plan = [];
+  let previousDate = null;
   for (const file of ordered) {
-    const date = dateKey(file.recordedAt);
-    if (date !== previousDate) { nodes.push(dateSeparator(date)); previousDate = date; }
-    nodes.push(fileRow(file));
+    const date = fileDay(file);
+    if (date !== previousDate) {
+      plan.push({ kind: "sep", date });
+      previousDate = date;
+    }
+    plan.push({ kind: "file", file });
   }
-  elements.list.replaceChildren(...nodes);
   elements.resultCount.textContent = `${visible.length} din ${state.files.length} fișiere`;
   elements.status.classList.toggle("hidden", visible.length > 0);
   if (visible.length === 0) setStatus("Nu există înregistrări pentru filtrul ales.");
+  else setStatus("");
+
+  const token = ++state.renderToken;
+  elements.list.replaceChildren();
+  let index = 0;
+  const chunkSize = 24;
+  const pump = () => {
+    if (token !== state.renderToken) return;
+    if (index >= plan.length) return;
+    const fragment = document.createDocumentFragment();
+    const end = Math.min(index + chunkSize, plan.length);
+    for (; index < end; index += 1) {
+      const item = plan[index];
+      const node = item.kind === "sep" ? dateSeparator(item.date) : fileRow(item.file);
+      if (node instanceof HTMLElement) {
+        node.querySelectorAll("img.file-thumbnail[data-src]").forEach((img) => {
+          img.src = img.dataset.src;
+          delete img.dataset.src;
+        });
+      }
+      fragment.append(node);
+    }
+    elements.list.append(fragment);
+    if (index < plan.length) requestAnimationFrame(pump);
+  };
+  requestAnimationFrame(pump);
 }
 
 function fileRow(file) {
@@ -75,22 +236,35 @@ function fileRow(file) {
   row.className = `file-row${state.selectedPath === file.path ? " selected" : ""}`;
   row.tabIndex = 0;
   const icon = document.createElement("div"); icon.className = "file-icon";
-  const placeholder = document.createElement("span"); placeholder.textContent = file.category === "photo" ? "▧" : "▶"; icon.append(placeholder);
-  const thumbnail = document.createElement("img"); thumbnail.className = "file-thumbnail"; thumbnail.loading = "lazy";
-  thumbnail.alt = ""; thumbnail.src = `/api/thumbnail?path=${encodeURIComponent(file.path)}`;
-  thumbnail.addEventListener("load", () => placeholder.classList.add("hidden"));
-  thumbnail.addEventListener("error", () => thumbnail.remove()); icon.append(thumbnail);
+  const placeholder = document.createElement("span");
+  placeholder.className = "file-icon-placeholder";
+  placeholder.setAttribute("aria-hidden", "true");
+  placeholder.innerHTML = file.category === "photo"
+    ? '<svg width="18" height="18" viewBox="0 0 18 18" fill="none"><rect x="2" y="3.5" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><circle cx="6.5" cy="7.5" r="1.4" fill="currentColor"/><path d="M3.5 13.2 7.2 9.8l2.4 2.1 2.2-2.6 2.7 4" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>'
+    : '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M5.5 3.8v8.4L13 8 5.5 3.8Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>';
+  icon.append(placeholder);
+  if (!String(file.path).startsWith("/local/")) {
+    const thumbnail = document.createElement("img"); thumbnail.className = "file-thumbnail"; thumbnail.loading = "lazy";
+    thumbnail.alt = ""; thumbnail.dataset.src = `/api/thumbnail?path=${encodeURIComponent(file.path)}`;
+    thumbnail.addEventListener("load", () => placeholder.classList.add("hidden"));
+    thumbnail.addEventListener("error", () => thumbnail.remove()); icon.append(thumbnail);
+  }
   const main = document.createElement("div"); main.className = "file-main";
   const title = document.createElement("strong"); title.textContent = file.name;
   const date = document.createElement("span"); date.textContent = formatDate(file.recordedAt);
   const category = document.createElement("i"); category.className = "category-pill"; category.textContent = file.category;
   main.append(title, date, category);
   const meta = document.createElement("div"); meta.className = "file-meta";
-  const details = document.createElement("span"); details.innerHTML = `${formatDuration(file.durationSeconds)}<br>${formatBytes(file.sizeBytes)}`;
+  const details = document.createElement("span"); details.className = "file-meta-details";
+  details.innerHTML = `${formatDuration(file.durationSeconds)}<br>${formatBytes(file.sizeBytes)}`;
+  const actions = document.createElement("div"); actions.className = "download-actions"; actions.dataset.path = file.path;
   const download = document.createElement("button"); download.className = "download-button"; download.type = "button"; download.dataset.path = file.path;
-  updateDownloadButton(download, file, state.downloadJobs.get(file.path));
+  const cancel = document.createElement("button"); cancel.className = "download-cancel hidden"; cancel.type = "button"; cancel.dataset.path = file.path; cancel.textContent = "✕"; cancel.title = "Anulează"; cancel.setAttribute("aria-label", "Anulează descărcarea");
+  updateDownloadActions(actions, download, cancel, file, state.downloadJobs.get(file.path));
   download.addEventListener("click", (event) => { event.stopPropagation(); void queueDownload(file); });
-  meta.append(details, download);
+  cancel.addEventListener("click", (event) => { event.stopPropagation(); void cancelDownload(file.path); });
+  actions.append(download, cancel);
+  meta.append(details, actions);
   row.append(icon, main, meta);
   row.addEventListener("click", () => selectFile(file, row));
   row.addEventListener("keydown", (event) => { if (event.target === row && (event.key === "Enter" || event.key === " ")) selectFile(file, row); });
@@ -125,39 +299,87 @@ function selectFile(file, row) {
 }
 
 async function queueDownload(file) {
+  if (String(file.path).startsWith("/local/")) return;
   const existing = state.downloadJobs.get(file.path);
   if (file.locallyAvailable || (existing && existing.status !== "error")) return;
   if (existing?.status === "error") state.downloadJobs.delete(file.path);
-  const jobState = { status: "queued", progress: { percent: 0, message: "Se adaugă în coadă…" } };
-  state.downloadJobs.set(file.path, jobState); updateDownloadControls(file);
+  const jobState = {
+    status: "queued",
+    name: file.name,
+    path: file.path,
+    progress: { percent: 0, message: "Se adaugă în coadă…" },
+  };
+  state.downloadJobs.set(file.path, jobState); updateDownloadControls(file); renderDownloadsPanel();
   if (state.selectedPath === file.path) {
     elements.notice.classList.add("hidden"); elements.gpsState.textContent = "În coada de descărcare"; showProgress(jobState.progress);
   }
   try {
     const started = await api("/api/prepare", { method: "POST", body: JSON.stringify({ remotePath: file.path }) });
     jobState.jobId = started.jobId;
+    if (jobState.cancelRequested) {
+      await cancelDownload(file.path);
+      return;
+    }
     await trackDownload(file, jobState);
   } catch (error) {
-    jobState.status = "error"; jobState.error = error.message; updateDownloadControls(file);
+    jobState.status = "error"; jobState.error = error.message; updateDownloadControls(file); renderDownloadsPanel();
     if (state.selectedPath === file.path) {
       elements.progress.classList.add("hidden"); elements.notice.textContent = error.message; elements.notice.classList.remove("hidden");
     }
   }
 }
 
+async function cancelDownload(filePath) {
+  const jobState = state.downloadJobs.get(filePath);
+  if (!jobState || (jobState.status !== "queued" && jobState.status !== "running" && jobState.status !== "cancelling")) return;
+  jobState.cancelRequested = true;
+  jobState.status = "cancelling";
+  jobState.progress = { ...(jobState.progress ?? {}), message: "Se anulează…", percent: jobState.progress?.percent ?? 0 };
+  const file = state.files.find((item) => item.path === filePath) ?? { path: filePath, locallyAvailable: false };
+  updateDownloadControls(file);
+  renderDownloadsPanel();
+  if (!jobState.jobId) return;
+  try {
+    await api(`/api/jobs/${encodeURIComponent(jobState.jobId)}`, { method: "DELETE" });
+  } catch (error) {
+    jobState.status = "error";
+    jobState.error = error.message;
+    updateDownloadControls(file);
+    renderDownloadsPanel();
+  }
+}
+
 async function trackDownload(file, jobState) {
   for (;;) {
     const job = await api(`/api/jobs/${encodeURIComponent(jobState.jobId)}`);
-    jobState.status = job.status; jobState.progress = job.progress; updateDownloadControls(file);
+    jobState.status = job.status; jobState.progress = job.progress; updateDownloadControls(file); renderDownloadsPanel();
     if (state.selectedPath === file.path && job.progress) showProgress(job.progress);
     if (job.status === "complete") {
       file.locallyAvailable = true; file.localName = job.result.playableName;
       if (job.result.nmeaName) file.localTelemetryName = job.result.nmeaName;
-      state.downloadJobs.delete(file.path); renderFiles();
+      state.downloadJobs.delete(file.path); renderFiles(); renderDownloadsPanel();
       if (state.selectedPath === file.path) { elements.progress.classList.add("hidden"); await loadPrepared(file, job.result); }
       return;
     }
-    if (job.status === "error") throw new Error(job.error);
+    if (job.status === "error") {
+      const cancelled = /anulat/i.test(job.error ?? "");
+      state.downloadJobs.delete(file.path);
+      updateDownloadControls(file);
+      renderDownloadsPanel();
+      if (state.selectedPath === file.path) {
+        elements.progress.classList.add("hidden");
+        if (cancelled) {
+          elements.notice.textContent = "Descărcare anulată.";
+          elements.notice.classList.remove("hidden");
+          elements.gpsState.textContent = "Anulat";
+          drawEmptyRoute("Descărcare anulată");
+        } else {
+          elements.notice.textContent = job.error; elements.notice.classList.remove("hidden");
+        }
+      }
+      if (!cancelled) throw new Error(job.error);
+      return;
+    }
     await new Promise((resolve) => setTimeout(resolve, 350));
   }
 }
@@ -181,19 +403,101 @@ async function loadPrepared(file, prepared) {
 }
 
 function updateDownloadControls(file) {
-  document.querySelectorAll(".download-button").forEach((button) => {
-    if (button.dataset.path === file.path) updateDownloadButton(button, file, state.downloadJobs.get(file.path));
+  document.querySelectorAll(".download-actions").forEach((actions) => {
+    if (actions.dataset.path !== file.path) return;
+    const download = actions.querySelector(".download-button");
+    const cancel = actions.querySelector(".download-cancel");
+    if (download && cancel) updateDownloadActions(actions, download, cancel, file, state.downloadJobs.get(file.path));
   });
+  if (state.selectedPath === file.path) {
+    const job = state.downloadJobs.get(file.path);
+    const active = job && (job.status === "queued" || job.status === "running" || job.status === "cancelling");
+    elements.prepareCancel.disabled = !active || job.status === "cancelling";
+    elements.prepareCancel.textContent = job?.status === "cancelling" ? "…" : "Anulează";
+  }
 }
 
-function updateDownloadButton(button, file, job) {
-  button.disabled = file.locallyAvailable || (job && job.status !== "error");
+function updateDownloadActions(actions, button, cancel, file, job) {
+  const busy = Boolean(job && (job.status === "queued" || job.status === "running" || job.status === "cancelling"));
   button.classList.toggle("downloaded", file.locallyAvailable);
-  if (file.locallyAvailable) button.textContent = "Descărcat";
-  else if (job?.status === "queued") button.textContent = job.progress?.message?.includes("poziția") ? job.progress.message.replace("În coadă · ", "") : "În coadă";
-  else if (job?.status === "running") button.textContent = `${Math.round(job.progress?.percent ?? 0)}%`;
-  else if (job?.status === "error") { button.textContent = "Reîncearcă"; button.disabled = false; }
-  else button.textContent = "Descarcă";
+  button.classList.toggle("busy", busy && !file.locallyAvailable);
+  cancel.classList.toggle("hidden", !busy);
+  cancel.disabled = job?.status === "cancelling";
+  cancel.textContent = job?.status === "cancelling" ? "…" : "✕";
+  if (file.locallyAvailable) {
+    button.disabled = true;
+    button.textContent = "Descărcat";
+  } else if (job?.status === "cancelling") {
+    button.disabled = true;
+    button.textContent = "…";
+  } else if (job?.status === "queued") {
+    button.disabled = true;
+    button.textContent = job.progress?.message?.includes("poziția") ? job.progress.message.replace("În coadă · ", "") : "În coadă";
+  } else if (job?.status === "running") {
+    button.disabled = true;
+    button.textContent = `${Math.round(job.progress?.percent ?? 0)}%`;
+  } else if (job?.status === "error") {
+    button.disabled = false;
+    button.textContent = "Reîncearcă";
+  } else {
+    button.disabled = false;
+    button.textContent = "Descarcă";
+  }
+}
+
+function renderDownloadsPanel() {
+  const jobs = [...state.downloadJobs.values()].filter((job) => job.status === "queued" || job.status === "running" || job.status === "cancelling");
+  elements.downloadsBadge.textContent = String(jobs.length);
+  elements.downloadsBadge.classList.toggle("hidden", jobs.length === 0);
+  elements.downloadsButton.classList.toggle("has-active", jobs.length > 0);
+  elements.downloadsEmpty.classList.toggle("hidden", jobs.length > 0);
+  elements.downloadsList.replaceChildren(...jobs.map((job) => {
+    const item = document.createElement("div");
+    item.className = "download-item";
+    const top = document.createElement("div");
+    top.className = "download-item-top";
+    const name = document.createElement("div");
+    name.className = "download-item-name";
+    name.textContent = job.name || job.path;
+    name.title = job.name || job.path;
+    const cancel = document.createElement("button");
+    cancel.type = "button";
+    cancel.className = "download-item-cancel";
+    cancel.textContent = job.status === "cancelling" ? "…" : "Anulează";
+    cancel.disabled = job.status === "cancelling";
+    cancel.addEventListener("click", (event) => { event.stopPropagation(); void cancelDownload(job.path); });
+    top.append(name, cancel);
+    const bar = document.createElement("progress");
+    bar.max = 100;
+    bar.value = Math.max(0, Math.min(100, Math.round(job.progress?.percent ?? 0)));
+    const meta = document.createElement("div");
+    meta.className = "download-item-meta";
+    const left = document.createElement("span");
+    left.textContent = formatProgressDetail(job.progress);
+    const right = document.createElement("span");
+    right.textContent = formatEta(job.progress);
+    meta.append(left, right);
+    item.append(top, bar, meta);
+    return item;
+  }));
+}
+
+function formatProgressDetail(progress) {
+  if (!progress) return "În așteptare";
+  const percent = `${Math.round(progress.percent ?? 0)}%`;
+  if (progress.totalBytes) {
+    const speed = progress.bytesPerSecond ? ` · ${formatBytes(progress.bytesPerSecond)}/s` : "";
+    return `${percent} · ${formatBytes(progress.bytesReceived ?? 0)} / ${formatBytes(progress.totalBytes)}${speed}`;
+  }
+  return `${percent} · ${progress.message || "Se pregătește…"}`;
+}
+
+function formatEta(progress) {
+  if (!progress || progress.etaSeconds == null || !Number.isFinite(progress.etaSeconds)) return "ETA —";
+  const seconds = Math.max(0, Math.round(progress.etaSeconds));
+  const minutes = Math.floor(seconds / 60);
+  const remainder = seconds % 60;
+  return minutes > 0 ? `ETA ${minutes}m ${String(remainder).padStart(2, "0")}s` : `ETA ${remainder}s`;
 }
 
 function updateTelemetryMarker() {
@@ -217,16 +521,203 @@ function drawRoute(activeIndex) {
   const xs = points.map((point) => point.longitude); const ys = points.map((point) => point.latitude);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
   const project = (point) => ({ x: pad + ((point.longitude - minX) / (maxX - minX || 1)) * (width - 2 * pad), y: height - pad - ((point.latitude - minY) / (maxY - minY || 1)) * (height - 2 * pad) });
-  drawGrid(ctx, width, height); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = "#4b7b73"; ctx.beginPath();
+  drawGrid(ctx, width, height); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = "#5b7c8a"; ctx.beginPath();
   points.forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }); ctx.stroke();
-  ctx.strokeStyle = "#f47b57"; ctx.beginPath(); points.slice(0, activeIndex + 1).forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }); ctx.stroke();
-  const marker = project(points[activeIndex] ?? points[0]); ctx.fillStyle = "#fffdf8"; ctx.beginPath(); ctx.arc(marker.x, marker.y, 8, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#f47b57"; ctx.lineWidth = 4; ctx.stroke();
+  ctx.strokeStyle = "#0d9488"; ctx.beginPath(); points.slice(0, activeIndex + 1).forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }); ctx.stroke();
+  const marker = project(points[activeIndex] ?? points[0]); ctx.fillStyle = "#f8fafc"; ctx.beginPath(); ctx.arc(marker.x, marker.y, 8, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#0d9488"; ctx.lineWidth = 4; ctx.stroke();
 }
 
 function clearFilters() {
-  state.sort = "date-desc"; state.camera = "all"; state.duration = "all"; state.dateFrom = ""; state.query = "";
+  state.sort = "date-desc"; state.camera = "all"; state.duration = "all";
+  state.dateFrom = ""; state.dateTo = ""; state.timeFrom = ""; state.timeTo = "";
+  state.dateMode = "single"; state.availability = "all"; state.query = "";
   elements.sort.value = state.sort; elements.cameraFilter.value = state.camera; elements.durationFilter.value = state.duration;
-  elements.dateFrom.value = ""; elements.search.value = ""; renderFiles();
+  elements.availabilityFilter.value = state.availability; elements.search.value = "";
+  elements.dpTimeFrom.value = ""; elements.dpTimeTo.value = "";
+  datePicker.mode = "single"; datePicker.draftFrom = ""; datePicker.draftTo = ""; datePicker.pickingEnd = false;
+  closeDatePicker();
+  syncDatePickerLabel();
+  scheduleRenderFiles();
+}
+
+function isoDay(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function parseIsoDay(value) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return null;
+  return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+}
+
+function formatDayRo(value) {
+  const date = parseIsoDay(value);
+  if (!date) return value;
+  return `${date.getDate()} ${MONTHS_RO[date.getMonth()].slice(0, 3)} ${date.getFullYear()}`;
+}
+
+function syncDatePickerLabel() {
+  const hasDate = Boolean(state.dateFrom || state.dateTo);
+  const hasTime = Boolean(state.timeFrom || state.timeTo);
+  let label = "Orice dată";
+  if (hasDate) {
+    if (state.dateFrom && state.dateTo && state.dateFrom !== state.dateTo) {
+      label = `${formatDayRo(state.dateFrom)} – ${formatDayRo(state.dateTo)}`;
+    } else {
+      label = formatDayRo(state.dateFrom || state.dateTo);
+    }
+  }
+  if (hasTime) {
+    const from = state.timeFrom || "00:00";
+    const to = state.timeTo || "23:59";
+    label = hasDate ? `${label} · ${from}–${to}` : `${from}–${to}`;
+  }
+  elements.datePickerLabel.textContent = label;
+  elements.datePickerTrigger.classList.toggle("active", hasDate || hasTime);
+}
+
+function setDateMode(mode) {
+  datePicker.mode = mode === "range" ? "range" : "single";
+  datePicker.pickingEnd = false;
+  if (datePicker.mode === "single" && datePicker.draftFrom) datePicker.draftTo = datePicker.draftFrom;
+  document.querySelectorAll(".dp-mode").forEach((button) => {
+    button.classList.toggle("active", button.dataset.mode === datePicker.mode);
+  });
+  renderDatePickerCalendar();
+}
+
+function openDatePicker() {
+  datePicker.open = true;
+  datePicker.mode = state.dateFrom && state.dateTo && state.dateFrom !== state.dateTo ? "range" : (state.dateMode || "single");
+  datePicker.draftFrom = state.dateFrom || "";
+  datePicker.draftTo = state.dateTo || state.dateFrom || "";
+  datePicker.pickingEnd = false;
+  elements.dpTimeFrom.value = state.timeFrom || "";
+  elements.dpTimeTo.value = state.timeTo || "";
+  const anchor = parseIsoDay(datePicker.draftFrom || datePicker.draftTo) || new Date();
+  datePicker.month = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+  elements.datePickerPopup.classList.remove("hidden");
+  elements.datePickerTrigger.setAttribute("aria-expanded", "true");
+  setDateMode(datePicker.mode);
+}
+
+function closeDatePicker() {
+  datePicker.open = false;
+  elements.datePickerPopup.classList.add("hidden");
+  elements.datePickerTrigger.setAttribute("aria-expanded", "false");
+}
+
+function applyDatePicker() {
+  if (datePicker.mode === "single") {
+    state.dateFrom = datePicker.draftFrom || "";
+    state.dateTo = datePicker.draftFrom || "";
+  } else {
+    let from = datePicker.draftFrom || "";
+    let to = datePicker.draftTo || datePicker.draftFrom || "";
+    if (from && to && from > to) [from, to] = [to, from];
+    state.dateFrom = from;
+    state.dateTo = to;
+  }
+  state.timeFrom = elements.dpTimeFrom.value || "";
+  state.timeTo = elements.dpTimeTo.value || "";
+  state.dateMode = datePicker.mode;
+  closeDatePicker();
+  syncDatePickerLabel();
+  scheduleRenderFiles();
+}
+
+function clearDatePickerDraft() {
+  datePicker.draftFrom = "";
+  datePicker.draftTo = "";
+  datePicker.pickingEnd = false;
+  elements.dpTimeFrom.value = "";
+  elements.dpTimeTo.value = "";
+  renderDatePickerCalendar();
+}
+
+function shiftDatePickerMonth(delta) {
+  datePicker.month = new Date(datePicker.month.getFullYear(), datePicker.month.getMonth() + delta, 1);
+  renderDatePickerCalendar();
+}
+
+function pickCalendarDay(dayIso) {
+  if (datePicker.mode === "single") {
+    datePicker.draftFrom = dayIso;
+    datePicker.draftTo = dayIso;
+    datePicker.pickingEnd = false;
+  } else if (!datePicker.draftFrom || (datePicker.draftFrom && datePicker.draftTo && !datePicker.pickingEnd)) {
+    datePicker.draftFrom = dayIso;
+    datePicker.draftTo = "";
+    datePicker.pickingEnd = true;
+  } else {
+    datePicker.draftTo = dayIso;
+    if (datePicker.draftFrom > datePicker.draftTo) {
+      const tmp = datePicker.draftFrom;
+      datePicker.draftFrom = datePicker.draftTo;
+      datePicker.draftTo = tmp;
+    }
+    datePicker.pickingEnd = false;
+  }
+  renderDatePickerCalendar();
+}
+
+function renderDatePickerCalendar() {
+  const year = datePicker.month.getFullYear();
+  const month = datePicker.month.getMonth();
+  elements.dpMonthLabel.textContent = `${MONTHS_RO[month]} ${year}`;
+  const first = new Date(year, month, 1);
+  const startOffset = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const todayIso = isoDay(new Date());
+  let from = datePicker.draftFrom;
+  let to = datePicker.draftTo || (datePicker.mode === "single" ? datePicker.draftFrom : "");
+  if (from && to && from > to) [from, to] = [to, from];
+
+  const cells = [];
+  for (let i = 0; i < startOffset; i += 1) cells.push('<button type="button" class="dp-day" disabled></button>');
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const iso = isoDay(new Date(year, month, day));
+    const classes = ["dp-day"];
+    if (iso === todayIso) classes.push("today");
+    if (from && to && iso > from && iso < to) classes.push("in-range");
+    if (from && iso === from) classes.push(datePicker.mode === "range" ? "range-start" : "selected");
+    if (to && iso === to) classes.push(datePicker.mode === "range" ? "range-end" : "selected");
+    if (from && to && from === to && iso === from) classes.push("selected");
+    cells.push(`<button type="button" class="${classes.join(" ")}" data-day="${iso}">${day}</button>`);
+  }
+  elements.dpGrid.innerHTML = cells.join("");
+  elements.dpGrid.querySelectorAll(".dp-day[data-day]").forEach((button) => {
+    button.addEventListener("click", () => pickCalendarDay(button.dataset.day));
+  });
+}
+
+function wireDatePicker() {
+  elements.datePickerTrigger.addEventListener("click", (event) => {
+    event.stopPropagation();
+    if (datePicker.open) closeDatePicker();
+    else openDatePicker();
+  });
+  elements.datePickerPopup.addEventListener("click", (event) => event.stopPropagation());
+  document.querySelectorAll(".dp-mode").forEach((button) => {
+    button.addEventListener("click", () => setDateMode(button.dataset.mode));
+  });
+  elements.dpPrev.addEventListener("click", () => shiftDatePickerMonth(-1));
+  elements.dpNext.addEventListener("click", () => shiftDatePickerMonth(1));
+  elements.dpClear.addEventListener("click", () => {
+    clearDatePickerDraft();
+    state.dateFrom = ""; state.dateTo = ""; state.timeFrom = ""; state.timeTo = "";
+    state.dateMode = datePicker.mode;
+    syncDatePickerLabel();
+    scheduleRenderFiles();
+  });
+  elements.dpApply.addEventListener("click", applyDatePicker);
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && datePicker.open) closeDatePicker();
+  });
 }
 
 function durationMatches(seconds) {
@@ -235,6 +726,60 @@ function durationMatches(seconds) {
   if (state.duration === "short") return seconds < 60;
   if (state.duration === "medium") return seconds >= 60 && seconds <= 180;
   return seconds > 180;
+}
+
+function availabilityMatches(file) {
+  if (state.availability === "downloaded") return Boolean(file.locallyAvailable);
+  if (state.availability === "remote") return !file.locallyAvailable;
+  return true;
+}
+
+function dateMatches(file) {
+  const hasDateFilter = Boolean(state.dateFrom || state.dateTo);
+  const hasTimeFilter = Boolean(state.timeFrom || state.timeTo);
+  if (!hasDateFilter && !hasTimeFilter) return true;
+
+  const day = fileDay(file);
+  if (!day || day === "unknown") return false;
+  if (state.dateFrom && day < state.dateFrom) return false;
+  if (state.dateTo && day > state.dateTo) return false;
+
+  if (!hasTimeFilter) return true;
+  const minutes = fileTimeMinutes(file);
+  if (minutes == null) return false;
+  const from = state.timeFrom ? parseTimeMinutes(state.timeFrom) : 0;
+  const to = state.timeTo ? parseTimeMinutes(state.timeTo) : (23 * 60 + 59);
+  if (from <= to) return minutes >= from && minutes <= to;
+  return minutes >= from || minutes <= to;
+}
+
+function fileDay(file) {
+  const fromRecorded = dateKey(file.recordedAt);
+  if (fromRecorded !== "unknown") return fromRecorded;
+  return dateKeyFromName(file.name);
+}
+
+function dateKeyFromName(name) {
+  const match = String(name).match(/(\d{6})-\d{6}/);
+  if (!match?.[1]) return "unknown";
+  const d = match[1];
+  return `20${d.slice(0, 2)}-${d.slice(2, 4)}-${d.slice(4, 6)}`;
+}
+
+function fileTimeMinutes(file) {
+  const recorded = String(file.recordedAt ?? "");
+  const fromRecorded = recorded.match(/(?:^|[\sT])(\d{2}):(\d{2})(?::\d{2})?/);
+  if (fromRecorded) return Number(fromRecorded[1]) * 60 + Number(fromRecorded[2]);
+  const fromName = String(file.name ?? "").match(/\d{6}-(\d{6})/);
+  if (!fromName?.[1]) return null;
+  const t = fromName[1];
+  return Number(t.slice(0, 2)) * 60 + Number(t.slice(2, 4));
+}
+
+function parseTimeMinutes(value) {
+  const match = String(value).match(/^(\d{2}):(\d{2})/);
+  if (!match) return 0;
+  return Number(match[1]) * 60 + Number(match[2]);
 }
 
 function compareFiles(a, b) {
@@ -250,7 +795,11 @@ function compareFiles(a, b) {
 
 function orderWithinDateGroups(files) {
   const groups = new Map();
-  for (const file of files) { const key = dateKey(file.recordedAt); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(file); }
+  for (const file of files) {
+    const key = fileDay(file);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(file);
+  }
   const ascendingDates = state.sort === "date-asc";
   const keys = [...groups.keys()].sort((a, b) => {
     if (a === "unknown") return 1; if (b === "unknown") return -1;
@@ -274,7 +823,15 @@ function showProgress(progress) {
   const percent = Math.max(0, Math.min(100, Math.round(progress.percent ?? 0)));
   elements.progress.classList.remove("hidden"); elements.progressBar.value = percent;
   elements.progressPercent.textContent = `${percent}%`; elements.progressLabel.textContent = progress.message || "Se pregătește…";
-  elements.progressDetail.textContent = progress.totalBytes ? `${formatBytes(progress.bytesReceived ?? 0)} / ${formatBytes(progress.totalBytes)}` : "";
+  const parts = [];
+  if (progress.totalBytes) parts.push(`${formatBytes(progress.bytesReceived ?? 0)} / ${formatBytes(progress.totalBytes)}`);
+  if (progress.bytesPerSecond) parts.push(`${formatBytes(progress.bytesPerSecond)}/s`);
+  if (progress.etaSeconds != null && Number.isFinite(progress.etaSeconds)) parts.push(formatEta(progress).replace("ETA ", "rămân "));
+  elements.progressDetail.textContent = parts.join(" · ");
+  const job = state.selectedPath ? state.downloadJobs.get(state.selectedPath) : undefined;
+  const active = Boolean(job && (job.status === "queued" || job.status === "running" || job.status === "cancelling"));
+  elements.prepareCancel.disabled = !active || job?.status === "cancelling";
+  elements.prepareCancel.textContent = job?.status === "cancelling" ? "…" : "Anulează";
 }
 
 function toggleMap() {
@@ -298,19 +855,21 @@ function drawMapRoute(activeIndex) {
   if (!state.map || state.telemetry.length === 0) return;
   const latLngs = state.telemetry.map((point) => [point.latitude, point.longitude]);
   state.mapRoute?.remove(); state.mapProgress?.remove(); state.mapMarker?.remove();
-  state.mapRoute = window.L.polyline(latLngs, { color: "#4b7b73", weight: 5, opacity: .85 }).addTo(state.map);
-  state.mapProgress = window.L.polyline(latLngs.slice(0, activeIndex + 1), { color: "#f47b57", weight: 5 }).addTo(state.map);
-  state.mapMarker = window.L.circleMarker(latLngs[activeIndex] ?? latLngs[0], { radius: 8, color: "#f47b57", weight: 4, fillColor: "#fffdf8", fillOpacity: 1 }).addTo(state.map);
+  state.mapRoute = window.L.polyline(latLngs, { color: "#5b7c8a", weight: 5, opacity: .85 }).addTo(state.map);
+  state.mapProgress = window.L.polyline(latLngs.slice(0, activeIndex + 1), { color: "#0d9488", weight: 5 }).addTo(state.map);
+  state.mapMarker = window.L.circleMarker(latLngs[activeIndex] ?? latLngs[0], { radius: 8, color: "#0d9488", weight: 4, fillColor: "#f8fafc", fillOpacity: 1 }).addTo(state.map);
   if (!state.mapHasFit) { state.map.fitBounds(state.mapRoute.getBounds(), { padding: [20, 20] }); state.mapHasFit = true; }
 }
 
-function drawEmptyRoute(message) { const { ctx, width, height } = canvasContext(); drawGrid(ctx, width, height); ctx.fillStyle = "#8ba19d"; ctx.font = "14px system-ui"; ctx.textAlign = "center"; ctx.fillText(message, width / 2, height / 2); }
-function drawGrid(ctx, width, height) { ctx.fillStyle = "#102b2b"; ctx.fillRect(0, 0, width, height); ctx.strokeStyle = "rgba(255,255,255,.055)"; ctx.lineWidth = 1; for (let x = 20; x < width; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); } for (let y = 20; y < height; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); } }
+function drawEmptyRoute(message) { const { ctx, width, height } = canvasContext(); drawGrid(ctx, width, height); ctx.fillStyle = "#94a3b8"; ctx.font = "500 13px \"Source Sans 3\", sans-serif"; ctx.textAlign = "center"; ctx.fillText(message, width / 2, height / 2); }
+function drawGrid(ctx, width, height) { ctx.fillStyle = "#0f1720"; ctx.fillRect(0, 0, width, height); ctx.strokeStyle = "rgba(248,250,252,.06)"; ctx.lineWidth = 1; for (let x = 20; x < width; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); } for (let y = 20; y < height; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); } }
 function canvasContext() { const scale = devicePixelRatio || 1; const rect = elements.canvas.getBoundingClientRect(); elements.canvas.width = Math.max(1, Math.round(rect.width * scale)); elements.canvas.height = Math.max(1, Math.round(rect.height * scale)); const ctx = elements.canvas.getContext("2d"); ctx.scale(scale, scale); return { ctx, width: rect.width, height: rect.height }; }
 
 async function api(path, options) { const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options }); const value = await response.json(); if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`); return value; }
-function setStatus(message, error = false) { elements.status.textContent = message; elements.status.classList.toggle("hidden", message === ""); elements.status.style.color = error ? "#a94332" : ""; }
+function setStatus(message, error = false) { elements.status.textContent = message; elements.status.classList.toggle("hidden", message === ""); elements.status.style.color = error ? "var(--danger)" : ""; }
 function formatBytes(bytes) { const units = ["B", "KB", "MB", "GB"]; let value = bytes, index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; }
 function formatDuration(seconds) { if (!Number.isFinite(seconds)) return "—"; const minutes = Math.floor(seconds / 60); return `${minutes}:${String(Math.round(seconds % 60)).padStart(2, "0")}`; }
 function formatDate(value) { const date = new Date(value.replace(" ", "T")); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("ro-RO", { dateStyle: "medium", timeStyle: "short" }); }
+
+setView("library");
 loadDashboard();
