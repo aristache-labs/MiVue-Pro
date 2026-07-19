@@ -7,7 +7,9 @@ const state = {
   dateMode: "single", mapEnabled: false,
   map: null, mapRoute: null, mapProgress: null, mapMarker: null, mapHasFit: false, mapFollow: true,
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
+  lastTelemetryIndex: -1, telemetryRaf: 0,
 };
+let thumbObserver = null;
 const datePicker = {
   open: false,
   mode: "single",
@@ -147,7 +149,7 @@ syncDatePickerLabel();
 elements.mapToggle.addEventListener("click", toggleMap);
 elements.mapRecenter.addEventListener("click", () => recenterMapOnPin(true));
 elements.mapFitRoute.addEventListener("click", fitMapToRoute);
-elements.refresh.addEventListener("click", loadDashboard);
+elements.refresh.addEventListener("click", () => { void loadDashboard(true); });
 elements.prepareCancel.addEventListener("click", () => {
   if (state.selectedPath) void cancelDownload(state.selectedPath);
 });
@@ -196,12 +198,12 @@ function syncSettingsPanel(online, message) {
   else elements.settingsConnection.style.color = "";
 }
 
-async function loadDashboard() {
-  setStatus("Se citesc camera și înregistrările…");
+async function loadDashboard(fresh = false) {
+  setStatus(fresh ? "Se reîmprospătează lista…" : "Se citesc camera și înregistrările…");
   try {
     // Serverul AIT vechi răspunde intermitent cu 404 la cereri CGI concurente.
     const info = await api("/api/info");
-    const listing = await api("/api/files");
+    const listing = await api(fresh ? "/api/files?refresh=1" : "/api/files");
     state.files = listing.files;
     updateLibraryStats(info.endpoint.host);
     elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
@@ -216,7 +218,29 @@ async function loadDashboard() {
 
 function scheduleRenderFiles() {
   clearTimeout(state.renderTimer);
-  state.renderTimer = setTimeout(() => renderFiles(), 40);
+  state.renderTimer = setTimeout(() => renderFiles(), 100);
+}
+
+function resetThumbObserver() {
+  thumbObserver?.disconnect();
+  thumbObserver = null;
+}
+
+function ensureThumbObserver() {
+  if (thumbObserver) return thumbObserver;
+  thumbObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      const img = entry.target;
+      if (!(img instanceof HTMLImageElement)) continue;
+      const src = img.dataset.src;
+      if (!src) continue;
+      img.src = src;
+      delete img.dataset.src;
+      thumbObserver.unobserve(img);
+    }
+  }, { root: elements.list, rootMargin: "160px 0px", threshold: 0.01 });
+  return thumbObserver;
 }
 
 function renderFiles() {
@@ -246,22 +270,21 @@ function renderFiles() {
   else setStatus("");
 
   const token = ++state.renderToken;
+  resetThumbObserver();
   elements.list.replaceChildren();
   let index = 0;
-  const chunkSize = 24;
+  const chunkSize = 40;
   const pump = () => {
     if (token !== state.renderToken) return;
     if (index >= plan.length) return;
     const fragment = document.createDocumentFragment();
     const end = Math.min(index + chunkSize, plan.length);
+    const observer = ensureThumbObserver();
     for (; index < end; index += 1) {
       const item = plan[index];
       const node = item.kind === "sep" ? dateSeparator(item.date) : fileRow(item.file);
       if (node instanceof HTMLElement) {
-        node.querySelectorAll("img.file-thumbnail[data-src]").forEach((img) => {
-          img.src = img.dataset.src;
-          delete img.dataset.src;
-        });
+        node.querySelectorAll("img.file-thumbnail[data-src]").forEach((img) => observer.observe(img));
       }
       fragment.append(node);
     }
@@ -314,6 +337,7 @@ function fileRow(file) {
 function selectFile(file, row) {
   document.querySelectorAll(".file-row").forEach((item) => item.classList.remove("selected")); row.classList.add("selected");
   state.selectedPath = file.path; state.telemetry = []; state.mapHasFit = false; state.mapFollow = true;
+  state.lastTelemetryIndex = -1;
   state.mapRoute?.remove(); state.mapProgress?.remove(); state.mapMarker?.remove();
   state.mapRoute = null; state.mapProgress = null; state.mapMarker = null;
   elements.empty.classList.add("hidden"); elements.active.classList.remove("hidden");
@@ -542,11 +566,20 @@ function formatEta(progress) {
 
 function updateTelemetryMarker() {
   if (state.telemetry.length === 0) return;
-  const index = currentSampleIndex(); const sample = state.telemetry[index]; if (!sample) return;
-  elements.speed.textContent = Math.round(sample.speedKmh).toString();
-  elements.time.textContent = new Date(sample.recordedAt).toLocaleTimeString("ro-RO", { timeZone: "UTC" }) + " UTC";
-  elements.altitude.textContent = sample.altitudeMeters == null ? "Altitudine —" : `Altitudine ${sample.altitudeMeters.toFixed(1)} m`;
-  drawRoute(index);
+  if (state.telemetryRaf) return;
+  state.telemetryRaf = requestAnimationFrame(() => {
+    state.telemetryRaf = 0;
+    if (state.telemetry.length === 0) return;
+    const index = currentSampleIndex();
+    if (index === state.lastTelemetryIndex) return;
+    state.lastTelemetryIndex = index;
+    const sample = state.telemetry[index];
+    if (!sample) return;
+    elements.speed.textContent = Math.round(sample.speedKmh).toString();
+    elements.time.textContent = new Date(sample.recordedAt).toLocaleTimeString("ro-RO", { timeZone: "UTC" }) + " UTC";
+    elements.altitude.textContent = sample.altitudeMeters == null ? "Altitudine —" : `Altitudine ${sample.altitudeMeters.toFixed(1)} m`;
+    drawRoute(index);
+  });
 }
 
 function currentSampleIndex() {

@@ -1,0 +1,5 @@
+#!/bin/sh
+# Fire-and-forget codebase-memory reindex on push (does not block push).
+ROOT="$(git rev-parse --show-toplevel)"
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$ROOT/.githooks/cbm-reindex-on-push.ps1" || true
+exit 0

@@ -30,7 +30,8 @@ export interface DashboardServerOptions {
 export interface DashboardService {
   readonly downloadsDirectory: string;
   info(): Promise<unknown>;
-  list(category?: Exclude<FileCategory, "unknown">): Promise<readonly RemoteFile[]>;
+  list(category?: Exclude<FileCategory, "unknown">, options?: { fresh?: boolean }): Promise<readonly RemoteFile[]>;
+  invalidateListCache(): void;
   prepare(remotePath: string, onProgress?: PrepareProgressCallback, signal?: AbortSignal): Promise<PreparedMedia>;
   thumbnail(remotePath: string): Promise<Uint8Array>;
   telemetry(name: string): Promise<readonly GpsSample[]>;
@@ -79,8 +80,9 @@ async function handleRequest(
       sendJson(response, 400, { error: "Categorie invalidă" });
       return;
     }
-    const files = await service.list(category as Exclude<FileCategory, "unknown"> | undefined);
-    sendJson(response, 200, { files, amount: files.length });
+    const fresh = url.searchParams.get("refresh") === "1";
+    const files = await service.list(category as Exclude<FileCategory, "unknown"> | undefined, { fresh });
+    sendJson(response, 200, { files, amount: files.length, cached: !fresh });
     return;
   }
   if (url.pathname === "/api/prepare" && request.method === "POST") {
@@ -204,6 +206,7 @@ async function drainPrepareQueue(
     if (controller.signal.aborted) {
       jobs.set(next.jobId, { status: "error", error: "Descărcare anulată" });
     } else {
+      service.invalidateListCache();
       jobs.set(next.jobId, { status: "complete", result: preparedResponse(prepared) });
     }
   } catch (error) {

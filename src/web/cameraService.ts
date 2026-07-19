@@ -44,6 +44,11 @@ export class CameraService {
   private readonly client: MiVueClient;
   private readonly thumbnailTransport: HttpTransport;
   private thumbnailQueue: Promise<void> = Promise.resolve();
+  private listCache: { key: string; files: DashboardFile[]; fetchedAt: number } | null = null;
+  private readonly thumbMemory = new Map<string, Uint8Array>();
+  private readonly thumbMemoryOrder: string[] = [];
+  private static readonly LIST_TTL_MS = 25_000;
+  private static readonly THUMB_MEM_MAX = 64;
 
   constructor(
     private readonly endpoint: CameraEndpoint,
@@ -72,7 +77,21 @@ export class CameraService {
     return this.client.getInfo();
   }
 
-  async list(category?: ConcreteCategory): Promise<readonly DashboardFile[]> {
+  invalidateListCache(): void {
+    this.listCache = null;
+  }
+
+  async list(category?: ConcreteCategory, options?: { fresh?: boolean }): Promise<readonly DashboardFile[]> {
+    const key = category ?? "all";
+    if (
+      !options?.fresh
+      && this.listCache
+      && this.listCache.key === key
+      && Date.now() - this.listCache.fetchedAt < CameraService.LIST_TTL_MS
+    ) {
+      return this.listCache.files;
+    }
+
     const result = await this.client.listAllFiles({
       pageSize: 64,
       ...(category === undefined ? {} : { categories: [category] }),
@@ -104,7 +123,9 @@ export class CameraService {
     });
 
     const orphans = await this.listLocalOnlyFiles(localNames, coveredStems, category);
-    return orphans.length === 0 ? mapped : [...mapped, ...orphans];
+    const files = orphans.length === 0 ? mapped : [...mapped, ...orphans];
+    this.listCache = { key, files: files as DashboardFile[], fetchedAt: Date.now() };
+    return files;
   }
 
   private async listLocalOnlyFiles(
@@ -156,11 +177,24 @@ export class CameraService {
     assertRemoteThumbnailPath(remotePath);
     await mkdir(this.downloadsDirectory, { recursive: true });
     const cacheName = `thumb-${createHash("sha256").update(remotePath).digest("hex").slice(0, 20)}.jpg`;
+    const cachedMemory = this.thumbMemory.get(cacheName);
+    if (cachedMemory) return cachedMemory;
+
     const cachePath = safeLocalFile(this.downloadsDirectory, cacheName);
-    if (await exists(cachePath)) return readFile(cachePath);
+    if (await exists(cachePath)) {
+      const fromDisk = await readFile(cachePath);
+      this.rememberThumb(cacheName, fromDisk);
+      return fromDisk;
+    }
 
     const task = this.thumbnailQueue.then(async () => {
-      if (await exists(cachePath)) return readFile(cachePath);
+      const again = this.thumbMemory.get(cacheName);
+      if (again) return again;
+      if (await exists(cachePath)) {
+        const fromDisk = await readFile(cachePath);
+        this.rememberThumb(cacheName, fromDisk);
+        return fromDisk;
+      }
       const thumbnailPath = `/thumb${remotePath.replace(/^\/SD/u, "")}`;
       const response = await this.thumbnailTransport.request({ method: "GET", path: thumbnailPath });
       if (response.statusCode !== 200) throw new Error(`Miniatura nu este disponibilă (HTTP ${response.statusCode})`);
@@ -172,10 +206,24 @@ export class CameraService {
       } catch (error) {
         if (!isNodeError(error) || error.code !== "EEXIST") throw error;
       }
+      this.rememberThumb(cacheName, response.body);
       return response.body;
     });
     this.thumbnailQueue = task.then(() => undefined, () => undefined);
     return task;
+  }
+
+  private rememberThumb(key: string, body: Uint8Array): void {
+    if (this.thumbMemory.has(key)) {
+      this.thumbMemory.set(key, body);
+      return;
+    }
+    this.thumbMemory.set(key, body);
+    this.thumbMemoryOrder.push(key);
+    while (this.thumbMemoryOrder.length > CameraService.THUMB_MEM_MAX) {
+      const oldest = this.thumbMemoryOrder.shift();
+      if (oldest !== undefined) this.thumbMemory.delete(oldest);
+    }
   }
 
   async prepare(remotePath: string, onProgress?: PrepareProgressCallback, signal?: AbortSignal): Promise<PreparedMedia> {

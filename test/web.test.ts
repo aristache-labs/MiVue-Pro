@@ -29,6 +29,7 @@ test("dashboard serves health, validates categories and supports media ranges", 
     downloadsDirectory: directory,
     async info() { return { endpoint: { host: "192.72.1.1" } }; },
     async list() { return []; },
+    invalidateListCache() {},
     async prepare(_remotePath, onProgress) {
       activePrepares += 1;
       maximumConcurrentPrepares = Math.max(maximumConcurrentPrepares, activePrepares);
