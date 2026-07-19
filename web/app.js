@@ -5,7 +5,7 @@ const state = {
   files: [], category: "all", query: "", telemetry: [], selectedPath: null,
   sort: "date-desc", camera: "all", duration: "all", dateFrom: "", dateTo: "", timeFrom: "", timeTo: "", availability: "all",
   dateMode: "single", mapEnabled: false,
-  map: null, mapRoute: null, mapProgress: null, mapMarker: null, mapHasFit: false,
+  map: null, mapRoute: null, mapProgress: null, mapMarker: null, mapHasFit: false, mapFollow: true,
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
 };
 const datePicker = {
@@ -32,6 +32,7 @@ const elements = {
   progress: $("#prepareProgress"), progressBar: $("#progressBar"), progressLabel: $("#progressLabel"), progressPercent: $("#progressPercent"), progressDetail: $("#progressDetail"),
   prepareCancel: $("#prepareCancel"),
   map: $("#realMap"), mapToggle: $("#mapToggle"), mapPrivacy: $("#mapPrivacy"),
+  mapControls: $("#mapControls"), mapRecenter: $("#mapRecenter"), mapFitRoute: $("#mapFitRoute"),
   viewTitle: $("#viewTitle"), filtersToggle: $("#filtersToggle"), filtersPanel: $("#filtersPanel"),
   themeToggle: $("#themeToggle"), topbarSearch: $("#topbarSearchWrap"),
   settingsConnection: $("#settingsConnection"), settingsIp: $("#settingsIp"),
@@ -59,6 +60,7 @@ function applyTheme(pref) {
   document.querySelectorAll('input[name="themePref"]').forEach((input) => {
     input.checked = input.value === pref;
   });
+  if (!state.mapEnabled && state.telemetry.length) drawRoute(currentSampleIndex());
 }
 
 function cycleTheme() {
@@ -138,6 +140,8 @@ elements.clearFilters.addEventListener("click", clearFilters);
 wireDatePicker();
 syncDatePickerLabel();
 elements.mapToggle.addEventListener("click", toggleMap);
+elements.mapRecenter.addEventListener("click", () => recenterMapOnPin(true));
+elements.mapFitRoute.addEventListener("click", fitMapToRoute);
 elements.refresh.addEventListener("click", loadDashboard);
 elements.prepareCancel.addEventListener("click", () => {
   if (state.selectedPath) void cancelDownload(state.selectedPath);
@@ -273,7 +277,7 @@ function fileRow(file) {
 
 function selectFile(file, row) {
   document.querySelectorAll(".file-row").forEach((item) => item.classList.remove("selected")); row.classList.add("selected");
-  state.selectedPath = file.path; state.telemetry = []; state.mapHasFit = false;
+  state.selectedPath = file.path; state.telemetry = []; state.mapHasFit = false; state.mapFollow = true;
   state.mapRoute?.remove(); state.mapProgress?.remove(); state.mapMarker?.remove();
   state.mapRoute = null; state.mapProgress = null; state.mapMarker = null;
   elements.empty.classList.add("hidden"); elements.active.classList.remove("hidden");
@@ -517,14 +521,34 @@ function currentSampleIndex() {
 function drawRoute(activeIndex) {
   const points = state.telemetry; if (points.length === 0) return;
   if (state.mapEnabled) { drawMapRoute(activeIndex); return; }
-  const { ctx, width, height } = canvasContext(); const pad = 34;
+  const { ctx, width, height } = canvasContext(); const pad = 28;
   const xs = points.map((point) => point.longitude); const ys = points.map((point) => point.latitude);
   const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const project = (point) => ({ x: pad + ((point.longitude - minX) / (maxX - minX || 1)) * (width - 2 * pad), y: height - pad - ((point.latitude - minY) / (maxY - minY || 1)) * (height - 2 * pad) });
-  drawGrid(ctx, width, height); ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.lineWidth = 4; ctx.strokeStyle = "#5b7c8a"; ctx.beginPath();
-  points.forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }); ctx.stroke();
-  ctx.strokeStyle = "#0d9488"; ctx.beginPath(); points.slice(0, activeIndex + 1).forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); }); ctx.stroke();
-  const marker = project(points[activeIndex] ?? points[0]); ctx.fillStyle = "#f8fafc"; ctx.beginPath(); ctx.arc(marker.x, marker.y, 8, 0, Math.PI * 2); ctx.fill(); ctx.strokeStyle = "#0d9488"; ctx.lineWidth = 4; ctx.stroke();
+  const project = (point) => ({
+    x: pad + ((point.longitude - minX) / (maxX - minX || 1)) * (width - 2 * pad),
+    y: height - pad - ((point.latitude - minY) / (maxY - minY || 1)) * (height - 2 * pad),
+  });
+  drawGrid(ctx, width, height);
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.lineWidth = 4; ctx.strokeStyle = "rgba(148, 163, 184, .55)"; ctx.beginPath();
+  points.forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+  ctx.stroke();
+  ctx.strokeStyle = "#14b8a6"; ctx.beginPath();
+  points.slice(0, activeIndex + 1).forEach((point, index) => { const p = project(point); index === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y); });
+  ctx.stroke();
+
+  const start = project(points[0]);
+  const end = project(points[points.length - 1]);
+  ctx.fillStyle = "rgba(148, 163, 184, .9)";
+  ctx.beginPath(); ctx.arc(start.x, start.y, 4, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(end.x, end.y, 4, 0, Math.PI * 2); ctx.fill();
+
+  const marker = project(points[activeIndex] ?? points[0]);
+  ctx.beginPath(); ctx.arc(marker.x, marker.y, 12, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(20, 184, 166, .18)"; ctx.fill();
+  ctx.beginPath(); ctx.arc(marker.x, marker.y, 7, 0, Math.PI * 2);
+  ctx.fillStyle = "#f8fafc"; ctx.fill();
+  ctx.strokeStyle = "#0d9488"; ctx.lineWidth = 3; ctx.stroke();
 }
 
 function clearFilters() {
@@ -836,33 +860,108 @@ function showProgress(progress) {
 
 function toggleMap() {
   state.mapEnabled = !state.mapEnabled;
-  elements.canvas.classList.toggle("hidden", state.mapEnabled); elements.map.classList.toggle("hidden", !state.mapEnabled);
+  elements.canvas.classList.toggle("hidden", state.mapEnabled);
+  elements.map.classList.toggle("hidden", !state.mapEnabled);
+  elements.mapControls.classList.toggle("hidden", !state.mapEnabled);
   elements.mapToggle.textContent = state.mapEnabled ? "Hartă schematică" : "Activează harta online";
-  elements.mapPrivacy.textContent = state.mapEnabled ? "Hartă © OpenStreetMap contributors. Coordonatele zonei sunt solicitate numai cât timp harta online este activă." : "Harta schematică este complet locală. Harta online trimite coordonatele zonei către serverele OpenStreetMap numai după activare.";
-  if (state.mapEnabled) { ensureMap(); drawMapRoute(currentSampleIndex()); setTimeout(() => state.map?.invalidateSize(), 0); }
-  else drawRoute(currentSampleIndex());
+  elements.mapPrivacy.textContent = state.mapEnabled
+    ? "Hartă © OpenStreetMap contributors. Coordonatele zonei sunt solicitate numai cât timp harta online este activă."
+    : "Harta schematică este complet locală. Harta online trimite coordonatele zonei către serverele OpenStreetMap numai după activare.";
+  if (state.mapEnabled) {
+    state.mapFollow = true;
+    ensureMap();
+    drawMapRoute(currentSampleIndex());
+    setTimeout(() => {
+      state.map?.invalidateSize();
+      if (state.mapHasFit) recenterMapOnPin(false);
+    }, 0);
+  } else drawRoute(currentSampleIndex());
 }
 
 function ensureMap() {
   if (state.map || !window.L) return;
-  state.map = window.L.map(elements.map, { preferCanvas: true });
+  state.map = window.L.map(elements.map, {
+    preferCanvas: true,
+    zoomControl: true,
+    attributionControl: true,
+  });
   window.L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
-    maxZoom: 19, attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
+    maxZoom: 19,
+    attribution: "&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap</a> contributors",
   }).addTo(state.map);
+  state.map.on("dragstart zoomstart", () => { state.mapFollow = false; });
 }
 
 function drawMapRoute(activeIndex) {
   if (!state.map || state.telemetry.length === 0) return;
   const latLngs = state.telemetry.map((point) => [point.latitude, point.longitude]);
-  state.mapRoute?.remove(); state.mapProgress?.remove(); state.mapMarker?.remove();
-  state.mapRoute = window.L.polyline(latLngs, { color: "#5b7c8a", weight: 5, opacity: .85 }).addTo(state.map);
-  state.mapProgress = window.L.polyline(latLngs.slice(0, activeIndex + 1), { color: "#0d9488", weight: 5 }).addTo(state.map);
-  state.mapMarker = window.L.circleMarker(latLngs[activeIndex] ?? latLngs[0], { radius: 8, color: "#0d9488", weight: 4, fillColor: "#f8fafc", fillOpacity: 1 }).addTo(state.map);
-  if (!state.mapHasFit) { state.map.fitBounds(state.mapRoute.getBounds(), { padding: [20, 20] }); state.mapHasFit = true; }
+  const current = latLngs[activeIndex] ?? latLngs[0];
+
+  if (!state.mapRoute) {
+    state.mapRoute = window.L.polyline(latLngs, { color: "#5b7c8a", weight: 5, opacity: .85 }).addTo(state.map);
+  } else {
+    state.mapRoute.setLatLngs(latLngs);
+  }
+
+  if (!state.mapProgress) {
+    state.mapProgress = window.L.polyline(latLngs.slice(0, activeIndex + 1), { color: "#0d9488", weight: 5 }).addTo(state.map);
+  } else {
+    state.mapProgress.setLatLngs(latLngs.slice(0, activeIndex + 1));
+  }
+
+  if (!state.mapMarker) {
+    state.mapMarker = window.L.circleMarker(current, {
+      radius: 8, color: "#0d9488", weight: 4, fillColor: "#f8fafc", fillOpacity: 1,
+    }).addTo(state.map);
+  } else {
+    state.mapMarker.setLatLng(current);
+  }
+
+  if (!state.mapHasFit) {
+    fitMapToRoute();
+    state.mapHasFit = true;
+    return;
+  }
+
+  if (state.mapFollow && !elements.video.paused && !elements.video.ended) {
+    state.map.setView(current, state.map.getZoom(), { animate: false });
+  }
 }
 
-function drawEmptyRoute(message) { const { ctx, width, height } = canvasContext(); drawGrid(ctx, width, height); ctx.fillStyle = "#94a3b8"; ctx.font = "500 13px \"Source Sans 3\", sans-serif"; ctx.textAlign = "center"; ctx.fillText(message, width / 2, height / 2); }
-function drawGrid(ctx, width, height) { ctx.fillStyle = "#0f1720"; ctx.fillRect(0, 0, width, height); ctx.strokeStyle = "rgba(248,250,252,.06)"; ctx.lineWidth = 1; for (let x = 20; x < width; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); } for (let y = 20; y < height; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); } }
+function recenterMapOnPin(animate = true) {
+  if (!state.map || state.telemetry.length === 0) return;
+  state.mapFollow = true;
+  const sample = state.telemetry[currentSampleIndex()] ?? state.telemetry[0];
+  if (!sample) return;
+  const target = window.L.latLng(sample.latitude, sample.longitude);
+  if (animate) state.map.panTo(target, { animate: true, duration: 0.35 });
+  else state.map.setView(target, Math.max(state.map.getZoom(), 15), { animate: false });
+}
+
+function fitMapToRoute() {
+  if (!state.map || !state.mapRoute) return;
+  const bounds = state.mapRoute.getBounds();
+  if (!bounds.isValid()) return;
+  state.map.fitBounds(bounds, { padding: [28, 28], maxZoom: 17, animate: true });
+}
+
+function drawEmptyRoute(message) {
+  const { ctx, width, height } = canvasContext();
+  drawGrid(ctx, width, height);
+  ctx.fillStyle = "rgba(148, 163, 184, .9)";
+  ctx.font = "500 13px \"Source Sans 3\", sans-serif";
+  ctx.textAlign = "center";
+  ctx.fillText(message, width / 2, height / 2);
+}
+function drawGrid(ctx, width, height) {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  ctx.fillStyle = dark ? "#0f1720" : "#e8eef3";
+  ctx.fillRect(0, 0, width, height);
+  ctx.strokeStyle = dark ? "rgba(248,250,252,.06)" : "rgba(15,23,32,.06)";
+  ctx.lineWidth = 1;
+  for (let x = 20; x < width; x += 42) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+  for (let y = 20; y < height; y += 42) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+}
 function canvasContext() { const scale = devicePixelRatio || 1; const rect = elements.canvas.getBoundingClientRect(); elements.canvas.width = Math.max(1, Math.round(rect.width * scale)); elements.canvas.height = Math.max(1, Math.round(rect.height * scale)); const ctx = elements.canvas.getContext("2d"); ctx.scale(scale, scale); return { ctx, width: rect.width, height: rect.height }; }
 
 async function api(path, options) { const response = await fetch(path, { headers: { "Content-Type": "application/json" }, ...options }); const value = await response.json(); if (!response.ok) throw new Error(value.error || `HTTP ${response.status}`); return value; }
