@@ -35,8 +35,9 @@ Acest repository conține un CLI TypeScript + dashboard local read-only pentru i
 | Compatibilitate modele/firmware | `docs/compatibility.md` |
 | Securitate CLI/dashboard | `docs/security-and-legal.md` |
 | Audit Faza 0 | `docs/mobile/phase0-audit.md` |
-| ADR framework | `docs/mobile/adr-001-framework.md` |
+| ADR framework | `docs/mobile/adr-001-framework.md` (Expo prebuild acceptat) |
 | Arhitectură mobilă | `docs/mobile/architecture.md` |
+| App mobilă | `mobile/` — nu rula `expo start` / `npm start` pentru utilizator |
 | Gate release juridic | `docs/legal/release-legal-checklist.md` |
 
 ## Brand

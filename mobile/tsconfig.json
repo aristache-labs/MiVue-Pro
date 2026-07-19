@@ -1,0 +1,22 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": ["./*"],
+      "@parsers/*": ["./packages/parsers/src/*"],
+      "@protocol/*": ["./packages/protocol/src/*"],
+      "@camera-transport/*": ["./packages/camera-transport/src/*"],
+      "@local-db/*": ["./packages/local-db/src/*"],
+      "@download-queue/*": ["./packages/download-queue/src/*"],
+      "@demo/*": ["./packages/demo/src/*"]
+    }
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": ["node_modules"]
+}

@@ -18,8 +18,8 @@
 
 | Strat | Candidat | Acțiune licență |
 |---|---|---|
-| Framework | React Native bare | inventariază RN + Metro + Hermes + dependențe transitive la lock |
-| UI | React Native + librării UI alese | preferă MIT/Apache-2.0/BSD; evit GPL în app store binary fără review |
+| Framework | Expo SDK + React Native (prebuild/dev builds) | inventariază Expo + RN + Metro + Hermes + dependențe transitive la lock; nu Expo Go ca runtime producție |
+| UI | Expo Router + React Native | preferă MIT/Apache-2.0/BSD; evit GPL în app store binary fără review |
 | Protocol/parsers | cod propriu portat din TS | confirmă lanțul de titlu; fără fragment APK |
 | Networking nativ | module proprii / librării TCP | inventar per platformă |
 | Storage / DB | ex. SQLite via librărie permisivă | notice + versiune exactă |

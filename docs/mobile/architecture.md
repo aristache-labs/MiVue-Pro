@@ -1,9 +1,10 @@
 # Arhitectura aplicației mobile
 
-**Statut:** Faza 1 — proiectare  
-**Framework propus:** React Native bare ([adr-001-framework.md](adr-001-framework.md))  
-**Locație viitoare:** subfolder `mobile/` în acest monorepo  
-**Produs:** `[NUMELE_APLICAȚIEI]`
+**Statut:** Faza 2 — fundație  
+**Framework:** React Native + Expo prebuild / development builds ([adr-001-framework.md](adr-001-framework.md))  
+**Locație:** subfolder `mobile/` în acest monorepo  
+**Produs:** `[NUMELE_APLICAȚIEI]`  
+**Notă:** Expo Go nu este țintă de producție; TCP HTTP/1.0 și FGS cer development build.
 
 ## 1. Principii
 
@@ -19,21 +20,19 @@
 
 ```text
 mobile/
-  app/                    # UI React Native (screens, navigation)
+  app/                    # Expo Router (UI minimal Faza 2)
   packages/
     protocol/             # tipuri, client read-only, erori
     parsers/              # Config.cgi text, XML list, NMEA/GPX
-    camera-transport/     # contract Transport + facades
+    camera-transport/     # contract Transport + Demo/Fetch stub + native later
     download-queue/       # coadă persistentă, un worker
-    local-db/             # catalog local, stare coadă, preferințe
-    media-player/         # redare + sync GPS
-    map/                  # schemă locală + hartă online opt-in
+    local-db/             # stare coadă, preferințe
     demo/                 # fixtures sintetice
-  ios/                    # adaptoare native (TCP HTTP/1.0, download, ATS)
-  android/                # adaptoare native (cleartext local, FGS)
+  plugins/                # config plugins ATS/cleartext (ulterior)
+  ios/ android/           # generate via expo prebuild (development builds)
 ```
 
-CLI-ul existent din rădăcină rămâne separat; pachetul `protocol`/`parsers` poate fi partajat ulterior dacă titularul decide (fără a importa `cameraMutate`).
+CLI-ul existent din rădăcină rămâne separat. Nu se importă `cameraMutate` / `probe`.
 
 ## 3. Module și dependențe
 

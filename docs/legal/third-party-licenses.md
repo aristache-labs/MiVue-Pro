@@ -30,9 +30,10 @@ Harta web curentă afișează atribuirea OpenStreetMap. **Datele și tile-urile 
 
 | Candidat | Versiune | Licență proiect | Runtime livrat | Dependențe native/transitive | Decizie |
 |---|---|---|---:|---|---|
-| React Native bare | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` |
-| Flutter | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` |
-| Kotlin Multiplatform | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` | `[TBD]` |
+| Expo SDK + React Native (prebuild) | Expo `~54.0.35` / RN `0.81.5` (`mobile/package.json`; aliniat Expo Go App Store) | MIT (Expo) + RN licenses | Hermes + native prebuild | inventar la lockfile | **acceptat** (ADR-001); Expo Go OK pentru Demo; producție = dev build |
+| React Native bare (fără Expo) | — | — | — | — | alternativă dacă prebuild blochează TCP |
+| Flutter | — | — | — | — | respins ca default |
+| Kotlin Multiplatform | — | — | — | — | respins ca default |
 
 Completarea tabelului nu constituie singură aprobarea framework-ului; ADR-ul Fazei 1 trebuie să lege alegerea de obligațiile de distribuție iOS/Android.
 
