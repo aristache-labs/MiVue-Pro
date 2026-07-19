@@ -46,8 +46,8 @@ const elements = {
   datePickerTrigger: $("#datePickerTrigger"), datePickerPopup: $("#datePickerPopup"), datePickerLabel: $("#datePickerLabel"),
   dpGrid: $("#dpGrid"), dpMonthLabel: $("#dpMonthLabel"), dpPrev: $("#dpPrev"), dpNext: $("#dpNext"),
   dpTimeFrom: $("#dpTimeFrom"), dpTimeTo: $("#dpTimeTo"), dpClear: $("#dpClear"), dpApply: $("#dpApply"),
-  empty: $("#emptyViewer"), active: $("#activeViewer"), video: $("#videoPlayer"), viewerName: $("#viewerName"), badge: $("#viewerBadge"),
-  notice: $("#viewerNotice"), canvas: $("#routeCanvas"), gpsState: $("#gpsState"), speed: $("#speedValue"), time: $("#telemetryTime"), altitude: $("#telemetryAltitude"),
+  empty: $("#emptyViewer"), active: $("#activeViewer"), video: $("#videoPlayer"), photo: $("#photoPlayer"), viewerName: $("#viewerName"), badge: $("#viewerBadge"),
+  notice: $("#viewerNotice"), telemetryCard: $("#telemetryCard"), canvas: $("#routeCanvas"), gpsState: $("#gpsState"), speed: $("#speedValue"), time: $("#telemetryTime"), altitude: $("#telemetryAltitude"),
   progress: $("#prepareProgress"), progressBar: $("#progressBar"), progressLabel: $("#progressLabel"), progressPercent: $("#progressPercent"), progressDetail: $("#progressDetail"),
   prepareCancel: $("#prepareCancel"),
   map: $("#realMap"), mapToggle: $("#mapToggle"), mapPrivacy: $("#mapPrivacy"),
@@ -359,7 +359,20 @@ function setCategory(category) {
   document.querySelectorAll(".stat-chip[data-category]").forEach((chip) => {
     chip.classList.toggle("active", chip.dataset.category === state.category);
   });
+  updateTelemetryVisibility();
   scheduleRenderFiles(false);
+}
+
+function isPhotoFile(file) {
+  if (!file) return false;
+  return file.category === "photo" || /\.(jpe?g)$/i.test(file.name || "");
+}
+
+function updateTelemetryVisibility(file) {
+  if (!elements.telemetryCard) return;
+  const selected = file ?? state.files.find((item) => item.path === state.selectedPath);
+  const hide = state.category === "photo" || isPhotoFile(selected);
+  elements.telemetryCard.classList.toggle("hidden", hide);
 }
 
 function countByCategory(category) {
@@ -683,7 +696,10 @@ function selectFile(file, row) {
   elements.empty.classList.add("hidden"); elements.active.classList.remove("hidden");
   elements.viewerName.textContent = file.name; elements.badge.textContent = file.category;
   elements.speed.textContent = "0";
+  updateTelemetryVisibility(file);
   elements.notice.classList.add("hidden"); elements.video.removeAttribute("src"); elements.video.load();
+  elements.video.classList.remove("hidden");
+  if (elements.photo) { elements.photo.removeAttribute("src"); elements.photo.classList.add("hidden"); }
   const activeJob = state.downloadJobs.get(file.path);
   if (activeJob && activeJob.status !== "error") {
     showProgress(activeJob.progress ?? { percent: 0, message: "În coada de descărcare…" });
@@ -795,7 +811,22 @@ async function trackDownload(file, jobState) {
 
 async function loadPrepared(file, prepared) {
   const selectedPath = file.path;
-  elements.notice.classList.add("hidden"); elements.gpsState.textContent = "Se încarcă datele locale…";
+  const isPhoto = isPhotoFile(file) || /\.(jpe?g)$/i.test(prepared.mediaUrl || "");
+  updateTelemetryVisibility(file);
+  elements.notice.classList.add("hidden");
+  if (isPhoto) {
+    if (elements.photo) {
+      elements.video.classList.add("hidden");
+      elements.video.removeAttribute("src");
+      elements.video.load();
+      elements.photo.src = prepared.mediaUrl;
+      elements.photo.classList.remove("hidden");
+    }
+    return;
+  }
+  elements.gpsState.textContent = "Se încarcă datele locale…";
+  if (elements.photo) { elements.photo.classList.add("hidden"); elements.photo.removeAttribute("src"); }
+  elements.video.classList.remove("hidden");
   elements.video.src = prepared.mediaUrl; elements.video.load();
   if (prepared.warning) { elements.notice.textContent = prepared.warning; elements.notice.classList.remove("hidden"); }
   try {

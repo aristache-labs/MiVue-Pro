@@ -14,7 +14,9 @@ export function assertRemoteMediaPath(remotePath: string): void {
   if (!remotePath.startsWith("/SD/") || remotePath.includes("..") || /[\r\n]/.test(remotePath)) {
     throw new Error("Cale remote invalidă");
   }
-  if (!/\.(?:MP4|MOV)$/i.test(remotePath)) throw new Error("Dashboardul pregătește numai fișiere video");
+  if (!/\.(?:MP4|MOV|JPG|JPEG)$/i.test(remotePath)) {
+    throw new Error("Dashboardul pregătește numai video (MP4/MOV) sau poze (JPG)");
+  }
 }
 
 /** Any file under /SD/ (video, photo, NMEA) — used for camera delete. */

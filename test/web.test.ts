@@ -16,6 +16,7 @@ test("dashboard path guards reject traversal and non-media remote paths", () => 
   assert.throws(() => assertRemoteMediaPath("/SD/../firmware.bin"));
   assert.throws(() => assertRemoteMediaPath("/SD/Normal/F/file.NMEA"));
   assert.doesNotThrow(() => assertRemoteMediaPath("/SD/Normal/F/file.MP4"));
+  assert.doesNotThrow(() => assertRemoteMediaPath("/SD/Photo/F/file.JPG"));
   assert.doesNotThrow(() => assertRemoteThumbnailPath("/SD/Photo/F/file.JPG"));
   assert.throws(() => assertRemoteThumbnailPath("/SD/Photo/F/firmware.bin"));
 });

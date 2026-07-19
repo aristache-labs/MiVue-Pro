@@ -275,8 +275,9 @@
                   <small id="progressDetail"></small>
                 </div>
                 <video id="videoPlayer" controls preload="metadata"></video>
+                <img id="photoPlayer" class="photo-player hidden" alt="Poză dashcam" />
                 <div id="viewerNotice" class="viewer-notice hidden"></div>
-                <div class="telemetry-card">
+                <div id="telemetryCard" class="telemetry-card">
                   <div class="telemetry-header">
                     <div>
                       <p class="eyebrow">Traseu GPS</p>
@@ -435,9 +436,9 @@
 
                 <article class="settings-card">
                   <h3>Spațiu local</h3>
-                  <p class="settings-desc">Copii descărcate pe acest laptop (folderul <span class="mono">downloads/</span>).</p>
+                  <p class="settings-desc">Clipuri/media descărcate (<span class="mono">.mp4</span> / poze). Thumbnail-urile și GPX nu sunt numărate.</p>
                   <dl class="settings-dl">
-                    <div><dt>Fișiere</dt><dd id="storageFileCount">—</dd></div>
+                    <div><dt>Media</dt><dd id="storageFileCount">—</dd></div>
                     <div><dt>Ocupat</dt><dd id="storageTotalBytes">—</dd></div>
                   </dl>
                   <div class="settings-actions">

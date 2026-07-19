@@ -83,7 +83,8 @@ export class CameraService {
       port: endpoint.httpPort,
       timeoutMs,
       attempts: READONLY_HTTP_ATTEMPTS,
-      maxBodyBytes: 512 * 1024,
+      // Video thumbs are small; photo thumbs reuse the full JPG (no /thumb on camera).
+      maxBodyBytes: 8 * 1024 * 1024,
       logger,
     });
   }
@@ -202,6 +203,23 @@ export class CameraService {
       return fromDisk;
     }
 
+    const isPhoto = /\.(?:JPG|JPEG)$/i.test(remotePath);
+    if (isPhoto) {
+      const localOriginal = safeLocalFile(this.downloadsDirectory, posix.basename(remotePath));
+      if (await exists(localOriginal)) {
+        const fromDisk = await readFile(localOriginal);
+        if (fromDisk.byteLength >= 4 && fromDisk[0] === 0xff && fromDisk[1] === 0xd8) {
+          try {
+            await writeFile(cachePath, fromDisk, { flag: "wx" });
+          } catch (error) {
+            if (!isNodeError(error) || error.code !== "EEXIST") throw error;
+          }
+          this.rememberThumb(cacheName, fromDisk);
+          return fromDisk;
+        }
+      }
+    }
+
     await this.acquireThumbnailSlot();
     try {
       const again = this.thumbMemory.get(cacheName);
@@ -211,7 +229,8 @@ export class CameraService {
         this.rememberThumb(cacheName, fromDisk);
         return fromDisk;
       }
-      const thumbnailPath = `/thumb${remotePath.replace(/^\/SD/u, "")}`;
+      // MiVue serves /thumb only for video; photos return HTTP 503 — fetch the JPG itself.
+      const thumbnailPath = isPhoto ? remotePath : `/thumb${remotePath.replace(/^\/SD/u, "")}`;
       const response = await this.thumbnailTransport.request({ method: "GET", path: thumbnailPath });
       if (response.statusCode !== 200) throw new Error(`Miniatura nu este disponibilă (HTTP ${response.statusCode})`);
       if (response.body.byteLength < 4 || response.body[0] !== 0xff || response.body[1] !== 0xd8) {
@@ -253,7 +272,7 @@ export class CameraService {
     let totalBytes = 0;
     try {
       for (const entry of await readdir(this.downloadsDirectory, { withFileTypes: true })) {
-        if (!entry.isFile()) continue;
+        if (!entry.isFile() || !isLocalMediaName(entry.name)) continue;
         fileCount += 1;
         try {
           totalBytes += (await stat(safeLocalFile(this.downloadsDirectory, entry.name))).size;
@@ -369,6 +388,7 @@ export class CameraService {
     await mkdir(this.downloadsDirectory, { recursive: true });
     const originalName = posix.basename(remotePath);
     const originalPath = safeLocalFile(this.downloadsDirectory, originalName);
+    const isPhoto = /\.(?:JPG|JPEG)$/i.test(remotePath);
     await this.ensureDownloaded(remotePath, originalPath, signal, (transfer) => {
       const snapshot = calculateProgress(transfer);
       const percent = snapshot.percent === undefined
@@ -377,7 +397,7 @@ export class CameraService {
       report(onProgress, {
         stage: "video",
         percent,
-        message: "Se descarcă videoclipul…",
+        message: isPhoto ? "Se descarcă poza…" : "Se descarcă videoclipul…",
         bytesReceived: transfer.bytesReceived,
         ...(transfer.totalBytes === undefined ? {} : { totalBytes: transfer.totalBytes }),
         bytesPerSecond: transfer.bytesPerSecond,
@@ -385,6 +405,10 @@ export class CameraService {
       });
     });
     assertNotAborted(signal);
+    if (isPhoto) {
+      report(onProgress, { stage: "complete", percent: 100, message: "Poză descărcată" });
+      return { originalName, playableName: originalName };
+    }
     report(onProgress, { stage: "video", percent: 90, message: "Videoclip descărcat" });
 
     const nmeaRemote = remotePath.replace(/\.[^.]+$/u, ".NMEA");
