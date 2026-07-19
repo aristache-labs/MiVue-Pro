@@ -1371,10 +1371,51 @@ video {
 }
 
 /* ——— Settings ——— */
-.settings-layout {
-  max-width: 720px;
+.settings-page {
+  width: 100%;
+  max-width: 1100px;
   display: grid;
+  gap: 22px;
+}
+.settings-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.settings-section-head {
+  display: grid;
+  gap: 2px;
+  padding: 0 2px;
+}
+.settings-section-head h2 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.settings-section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.settings-grid {
+  display: grid;
+  grid-template-columns: 1fr;
   gap: 12px;
+  align-items: stretch;
+}
+@media (min-width: 720px) {
+  .settings-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (min-width: 1100px) {
+  .settings-grid--stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .settings-card {
@@ -1383,8 +1424,9 @@ video {
   border-radius: var(--radius);
   background: var(--panel);
   box-shadow: var(--shadow);
+  min-width: 0;
 }
-.settings-card h2 {
+.settings-card h3 {
   margin: 0 0 6px;
   font-size: 15px;
   font-weight: 600;
@@ -1500,7 +1542,7 @@ video {
 .settings-soon { opacity: .92; }
 
 .settings-privacy {
-  margin: 4px 2px 0;
+  margin: 0 2px;
   color: var(--muted);
   font-size: 12px;
 }

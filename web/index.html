@@ -320,99 +320,115 @@
         </section>
 
         <section id="view-settings" class="view" data-view="settings" hidden>
-          <div class="settings-layout">
-            <article class="settings-card">
-              <h2>Aspect</h2>
-              <p class="settings-desc">Alege tema interfeței. Preferința se salvează local pe acest laptop.</p>
-              <div class="theme-options" role="radiogroup" aria-label="Temă">
-                <label class="theme-option">
-                  <input type="radio" name="themePref" value="light">
-                  <span>Light</span>
-                </label>
-                <label class="theme-option">
-                  <input type="radio" name="themePref" value="dark">
-                  <span>Dark</span>
-                </label>
-                <label class="theme-option">
-                  <input type="radio" name="themePref" value="system">
-                  <span>Sistem</span>
-                </label>
-              </div>
-            </article>
-
-            <article class="settings-card">
-              <h2>Cameră</h2>
-              <p class="settings-desc">Informații read-only despre conexiunea curentă.</p>
-              <dl class="settings-dl">
-                <div><dt>Status</dt><dd id="settingsConnection">—</dd></div>
-                <div><dt>IP</dt><dd id="settingsIp" class="mono">—</dd></div>
-                <div><dt>Total</dt><dd id="settingsTotal">—</dd></div>
-                <div><dt>Normal</dt><dd id="settingsNormal">—</dd></div>
-                <div><dt>Parking</dt><dd id="settingsParking">—</dd></div>
-                <div><dt>Evenimente</dt><dd id="settingsEvent">—</dd></div>
-                <div><dt>Poze</dt><dd id="settingsPhoto">—</dd></div>
-              </dl>
-            </article>
-
-            <article class="settings-card">
-              <h2>Card SD</h2>
-              <p class="settings-desc">Spațiu ocupat de fișierele de pe cameră, pe categorii. Capacitatea liberă nu e raportată de protocol.</p>
-              <div class="sd-usage-head">
-                <span>Ocupat (listă)</span>
-                <strong id="sdTotalBytes">—</strong>
-              </div>
-              <div class="sd-usage-list" aria-label="Spațiu pe categorii">
-                <div class="sd-usage-row">
-                  <div class="sd-usage-meta">
-                    <span>Normal</span>
-                    <span id="sdNormalBytes" class="mono">—</span>
+          <div class="settings-page">
+            <section class="settings-section" aria-labelledby="settingsPrefsTitle">
+              <header class="settings-section-head">
+                <h2 id="settingsPrefsTitle">Setări</h2>
+                <p>Preferințe locale pe acest laptop.</p>
+              </header>
+              <div class="settings-grid">
+                <article class="settings-card">
+                  <h3>Aspect</h3>
+                  <p class="settings-desc">Alege tema interfeței. Preferința se salvează local.</p>
+                  <div class="theme-options" role="radiogroup" aria-label="Temă">
+                    <label class="theme-option">
+                      <input type="radio" name="themePref" value="light">
+                      <span>Light</span>
+                    </label>
+                    <label class="theme-option">
+                      <input type="radio" name="themePref" value="dark">
+                      <span>Dark</span>
+                    </label>
+                    <label class="theme-option">
+                      <input type="radio" name="themePref" value="system">
+                      <span>Sistem</span>
+                    </label>
                   </div>
-                  <div class="sd-usage-track"><span id="sdNormalBar" class="sd-usage-bar" data-cat="normal"></span></div>
-                </div>
-                <div class="sd-usage-row">
-                  <div class="sd-usage-meta">
-                    <span>Parking</span>
-                    <span id="sdParkingBytes" class="mono">—</span>
-                  </div>
-                  <div class="sd-usage-track"><span id="sdParkingBar" class="sd-usage-bar" data-cat="parking"></span></div>
-                </div>
-                <div class="sd-usage-row">
-                  <div class="sd-usage-meta">
-                    <span>Evenimente</span>
-                    <span id="sdEventBytes" class="mono">—</span>
-                  </div>
-                  <div class="sd-usage-track"><span id="sdEventBar" class="sd-usage-bar" data-cat="event"></span></div>
-                </div>
-                <div class="sd-usage-row">
-                  <div class="sd-usage-meta">
-                    <span>Poze</span>
-                    <span id="sdPhotoBytes" class="mono">—</span>
-                  </div>
-                  <div class="sd-usage-track"><span id="sdPhotoBar" class="sd-usage-bar" data-cat="photo"></span></div>
-                </div>
-              </div>
-            </article>
+                </article>
 
-            <article class="settings-card">
-              <h2>Spațiu local</h2>
-              <p class="settings-desc">Copii descărcate pe acest laptop (folderul <span class="mono">downloads/</span>).</p>
-              <dl class="settings-dl">
-                <div><dt>Fișiere</dt><dd id="storageFileCount">—</dd></div>
-                <div><dt>Ocupat</dt><dd id="storageTotalBytes">—</dd></div>
-              </dl>
-              <div class="settings-actions">
-                <button id="refreshStorageBtn" class="settings-btn ghost" type="button">Reîmprospătează</button>
+                <article class="settings-card settings-soon">
+                  <h3>În curând</h3>
+                  <p class="settings-desc">Spațiu rezervat pentru setări și funcții viitoare.</p>
+                  <ul class="soon-list">
+                    <li>Export GPX în lot</li>
+                    <li>Preferințe descărcare avansate</li>
+                  </ul>
+                </article>
               </div>
-            </article>
+            </section>
 
-            <article class="settings-card settings-soon">
-              <h2>În curând</h2>
-              <p class="settings-desc">Spațiu rezervat pentru setări și funcții viitoare.</p>
-              <ul class="soon-list">
-                <li>Export GPX în lot</li>
-                <li>Preferințe descărcare avansate</li>
-              </ul>
-            </article>
+            <section class="settings-section" aria-labelledby="settingsStatsTitle">
+              <header class="settings-section-head">
+                <h2 id="settingsStatsTitle">Statistici</h2>
+                <p>Date read-only despre cameră, card SD și copiile locale.</p>
+              </header>
+              <div class="settings-grid settings-grid--stats">
+                <article class="settings-card">
+                  <h3>Cameră</h3>
+                  <p class="settings-desc">Informații despre conexiunea curentă.</p>
+                  <dl class="settings-dl">
+                    <div><dt>Status</dt><dd id="settingsConnection">—</dd></div>
+                    <div><dt>IP</dt><dd id="settingsIp" class="mono">—</dd></div>
+                    <div><dt>Total</dt><dd id="settingsTotal">—</dd></div>
+                    <div><dt>Normal</dt><dd id="settingsNormal">—</dd></div>
+                    <div><dt>Parking</dt><dd id="settingsParking">—</dd></div>
+                    <div><dt>Evenimente</dt><dd id="settingsEvent">—</dd></div>
+                    <div><dt>Poze</dt><dd id="settingsPhoto">—</dd></div>
+                  </dl>
+                </article>
+
+                <article class="settings-card">
+                  <h3>Card SD</h3>
+                  <p class="settings-desc">Spațiu ocupat pe categorii. Capacitatea liberă nu e raportată de protocol.</p>
+                  <div class="sd-usage-head">
+                    <span>Ocupat (listă)</span>
+                    <strong id="sdTotalBytes">—</strong>
+                  </div>
+                  <div class="sd-usage-list" aria-label="Spațiu pe categorii">
+                    <div class="sd-usage-row">
+                      <div class="sd-usage-meta">
+                        <span>Normal</span>
+                        <span id="sdNormalBytes" class="mono">—</span>
+                      </div>
+                      <div class="sd-usage-track"><span id="sdNormalBar" class="sd-usage-bar" data-cat="normal"></span></div>
+                    </div>
+                    <div class="sd-usage-row">
+                      <div class="sd-usage-meta">
+                        <span>Parking</span>
+                        <span id="sdParkingBytes" class="mono">—</span>
+                      </div>
+                      <div class="sd-usage-track"><span id="sdParkingBar" class="sd-usage-bar" data-cat="parking"></span></div>
+                    </div>
+                    <div class="sd-usage-row">
+                      <div class="sd-usage-meta">
+                        <span>Evenimente</span>
+                        <span id="sdEventBytes" class="mono">—</span>
+                      </div>
+                      <div class="sd-usage-track"><span id="sdEventBar" class="sd-usage-bar" data-cat="event"></span></div>
+                    </div>
+                    <div class="sd-usage-row">
+                      <div class="sd-usage-meta">
+                        <span>Poze</span>
+                        <span id="sdPhotoBytes" class="mono">—</span>
+                      </div>
+                      <div class="sd-usage-track"><span id="sdPhotoBar" class="sd-usage-bar" data-cat="photo"></span></div>
+                    </div>
+                  </div>
+                </article>
+
+                <article class="settings-card">
+                  <h3>Spațiu local</h3>
+                  <p class="settings-desc">Copii descărcate pe acest laptop (folderul <span class="mono">downloads/</span>).</p>
+                  <dl class="settings-dl">
+                    <div><dt>Fișiere</dt><dd id="storageFileCount">—</dd></div>
+                    <div><dt>Ocupat</dt><dd id="storageTotalBytes">—</dd></div>
+                  </dl>
+                  <div class="settings-actions">
+                    <button id="refreshStorageBtn" class="settings-btn ghost" type="button">Reîmprospătează</button>
+                  </div>
+                </article>
+              </div>
+            </section>
 
             <p class="settings-privacy">Datele rămân pe acest laptop · MiVue 866 · conexiune read-only</p>
           </div>
