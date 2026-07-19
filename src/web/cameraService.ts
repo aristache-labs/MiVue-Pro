@@ -8,6 +8,7 @@ import { parseNmeaTelemetry, telemetryToGpx, type GpsSample } from "../protocol/
 import type { CameraEndpoint, CameraPosition, FileCategory, RemoteFile } from "../protocol/types.js";
 import { DownloadError, downloadToFile, type DownloadProgress } from "../transport/downloadTransport.js";
 import { HttpTransport } from "../transport/httpTransport.js";
+import { READONLY_HTTP_ATTEMPTS } from "../transport/types.js";
 import { calculateProgress } from "../utils/progress.js";
 import type { Logger } from "../utils/logger.js";
 import { assertRemoteMediaPath, assertRemoteThumbnailPath, assertRemoteSdPath, safeLocalFile } from "./pathSafety.js";
@@ -73,14 +74,14 @@ export class CameraService {
       host: endpoint.host,
       port: endpoint.httpPort,
       timeoutMs,
-      attempts: 2,
+      attempts: READONLY_HTTP_ATTEMPTS,
       logger,
     }));
     this.thumbnailTransport = new HttpTransport({
       host: endpoint.host,
       port: endpoint.httpPort,
       timeoutMs,
-      attempts: 2,
+      attempts: READONLY_HTTP_ATTEMPTS,
       maxBodyBytes: 512 * 1024,
       logger,
     });

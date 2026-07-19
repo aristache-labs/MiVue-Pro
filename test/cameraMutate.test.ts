@@ -84,6 +84,16 @@ test("setCameraProperty requireAllowlist allows Camera.Menu.UIMode", async () =>
   const transport = new MockTransport({ statusCode: 200, headers: {}, body: Buffer.from("0\nOK\n") });
   await setCameraProperty(transport, "Camera.Menu.UIMode", "MENU", { requireAllowlist: true });
   assert.equal(transport.requests.length, 1);
+  assert.equal(transport.requests[0]?.retryPolicy, "mutation");
+});
+
+test("setCameraProperty rejects non-OK CGI even with HTTP 200", async () => {
+  const transport = new MockTransport({
+    statusCode: 200,
+    headers: {},
+    body: Buffer.from("703\nUnknown CGI-PARAM\n"),
+  });
+  await assert.rejects(setCameraProperty(transport, "Camera.Menu.UIMode", "MENU"), /CGI 703/);
 });
 
 test("probeCgi returns truncated body and status on error HTTP", async () => {

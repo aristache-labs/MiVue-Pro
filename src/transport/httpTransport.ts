@@ -1,13 +1,21 @@
 import net from "node:net";
 import type { Logger } from "../utils/logger.js";
 import { retry } from "../utils/retry.js";
-import { TransportError, type Transport, type TransportRequest, type TransportResponse } from "./types.js";
+import {
+  MUTATION_HTTP_ATTEMPTS,
+  READONLY_HTTP_ATTEMPTS,
+  TransportError,
+  type Transport,
+  type TransportRequest,
+  type TransportResponse,
+} from "./types.js";
 
 export interface HttpTransportOptions {
   readonly host: string;
   readonly port?: number;
   readonly timeoutMs?: number;
   readonly maxBodyBytes?: number;
+  /** Read-only retry count. Mutations always use MUTATION_HTTP_ATTEMPTS via request.retryPolicy. */
   readonly attempts?: number;
   readonly logger?: Logger;
 }
@@ -29,24 +37,28 @@ export class HttpTransport implements Transport {
     this.port = options.port ?? 80;
     this.timeoutMs = options.timeoutMs ?? 5_000;
     this.maxBodyBytes = options.maxBodyBytes ?? 2 * 1024 * 1024;
-    this.attempts = options.attempts ?? 2;
+    this.attempts = options.attempts ?? READONLY_HTTP_ATTEMPTS;
   }
 
   async request(request: TransportRequest): Promise<TransportResponse> {
+    const attempts = request.retryPolicy === "mutation" ? MUTATION_HTTP_ATTEMPTS : this.attempts;
     return retry(
       async (attempt) => {
         this.options.logger?.debug(
-          `${request.method} http://${this.options.host}:${this.port}${request.path} HTTP/1.0 (attempt ${attempt})`,
+          `${request.method} http://${this.options.host}:${this.port}${request.path} HTTP/1.0 (attempt ${attempt}/${attempts} policy=${request.retryPolicy ?? "readonly"})`,
         );
         return this.requestOnce(request);
       },
       {
-        attempts: this.attempts,
+        attempts,
         initialDelayMs: 150,
         maxDelayMs: 750,
         ...(request.signal === undefined ? {} : { signal: request.signal }),
         shouldRetry: (error) =>
-          error instanceof TransportError && error.causeCode !== "ABORT_ERR" && error.causeCode !== "MAX_BODY",
+          attempts > 1
+          && error instanceof TransportError
+          && error.causeCode !== "ABORT_ERR"
+          && error.causeCode !== "MAX_BODY",
       },
     );
   }
