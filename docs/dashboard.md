@@ -22,7 +22,8 @@ Interfața este disponibilă la `http://127.0.0.1:4173`. Portul poate fi schimba
 
 - favorite locale (persistate în `localStorage`);
 - toast la finalizarea/eroarea descărcărilor;
-- card Spațiu local + „Deschide folderul” (`explorer.exe`);
+- card Spațiu local;
+- card Card SD cu spațiu ocupat pe categorii (din lista cameră);
 - skeleton loading și stări empty/error cu Reîncearcă.
 
 ## Performanță

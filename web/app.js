@@ -56,7 +56,12 @@ const elements = {
   bulkSelectAll: $("#bulkSelectAll"), bulkDownload: $("#bulkDownload"),
   bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"), bulkClose: $("#bulkClose"),
   storageFileCount: $("#storageFileCount"), storageTotalBytes: $("#storageTotalBytes"),
-  openDownloadsBtn: $("#openDownloadsBtn"), refreshStorageBtn: $("#refreshStorageBtn"),
+  refreshStorageBtn: $("#refreshStorageBtn"),
+  sdTotalBytes: $("#sdTotalBytes"),
+  sdNormalBytes: $("#sdNormalBytes"), sdParkingBytes: $("#sdParkingBytes"),
+  sdEventBytes: $("#sdEventBytes"), sdPhotoBytes: $("#sdPhotoBytes"),
+  sdNormalBar: $("#sdNormalBar"), sdParkingBar: $("#sdParkingBar"),
+  sdEventBar: $("#sdEventBar"), sdPhotoBar: $("#sdPhotoBar"),
   listStickyDate: $("#listStickyDate"),
 };
 
@@ -311,7 +316,6 @@ elements.bulkDownload?.addEventListener("click", () => { void bulkDownloadSelect
 elements.bulkDeleteLocal?.addEventListener("click", () => { void bulkDeleteLocalSelected(); });
 elements.bulkClear?.addEventListener("click", clearSelection);
 elements.bulkClose?.addEventListener("click", exitSelectMode);
-elements.openDownloadsBtn?.addEventListener("click", () => { void openDownloadsFolder(); });
 elements.refreshStorageBtn?.addEventListener("click", () => { void refreshStorageStats(); });
 wireDatePicker();
 syncDatePickerLabel();
@@ -371,6 +375,7 @@ function syncSettingsPanel(online, message) {
   elements.settingsPhoto.textContent = elements.photo.textContent;
   if (!online) elements.settingsConnection.style.color = "var(--danger)";
   else elements.settingsConnection.style.color = "";
+  refreshCameraSdStats();
 }
 
 async function loadDashboard(fresh = false) {
@@ -1551,15 +1556,31 @@ async function refreshStorageStats() {
     elements.storageFileCount.textContent = "—";
     elements.storageTotalBytes.textContent = "—";
   }
+  refreshCameraSdStats();
 }
 
-async function openDownloadsFolder() {
-  try {
-    await api("/api/open-downloads", { method: "POST", body: "{}" });
-    showToast("Folderul downloads a fost deschis", "ok");
-  } catch (error) {
-    showToast(error.message, "err");
+function refreshCameraSdStats() {
+  if (!elements.sdTotalBytes) return;
+  const bytes = { normal: 0, parking: 0, event: 0, photo: 0 };
+  let total = 0;
+  for (const file of state.files) {
+    if (String(file.path).startsWith("/local/")) continue;
+    const size = Number(file.sizeBytes) || 0;
+    total += size;
+    if (file.category in bytes) bytes[file.category] += size;
   }
+  elements.sdTotalBytes.textContent = total > 0 ? formatBytes(total) : "—";
+  setSdCategory("normal", bytes.normal, total);
+  setSdCategory("parking", bytes.parking, total);
+  setSdCategory("event", bytes.event, total);
+  setSdCategory("photo", bytes.photo, total);
+}
+
+function setSdCategory(category, value, total) {
+  const label = elements[`sd${category[0].toUpperCase()}${category.slice(1)}Bytes`];
+  const bar = elements[`sd${category[0].toUpperCase()}${category.slice(1)}Bar`];
+  if (label) label.textContent = value > 0 ? formatBytes(value) : "0 B";
+  if (bar) bar.style.width = `${total > 0 ? Math.max((value / total) * 100, value > 0 ? 2 : 0) : 0}%`;
 }
 
 function formatBytes(bytes) { const units = ["B", "KB", "MB", "GB"]; let value = bytes, index = 0; while (value >= 1024 && index < units.length - 1) { value /= 1024; index++; } return `${value.toFixed(index ? 1 : 0)} ${units[index]}`; }

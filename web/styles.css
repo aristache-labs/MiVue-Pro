@@ -1439,6 +1439,57 @@ video {
 .settings-dl dt { color: var(--muted); margin: 0; }
 .settings-dl dd { margin: 0; font-weight: 600; }
 
+.sd-usage-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+.sd-usage-head strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-family: var(--mono);
+  font-weight: 600;
+}
+.sd-usage-list { display: grid; gap: 10px; }
+.sd-usage-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sd-usage-meta .mono {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+}
+.sd-usage-track {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--line-soft);
+  overflow: hidden;
+}
+.sd-usage-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width .25s ease;
+}
+.sd-usage-bar[data-cat="parking"] { background: #0ea5e9; }
+.sd-usage-bar[data-cat="event"] { background: #f59e0b; }
+.sd-usage-bar[data-cat="photo"] { background: #8b5cf6; }
+
 .soon-list {
   margin: 0;
   padding-left: 18px;

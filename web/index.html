@@ -355,6 +355,45 @@
             </article>
 
             <article class="settings-card">
+              <h2>Card SD</h2>
+              <p class="settings-desc">Spațiu ocupat de fișierele de pe cameră, pe categorii. Capacitatea liberă nu e raportată de protocol.</p>
+              <div class="sd-usage-head">
+                <span>Ocupat (listă)</span>
+                <strong id="sdTotalBytes">—</strong>
+              </div>
+              <div class="sd-usage-list" aria-label="Spațiu pe categorii">
+                <div class="sd-usage-row">
+                  <div class="sd-usage-meta">
+                    <span>Normal</span>
+                    <span id="sdNormalBytes" class="mono">—</span>
+                  </div>
+                  <div class="sd-usage-track"><span id="sdNormalBar" class="sd-usage-bar" data-cat="normal"></span></div>
+                </div>
+                <div class="sd-usage-row">
+                  <div class="sd-usage-meta">
+                    <span>Parking</span>
+                    <span id="sdParkingBytes" class="mono">—</span>
+                  </div>
+                  <div class="sd-usage-track"><span id="sdParkingBar" class="sd-usage-bar" data-cat="parking"></span></div>
+                </div>
+                <div class="sd-usage-row">
+                  <div class="sd-usage-meta">
+                    <span>Evenimente</span>
+                    <span id="sdEventBytes" class="mono">—</span>
+                  </div>
+                  <div class="sd-usage-track"><span id="sdEventBar" class="sd-usage-bar" data-cat="event"></span></div>
+                </div>
+                <div class="sd-usage-row">
+                  <div class="sd-usage-meta">
+                    <span>Poze</span>
+                    <span id="sdPhotoBytes" class="mono">—</span>
+                  </div>
+                  <div class="sd-usage-track"><span id="sdPhotoBar" class="sd-usage-bar" data-cat="photo"></span></div>
+                </div>
+              </div>
+            </article>
+
+            <article class="settings-card">
               <h2>Spațiu local</h2>
               <p class="settings-desc">Copii descărcate pe acest laptop (folderul <span class="mono">downloads/</span>).</p>
               <dl class="settings-dl">
@@ -362,7 +401,6 @@
                 <div><dt>Ocupat</dt><dd id="storageTotalBytes">—</dd></div>
               </dl>
               <div class="settings-actions">
-                <button id="openDownloadsBtn" class="settings-btn" type="button">Deschide folderul</button>
                 <button id="refreshStorageBtn" class="settings-btn ghost" type="button">Reîmprospătează</button>
               </div>
             </article>
