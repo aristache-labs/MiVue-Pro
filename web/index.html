@@ -131,13 +131,21 @@
               </div>
 
               <div id="bulkBar" class="bulk-bar hidden" aria-label="Acțiuni lot">
-                <span id="bulkCount">0 selectate</span>
+                <div class="bulk-bar-start">
+                  <span id="bulkCount" class="bulk-count">0</span>
+                  <span class="bulk-count-label">selectate</span>
+                </div>
                 <div class="bulk-actions">
                   <button id="bulkSelectAll" type="button" class="bulk-btn">Tot filtrat</button>
-                  <button id="bulkDownload" type="button" class="bulk-btn">Descarcă</button>
-                  <button id="bulkDeleteLocal" type="button" class="bulk-btn">Șterge local</button>
-                  <button id="bulkClear" type="button" class="bulk-btn ghost">Anulează</button>
+                  <button id="bulkDownload" type="button" class="bulk-btn primary hidden">Descarcă</button>
+                  <button id="bulkDeleteLocal" type="button" class="bulk-btn danger hidden">Șterge local</button>
+                  <button id="bulkClear" type="button" class="bulk-btn ghost hidden">Golește</button>
                 </div>
+                <button id="bulkClose" type="button" class="bulk-close" title="Închide selecția" aria-label="Închide modul selecție">
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                    <path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                  </svg>
+                </button>
               </div>
 
               <div id="filtersPanel" class="filters collapsed" aria-label="Filtre și sortare" hidden>

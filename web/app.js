@@ -54,7 +54,7 @@ const elements = {
   toastContainer: $("#toastContainer"), statusText: $("#statusText"), statusRetry: $("#statusRetry"),
   selectModeToggle: $("#selectModeToggle"), bulkBar: $("#bulkBar"), bulkCount: $("#bulkCount"),
   bulkSelectAll: $("#bulkSelectAll"), bulkDownload: $("#bulkDownload"),
-  bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"),
+  bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"), bulkClose: $("#bulkClose"),
   storageFileCount: $("#storageFileCount"), storageTotalBytes: $("#storageTotalBytes"),
   openDownloadsBtn: $("#openDownloadsBtn"), refreshStorageBtn: $("#refreshStorageBtn"),
   listStickyDate: $("#listStickyDate"),
@@ -310,6 +310,7 @@ elements.bulkSelectAll?.addEventListener("click", selectAllFiltered);
 elements.bulkDownload?.addEventListener("click", () => { void bulkDownloadSelected(); });
 elements.bulkDeleteLocal?.addEventListener("click", () => { void bulkDeleteLocalSelected(); });
 elements.bulkClear?.addEventListener("click", clearSelection);
+elements.bulkClose?.addEventListener("click", exitSelectMode);
 elements.openDownloadsBtn?.addEventListener("click", () => { void openDownloadsFolder(); });
 elements.refreshStorageBtn?.addEventListener("click", () => { void refreshStorageStats(); });
 wireDatePicker();
@@ -1407,12 +1408,23 @@ function toggleFavorite(path) {
 }
 
 function toggleSelectMode() {
-  state.selectMode = !state.selectMode;
-  document.body.classList.toggle("select-mode", state.selectMode);
-  elements.selectModeToggle?.setAttribute("aria-pressed", state.selectMode ? "true" : "false");
-  elements.selectModeToggle.textContent = state.selectMode ? "Gata" : "Selectează";
-  if (!state.selectMode) clearSelection();
-  else syncBulkBar();
+  if (state.selectMode) exitSelectMode();
+  else enterSelectMode();
+}
+
+function enterSelectMode() {
+  state.selectMode = true;
+  document.body.classList.add("select-mode");
+  elements.selectModeToggle?.setAttribute("aria-pressed", "true");
+  syncBulkBar();
+  scheduleRenderFiles(false);
+}
+
+function exitSelectMode() {
+  state.selectMode = false;
+  document.body.classList.remove("select-mode");
+  elements.selectModeToggle?.setAttribute("aria-pressed", "false");
+  clearSelection();
   scheduleRenderFiles(false);
 }
 
@@ -1433,10 +1445,21 @@ function clearSelection() {
 
 function syncBulkBar() {
   const count = state.selection.size;
-  const show = state.selectMode && count >= 0;
   elements.bulkBar?.classList.toggle("hidden", !state.selectMode);
-  if (elements.bulkCount) elements.bulkCount.textContent = `${count} selectate`;
-  if (!show) return;
+  if (!state.selectMode) return;
+
+  if (elements.bulkCount) elements.bulkCount.textContent = String(count);
+
+  const selected = count > 0
+    ? state.files.filter((file) => state.selection.has(file.path))
+    : [];
+  const canDownload = selected.some((file) => !file.locallyAvailable && !String(file.path).startsWith("/local/"));
+  const canDeleteLocal = selected.some((file) => Boolean(file.locallyAvailable && file.localName));
+
+  elements.bulkDownload?.classList.toggle("hidden", !canDownload);
+  elements.bulkDeleteLocal?.classList.toggle("hidden", !canDeleteLocal);
+  elements.bulkClear?.classList.toggle("hidden", count === 0);
+  elements.bulkBar?.classList.toggle("has-selection", count > 0);
 }
 
 function selectAllFiltered() {

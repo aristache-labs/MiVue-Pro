@@ -1459,35 +1459,110 @@ video {
   align-items: center;
   gap: 6px;
 }
+body.select-mode #selectModeToggle { display: none; }
+
 .bulk-bar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 8px;
   margin-bottom: 8px;
-  padding: 8px 10px;
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  background: var(--accent-soft);
-  color: var(--accent-strong);
+  padding: 4px 4px 4px 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-elevated);
+  color: var(--ink);
   font-size: 12px;
-  font-weight: 600;
   flex-shrink: 0;
+  box-shadow: var(--shadow);
 }
-.bulk-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.bulk-bar.has-selection {
+  border-color: color-mix(in srgb, var(--accent) 40%, var(--line));
+}
+.bulk-bar-start {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin-right: auto;
+}
+.bulk-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.bulk-count-label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+}
 .bulk-btn {
-  height: 28px;
-  padding: 0 10px;
+  height: 26px;
+  padding: 0 9px;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: var(--panel-elevated);
+  background: transparent;
   color: var(--ink);
   cursor: pointer;
   font-size: 11px;
   font-weight: 600;
+  transition: background .15s, border-color .15s, color .15s;
 }
-.bulk-btn.ghost { background: transparent; color: var(--muted); }
-.bulk-btn:hover { border-color: var(--accent); color: var(--accent-strong); }
+.bulk-btn.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.bulk-btn.primary:hover {
+  background: var(--accent-strong);
+  border-color: var(--accent-strong);
+  color: #fff;
+}
+.bulk-btn.danger {
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--line));
+  color: var(--danger);
+}
+.bulk-btn.danger:hover {
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.bulk-btn.ghost { color: var(--muted); border-color: transparent; }
+.bulk-btn:hover:not(.primary):not(.danger) { border-color: var(--accent); color: var(--accent-strong); }
+.bulk-btn.ghost:hover { background: var(--sidebar-hover); color: var(--ink); border-color: transparent; }
+.bulk-close {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background .15s, color .15s;
+}
+.bulk-close:hover {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+}
 
 .dp-presets {
   display: flex;
