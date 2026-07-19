@@ -1,0 +1,15 @@
+# Generated / vendor noise — keep the graph on app source only
+node_modules/
+dist/
+downloads/
+coverage/
+*.part
+
+# Cursor skills pack (hundreds of SKILL.md files — not app code)
+.cursor/skills/
+.cursor/projects/
+
+# Local caches / tooling
+.cache/
+*.log
+package-lock.json

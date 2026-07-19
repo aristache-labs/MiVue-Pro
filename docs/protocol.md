@@ -1,0 +1,112 @@
+# Protocol MiVue 866 — observații confirmate
+
+Statuturile folosite sunt: **confirmat**, **probabil**, **necunoscut**.
+
+## Rețea
+
+| Element | Valoare | Statut |
+|---|---:|---|
+| IP cameră / gateway DHCP | `192.72.1.1` | confirmat pe dispozitivul testat |
+| IP client observat | `192.72.1.100` | confirmat |
+| HTTP | TCP 80 | confirmat |
+| RTSP | TCP 554 deschis | confirmat; ruta din APK nu este publicată de firmware-ul testat |
+| Server | `AIT Multimedia Network Solution, UPnP/1.0 devices/1.6.19` | confirmat |
+
+Nu există token sau autentificare HTTP în requesturile confirmate. Acest lucru nu exclude un handshake pentru alte funcții.
+
+Serverul vechi a răspuns inconsistent sau cu 404 la clientul HTTP/1.1 din Node. Transportul CLI folosește explicit HTTP/1.0 peste socket TCP, varianta confirmată reproductibil pe dispozitiv.
+
+## Status
+
+```http
+GET /cgi-bin/Config.cgi?action=get&property=status HTTP/1.0
+Host: 192.72.1.1
+```
+
+Răspuns confirmat:
+
+```text
+0
+OK
+status=
+```
+
+Formatul general este `cod`, `mesaj`, apoi linii `cheie=valoare`.
+
+## Proprietăți read-only confirmate
+
+```text
+broadcast
+Camera.Menu.UIMode
+Camera.Preview.Source.1.Camid
+Vendor.DeviceInfo.1080P
+```
+
+Endpoint:
+
+```text
+/cgi-bin/Config.cgi?action=get&property=<proprietate>
+```
+
+## Listare fișiere
+
+```http
+GET /cgi-bin/Config.cgi?action=dir&property=DCIM&format=all&count=5&from=0 HTTP/1.0
+```
+
+Pentru listare completă, aplicația folosește valorile `Normal`, `Event`, `Parking` și `Photo` în parametrul `property`. Fiecare categorie are propria paginare, pornind de la `from=0`:
+
+```http
+GET /cgi-bin/Config.cgi?action=dir&property=Parking&format=all&count=32&from=0 HTTP/1.0
+```
+
+Răspuns confirmat:
+
+```xml
+<DCIM>
+  <file>
+    <name>/SD/Normal/F/FILE260714-185923F.MP4</name>
+    <format size="1920x1080" fps="60" time="180.2">MP4</format>
+    <size>389414912</size>
+    <attr>RW</attr>
+    <time>2026-07-14 18:59:23</time>
+  </file>
+  <amount>5</amount>
+</DCIM>
+```
+
+Rădăcina XML corespunde proprietății cerute, de exemplu `<Parking>`. `amount` descrie numărul de intrări din pagina curentă. `from` este un offset zero-based: testele live cu `from=0`, `32`, `64` și `96` au returnat pagini consecutive. Listarea se oprește când pagina este goală sau are mai puține intrări decât `count`. `F` este camera frontală; `R` este probabil camera spate.
+
+## Acces fișier
+
+Fișierul este accesibil direct folosind calea din XML:
+
+```http
+HEAD /SD/Normal/F/FILE260714-185923F.MP4 HTTP/1.0
+```
+
+Răspuns confirmat: HTTP 200, `Content-Length` corect și `Content-Type: video/mpeg`. Fișierul `.NMEA` asociat este accesibil similar și folosește `application/octet-stream`.
+
+Suportul `Range` este necunoscut: serverul nu a furnizat un răspuns complet la testul limitat. Clientul nu trebuie să pretindă resume până la confirmare.
+
+Comanda CLI de download folosește un GET HTTP/1.0 secvențial. Înaintea transferului face `HEAD`, compară `Content-Length` din HEAD și GET, scrie într-un fișier `.part`, validează numărul final de octeți și abia apoi redenumește fișierul. Nu suprascrie fișiere existente.
+
+## Live view RTSP
+
+APK-ul construiește URL-ul `rtsp://<ip>/liveRTSP/av4` când `Vendor.DeviceInfo.SupportMjpegStream=NO`; pentru configurații multiple apar și `av5`, `av6`, `av7`. Serverul testat pe portul 554 răspunde `200 OK` la `OPTIONS` și anunță `DESCRIBE, SETUP, TEARDOWN, PLAY, PAUSE, GET_PARAMETER`, dar răspunde `404 Not Found` la `DESCRIBE` pentru rădăcină și toate rutele `av1`–`av7`. Firmware-ul raportează `Vendor.DeviceInfo.LiveView=NO`; nu a fost trimisă nicio comandă de activare sau modificare.
+
+## Sidecar NMEA
+
+Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conține fraze standard `GPRMC`, `GPGGA`, `GPGSA`, `GPGSV` și extensia accelerometrului `$GSENSORD,x,y,z`. Eșantionarea observată este de un set pe secundă. Comanda `gpx` validează checksum-urile NMEA și exportă poziția, timpul UTC, altitudinea, viteza și direcția.
+
+## Comenzi observate în APK, dar neimplementate
+
+```text
+/cgi-bin/Config.cgi?action=del&property=
+/cgi-bin/Config.cgi?action=reardir&property=
+/cgi-bin/Config.cgi?action=incabindir&property=
+/cgi-bin/Config.cgi?action=frontincabindir&property=
+/cgi-bin/Config.cgi?action=set&property=SendStopLiveView&value=ON
+```
+
+Acestea sunt dovezi statice, nu contracte confirmate pentru MiVue 866. `delete`, `set` și orice endpoint de firmware rămân dezactivate.
