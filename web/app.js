@@ -20,7 +20,9 @@ const MONTHS_RO = ["ianuarie", "februarie", "martie", "aprilie", "mai", "iunie",
 const $ = (selector) => document.querySelector(selector);
 
 const elements = {
-  dot: $("#connectionDot"), connection: $("#connectionText"), total: $("#totalCount"), parking: $("#parkingCount"), ip: $("#cameraIp"),
+  dot: $("#connectionDot"), connection: $("#connectionText"),
+  total: $("#totalCount"), normal: $("#normalCount"), parking: $("#parkingCount"),
+  event: $("#eventCount"), photo: $("#photoCount"), ip: $("#cameraIp"),
   list: $("#fileList"), status: $("#statusMessage"), search: $("#searchInput"), refresh: $("#refreshButton"),
   sort: $("#sortSelect"), cameraFilter: $("#cameraSelect"), durationFilter: $("#durationSelect"),
   availabilityFilter: $("#availabilitySelect"), clearFilters: $("#clearFilters"), resultCount: $("#resultCount"),
@@ -36,7 +38,8 @@ const elements = {
   viewTitle: $("#viewTitle"), filtersToggle: $("#filtersToggle"), filtersPanel: $("#filtersPanel"),
   themeToggle: $("#themeToggle"), topbarSearch: $("#topbarSearchWrap"),
   settingsConnection: $("#settingsConnection"), settingsIp: $("#settingsIp"),
-  settingsTotal: $("#settingsTotal"), settingsParking: $("#settingsParking"),
+  settingsTotal: $("#settingsTotal"), settingsNormal: $("#settingsNormal"),
+  settingsParking: $("#settingsParking"), settingsEvent: $("#settingsEvent"), settingsPhoto: $("#settingsPhoto"),
   downloadsButton: $("#downloadsButton"), downloadsPanel: $("#downloadsPanel"),
   downloadsBadge: $("#downloadsBadge"), downloadsList: $("#downloadsList"), downloadsEmpty: $("#downloadsEmpty"),
 };
@@ -128,9 +131,11 @@ document.addEventListener("click", (event) => {
 
 /* ——— Existing library wiring ——— */
 document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => {
-  document.querySelectorAll(".tab").forEach((tab) => tab.classList.remove("active"));
-  button.classList.add("active"); state.category = button.dataset.category; scheduleRenderFiles();
+  setCategory(button.dataset.category);
 }));
+document.querySelectorAll(".stat-chip[data-category]").forEach((chip) => {
+  chip.addEventListener("click", () => setCategory(chip.dataset.category));
+});
 elements.search.addEventListener("input", () => { state.query = elements.search.value.toLowerCase(); scheduleRenderFiles(); });
 elements.sort.addEventListener("change", () => { state.sort = elements.sort.value; scheduleRenderFiles(); });
 elements.cameraFilter.addEventListener("change", () => { state.camera = elements.cameraFilter.value; scheduleRenderFiles(); });
@@ -149,11 +154,44 @@ elements.prepareCancel.addEventListener("click", () => {
 elements.video.addEventListener("timeupdate", updateTelemetryMarker);
 window.addEventListener("resize", () => { if (state.mapEnabled) state.map?.invalidateSize(); else drawRoute(currentSampleIndex()); });
 
+function setCategory(category) {
+  state.category = category || "all";
+  document.querySelectorAll(".tab").forEach((tab) => {
+    tab.classList.toggle("active", tab.dataset.category === state.category);
+  });
+  document.querySelectorAll(".stat-chip[data-category]").forEach((chip) => {
+    chip.classList.toggle("active", chip.dataset.category === state.category);
+  });
+  scheduleRenderFiles();
+}
+
+function countByCategory(category) {
+  return state.files.filter((file) => file.category === category).length;
+}
+
+function updateLibraryStats(host) {
+  const total = state.files.length;
+  const normal = countByCategory("normal");
+  const parking = countByCategory("parking");
+  const event = countByCategory("event");
+  const photo = countByCategory("photo");
+  elements.total.textContent = String(total);
+  elements.normal.textContent = String(normal);
+  elements.parking.textContent = String(parking);
+  elements.event.textContent = String(event);
+  elements.photo.textContent = String(photo);
+  if (host) elements.ip.textContent = host;
+  syncSettingsPanel(elements.dot.classList.contains("online"), elements.connection.textContent);
+}
+
 function syncSettingsPanel(online, message) {
   elements.settingsConnection.textContent = message;
   elements.settingsIp.textContent = elements.ip.textContent;
   elements.settingsTotal.textContent = elements.total.textContent;
+  elements.settingsNormal.textContent = elements.normal.textContent;
   elements.settingsParking.textContent = elements.parking.textContent;
+  elements.settingsEvent.textContent = elements.event.textContent;
+  elements.settingsPhoto.textContent = elements.photo.textContent;
   if (!online) elements.settingsConnection.style.color = "var(--danger)";
   else elements.settingsConnection.style.color = "";
 }
@@ -165,9 +203,7 @@ async function loadDashboard() {
     const info = await api("/api/info");
     const listing = await api("/api/files");
     state.files = listing.files;
-    elements.total.textContent = String(listing.amount);
-    elements.parking.textContent = String(state.files.filter((file) => file.category === "parking").length);
-    elements.ip.textContent = info.endpoint.host;
+    updateLibraryStats(info.endpoint.host);
     elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
     syncSettingsPanel(true, "Camera conectată");
     setStatus(""); renderFiles();
@@ -971,4 +1007,5 @@ function formatDuration(seconds) { if (!Number.isFinite(seconds)) return "—"; 
 function formatDate(value) { const date = new Date(value.replace(" ", "T")); return Number.isNaN(date.valueOf()) ? value : date.toLocaleString("ro-RO", { dateStyle: "medium", timeStyle: "short" }); }
 
 setView("library");
+setCategory("all");
 loadDashboard();

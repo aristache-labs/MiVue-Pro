@@ -60,9 +60,30 @@
           <input id="searchInput" type="search" placeholder="Caută dată sau nume" aria-label="Caută înregistrări">
         </label>
         <div class="topbar-stats" aria-label="Rezumat cameră">
-          <span><strong id="totalCount">—</strong> fișiere</span>
-          <span><strong id="parkingCount">—</strong> parking</span>
-          <span class="mono"><strong id="cameraIp">—</strong></span>
+          <button type="button" class="stat-chip" data-category="all" title="Toate fișierele">
+            <span class="stat-value" id="totalCount">—</span>
+            <span class="stat-label">Total</span>
+          </button>
+          <button type="button" class="stat-chip" data-category="normal" title="Înregistrări normale">
+            <span class="stat-value" id="normalCount">—</span>
+            <span class="stat-label">Normal</span>
+          </button>
+          <button type="button" class="stat-chip" data-category="parking" title="Mod parking">
+            <span class="stat-value" id="parkingCount">—</span>
+            <span class="stat-label">Parking</span>
+          </button>
+          <button type="button" class="stat-chip" data-category="event" title="Evenimente">
+            <span class="stat-value" id="eventCount">—</span>
+            <span class="stat-label">Event</span>
+          </button>
+          <button type="button" class="stat-chip" data-category="photo" title="Fotografii">
+            <span class="stat-value" id="photoCount">—</span>
+            <span class="stat-label">Poze</span>
+          </button>
+          <div class="stat-chip stat-chip-host" title="Adresa camerei">
+            <span class="stat-value" id="cameraIp">—</span>
+            <span class="stat-label">Cameră</span>
+          </div>
         </div>
         <div class="downloads-menu">
           <button id="downloadsButton" class="icon-button downloads-button" type="button" aria-label="Descărcări" title="Descărcări" aria-expanded="false" aria-controls="downloadsPanel">
@@ -291,8 +312,11 @@
               <dl class="settings-dl">
                 <div><dt>Status</dt><dd id="settingsConnection">—</dd></div>
                 <div><dt>IP</dt><dd id="settingsIp" class="mono">—</dd></div>
-                <div><dt>Fișiere</dt><dd id="settingsTotal">—</dd></div>
+                <div><dt>Total</dt><dd id="settingsTotal">—</dd></div>
+                <div><dt>Normal</dt><dd id="settingsNormal">—</dd></div>
                 <div><dt>Parking</dt><dd id="settingsParking">—</dd></div>
+                <div><dt>Evenimente</dt><dd id="settingsEvent">—</dd></div>
+                <div><dt>Poze</dt><dd id="settingsPhoto">—</dd></div>
               </dl>
             </article>
 
