@@ -358,7 +358,7 @@
 
                 <article class="settings-card" id="cameraAdminCard">
                   <h3>Administrare cameră</h3>
-                  <p class="settings-desc">Citește și modifică setări CGI. Scrierea necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span> la pornirea serverului.</p>
+                  <p class="settings-desc">Opțional: schimbă modul UI al camerei (CGI). Nu e necesar pentru ștergerea fișierelor. Scrierea necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
                   <dl class="settings-dl">
                     <div><dt>Mutate</dt><dd id="cameraMutateStatus">—</dd></div>
                     <div><dt>UIMode</dt><dd id="cameraUiMode" class="mono">—</dd></div>
@@ -371,8 +371,8 @@
 
                 <article class="settings-card">
                   <h3>Fișiere pe cameră / SD</h3>
-                  <p class="settings-desc">Ștergere de pe card: Bibliotecă → <strong>Selectează</strong> → bifă fișiere → <strong>Șterge de pe cameră</strong> (confirmare; bulk cere textul STERGE).</p>
-                  <p class="settings-note">Nu e același lucru cu „Șterge local”. Necesită tot <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
+                  <p class="settings-desc">Ștergere de pe card (independent de UIMode): Bibliotecă → <strong>Selectează</strong> → bifă → <strong>Șterge de pe cameră</strong> (bulk: tastează STERGE).</p>
+                  <p class="settings-note">Nu e același lucru cu „Șterge local”. Necesită <span class="mono">MIVUE_ALLOW_MUTATE=1</span>.</p>
                 </article>
               </div>
             </section>
