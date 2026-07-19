@@ -23,52 +23,129 @@ export interface ProbeCgiOptions {
 /** Properties fetched for dashboard “Administrare cameră” (get; skip on 7xx). */
 export const READABLE_CAMERA_PROPERTIES = Object.freeze([
   "broadcast",
-  "Camera.Menu.UIMode",
-  "Camera.Menu.VideoRes",
-  "Camera.Menu.GSensor",
-  "Camera.Menu.HDR",
+  "Camera.Menu.Flicker",
   "Camera.Menu.EV",
-  "Camera.Menu.LCDPower",
+  "Camera.Menu.RtcGps",
+  "Camera.Menu.RtcTimezone",
+  "Camera.Menu.RtcDaylight",
+  "Camera.Preview.MJPEG.TimeStamp.*",
   "Camera.Preview.Source.1.Camid",
-  "Vendor.DeviceInfo.1080P",
-  "Vendor.DeviceInfo.LiveView",
-  "Vendor.DeviceInfo.SupportMjpegStream",
 ] as const);
 
 /**
  * Properties allowed for action=set when MIVUE_ALLOW_MUTATE=1 / requireAllowlist.
- * HDR is intentionally absent — set crashes MiVue 866 CGI until hard power cycle.
+ * Frequency, EV, Date&Time (mode / timezone / DST) — no VideoRes / GSensor / HDR / LCD.
  */
 export const SETTABLE_PROPERTIES = Object.freeze([
-  "Camera.Menu.UIMode",
-  "Camera.Menu.VideoRes",
-  "Camera.Menu.GSensor",
+  "Camera.Menu.Flicker",
   "Camera.Menu.EV",
-  "Camera.Menu.LCDPower",
+  "Camera.Menu.RtcGps",
+  "Camera.Menu.RtcTimezone",
+  "Camera.Menu.RtcDaylight",
 ] as const);
 
-/** Dropdown values per settable property. */
+/**
+ * Wire names for CGI set (official app uses leaf forms).
+ * Allowlist / UI keep Camera.Menu.* so get values match.
+ */
+export const SET_PROPERTY_WIRE_NAMES: Readonly<Record<string, string>> = Object.freeze({
+  "Camera.Menu.Flicker": "Flicker",
+  "Camera.Menu.EV": "EV",
+  "Camera.Menu.RtcGps": "RtcGps",
+  "Camera.Menu.RtcTimezone": "RtcTimezone",
+  "Camera.Menu.RtcDaylight": "RtcDaylight",
+});
+
+/** Official menu List.RtcTimezone (whole-hour offsets; UI shows GMT ±HH:00). */
+export const RTC_TIMEZONE_VALUES = Object.freeze([
+  "M12",
+  "M11",
+  "M10",
+  "M09",
+  "M08",
+  "M07",
+  "M06",
+  "M05",
+  "M04",
+  "M03",
+  "M02",
+  "M01",
+  "Z00",
+  "P01",
+  "P02",
+  "P03",
+  "P04",
+  "P05",
+  "P06",
+  "P07",
+  "P08",
+  "P09",
+  "P10",
+  "P11",
+  "P12",
+] as const);
+
+/** Dropdown values per settable property (CGI wire tokens). */
 export const SETTABLE_PROPERTY_VALUES: Readonly<Record<string, readonly string[]>> = Object.freeze({
-  "Camera.Menu.UIMode": Object.freeze(["VIDEO", "PLAYBACK"]),
-  "Camera.Menu.VideoRes": Object.freeze(["1080P60", "1080P30", "720P60", "720P30"]),
-  "Camera.Menu.GSensor": Object.freeze(["OFF", "LEVEL1", "LEVEL2", "LEVEL3"]),
-  "Camera.Menu.EV": Object.freeze(["EV-2", "EV-1", "EV0", "EV+1", "EV+2"]),
-  "Camera.Menu.LCDPower": Object.freeze(["OFF", "30SEC", "1MIN", "3MIN", "ALWAYS"]),
+  "Camera.Menu.Flicker": Object.freeze(["50Hz", "60Hz"]),
+  "Camera.Menu.EV": Object.freeze([
+    "EVN100",
+    "EVN067",
+    "EVN033",
+    "EV0",
+    "EVP033",
+    "EVP067",
+    "EVP100",
+  ]),
+  "Camera.Menu.RtcGps": Object.freeze(["USEGPS", "MANUAL"]),
+  "Camera.Menu.RtcTimezone": RTC_TIMEZONE_VALUES,
+  "Camera.Menu.RtcDaylight": Object.freeze(["OFF", "P1HR", "P30MIN", "M1HR", "M30MIN"]),
+});
+
+/** UI labels matching official MiVue Pro screens (value → display). */
+export const SETTABLE_VALUE_LABELS: Readonly<Record<string, Readonly<Record<string, string>>>> = Object.freeze({
+  "Camera.Menu.EV": Object.freeze({
+    EVN100: "-1.0",
+    EVN067: "-0.67",
+    EVN033: "-0.33",
+    EV0: "0.0",
+    EVP033: "+0.33",
+    EVP067: "+0.67",
+    EVP100: "+1.0",
+  }),
+  "Camera.Menu.RtcGps": Object.freeze({
+    USEGPS: "GPS",
+    MANUAL: "Manual (Sync Time with Phone)",
+  }),
+  "Camera.Menu.RtcTimezone": Object.freeze(
+    Object.fromEntries(
+      RTC_TIMEZONE_VALUES.map((token) => {
+        if (token === "Z00") return [token, "GMT +00:00"];
+        const sign = token.startsWith("M") ? "-" : "+";
+        const hours = token.slice(1);
+        return [token, `GMT ${sign}${hours}:00`];
+      }),
+    ),
+  ),
+  "Camera.Menu.RtcDaylight": Object.freeze({
+    OFF: "off",
+    P1HR: "(+) 1 hour",
+    P30MIN: "(+) 30 min",
+    M1HR: "(-) 1 hour",
+    M30MIN: "(-) 30 min",
+  }),
 });
 
 /** Short labels for settings UI. */
 export const CAMERA_PROPERTY_LABELS: Readonly<Record<string, string>> = Object.freeze({
   broadcast: "Broadcast",
-  "Camera.Menu.UIMode": "Mod UI",
-  "Camera.Menu.VideoRes": "Rezoluție",
-  "Camera.Menu.GSensor": "G-Sensor",
-  "Camera.Menu.HDR": "HDR (read-only)",
-  "Camera.Menu.EV": "Expunere (EV)",
-  "Camera.Menu.LCDPower": "Ecran LCD",
+  "Camera.Menu.Flicker": "Frequency",
+  "Camera.Menu.EV": "EV",
+  "Camera.Menu.RtcGps": "Date & Time",
+  "Camera.Menu.RtcTimezone": "Time Zone",
+  "Camera.Menu.RtcDaylight": "Daylight Saving Time",
+  "Camera.Preview.MJPEG.TimeStamp.*": "Camera clock",
   "Camera.Preview.Source.1.Camid": "Cameră activă",
-  "Vendor.DeviceInfo.1080P": "1080P device",
-  "Vendor.DeviceInfo.LiveView": "Live view",
-  "Vendor.DeviceInfo.SupportMjpegStream": "MJPEG stream",
 });
 
 /** @deprecated use SETTABLE_PROPERTIES */
@@ -226,7 +303,8 @@ export async function setCameraProperty(
   if (options?.requireAllowlist && !(SETTABLE_PROPERTIES as readonly string[]).includes(property)) {
     throw new MiVueProtocolError(`Property ${property} nu e în allowlist`);
   }
-  return mutateCgi(transport, "set", { property, value }, options?.signal);
+  const wireProperty = SET_PROPERTY_WIRE_NAMES[property] ?? property;
+  return mutateCgi(transport, "set", { property: wireProperty, value }, options?.signal);
 }
 
 export async function deleteRemoteFile(

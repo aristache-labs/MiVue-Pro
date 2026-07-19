@@ -18,6 +18,7 @@ const state = {
     mutateAllowed: false,
     setProperties: [],
     setPropertyValues: {},
+    setPropertyValueLabels: {},
     readableProperties: [],
     propertyLabels: {},
   },
@@ -1608,6 +1609,9 @@ async function refreshCameraAdmin() {
       setPropertyValues: caps.setPropertyValues && typeof caps.setPropertyValues === "object"
         ? caps.setPropertyValues
         : {},
+      setPropertyValueLabels: caps.setPropertyValueLabels && typeof caps.setPropertyValueLabels === "object"
+        ? caps.setPropertyValueLabels
+        : {},
       readableProperties: Array.isArray(caps.readableProperties) ? caps.readableProperties : [],
       propertyLabels: caps.propertyLabels && typeof caps.propertyLabels === "object" ? caps.propertyLabels : {},
     };
@@ -1616,6 +1620,7 @@ async function refreshCameraAdmin() {
       mutateAllowed: false,
       setProperties: [],
       setPropertyValues: {},
+      setPropertyValueLabels: {},
       readableProperties: [],
       propertyLabels: {},
     };
@@ -1664,6 +1669,7 @@ async function refreshCameraAdmin() {
       const label = document.createElement("label");
       label.textContent = state.cameraCaps.propertyLabels[property] || property;
       const known = state.cameraCaps.setPropertyValues?.[property];
+      const valueLabels = state.cameraCaps.setPropertyValueLabels?.[property] || {};
       let control;
       const current = props[property] || "";
       if (Array.isArray(known) && known.length > 0) {
@@ -1672,7 +1678,7 @@ async function refreshCameraAdmin() {
         for (const optionValue of options) {
           const option = document.createElement("option");
           option.value = optionValue;
-          option.textContent = optionValue;
+          option.textContent = valueLabels[optionValue] || optionValue;
           if (optionValue === (current || known[0])) option.selected = true;
           control.append(option);
         }

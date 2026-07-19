@@ -57,16 +57,16 @@ test("deleteRemoteFile rejects unsafe paths before transport", async () => {
   assert.equal(transport.requests.length, 0);
 });
 
-test("setCameraProperty builds action=set query", async () => {
+test("setCameraProperty builds action=set query with wire leaf name", async () => {
   const transport = new MockTransport({
     statusCode: 200,
     headers: {},
-    body: Buffer.from("0\nOK\nCamera.Menu.UIMode=MENU\n"),
+    body: Buffer.from("0\nOK\n"),
   });
-  const result = await setCameraProperty(transport, "Camera.Menu.UIMode", "MENU");
+  const result = await setCameraProperty(transport, "Camera.Menu.Flicker", "50Hz");
   assert.equal(
     transport.requests[0]?.path,
-    "/cgi-bin/Config.cgi?action=set&property=Camera.Menu.UIMode&value=MENU",
+    "/cgi-bin/Config.cgi?action=set&property=Flicker&value=50Hz",
   );
   assert.equal(result.parsed?.code, 0);
 });
@@ -74,17 +74,18 @@ test("setCameraProperty builds action=set query", async () => {
 test("setCameraProperty requireAllowlist rejects unknown property", async () => {
   const transport = new MockTransport({ statusCode: 200, headers: {}, body: Buffer.from("0\nOK\n") });
   await assert.rejects(
-    setCameraProperty(transport, "Vendor.Evil.Format", "YES", { requireAllowlist: true }),
+    setCameraProperty(transport, "Camera.Menu.VideoRes", "1080P60", { requireAllowlist: true }),
     /allowlist/,
   );
   assert.equal(transport.requests.length, 0);
 });
 
-test("setCameraProperty requireAllowlist allows Camera.Menu.UIMode", async () => {
+test("setCameraProperty requireAllowlist allows Frequency EV Date&Time only", async () => {
   const transport = new MockTransport({ statusCode: 200, headers: {}, body: Buffer.from("0\nOK\n") });
-  await setCameraProperty(transport, "Camera.Menu.UIMode", "MENU", { requireAllowlist: true });
+  await setCameraProperty(transport, "Camera.Menu.EV", "EV0", { requireAllowlist: true });
   assert.equal(transport.requests.length, 1);
   assert.equal(transport.requests[0]?.retryPolicy, "mutation");
+  assert.match(transport.requests[0]?.path ?? "", /property=EV&value=EV0/);
 });
 
 test("setCameraProperty rejects non-OK CGI even with HTTP 200", async () => {
@@ -93,7 +94,7 @@ test("setCameraProperty rejects non-OK CGI even with HTTP 200", async () => {
     headers: {},
     body: Buffer.from("703\nUnknown CGI-PARAM\n"),
   });
-  await assert.rejects(setCameraProperty(transport, "Camera.Menu.UIMode", "MENU"), /CGI 703/);
+  await assert.rejects(setCameraProperty(transport, "Camera.Menu.Flicker", "50Hz"), /CGI 703/);
 });
 
 test("probeCgi returns truncated body and status on error HTTP", async () => {

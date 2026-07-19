@@ -115,11 +115,11 @@ test("getInfo skips properties rejected by the camera", async () => {
     ok("799\nInternal Error\n"), // broadcast
   ];
   // Remaining readable props after broadcast in READABLE_CAMERA_PROPERTIES
-  for (let i = 0; i < 10; i += 1) responses.push(ok("0\nOK\nCamera.Menu.UIMode=VIDEO\n"));
+  for (let i = 0; i < 10; i += 1) responses.push(ok("0\nOK\nCamera.Menu.Flicker=50Hz\n"));
   const transport = new SequenceTransport(responses);
   const client = new MiVueClient({ host: "192.72.1.1", httpPort: 80, rtspPort: 554 }, transport);
   const info = await client.getInfo();
-  assert.equal(info.properties["Camera.Menu.UIMode"], "VIDEO");
+  assert.equal(info.properties["Camera.Menu.Flicker"], "50Hz");
   assert.equal(info.properties.broadcast, undefined);
   assert.equal(info.server, "AIT");
 });

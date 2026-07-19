@@ -44,6 +44,7 @@ export interface DashboardService {
     mutateAllowed: boolean;
     setProperties: readonly string[];
     setPropertyValues: Readonly<Record<string, readonly string[]>>;
+    setPropertyValueLabels?: Readonly<Record<string, Readonly<Record<string, string>>>>;
     readableProperties: readonly string[];
     propertyLabels: Readonly<Record<string, string>>;
   };

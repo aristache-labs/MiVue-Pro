@@ -159,7 +159,7 @@ Utilizare:
   npm run dev -- gpx <fișier.NMEA> [--output traseu.gpx]
   npm run dev -- web [--host 192.72.1.1] [--port 4173]
   npm run dev -- probe get [--property status] [--host 192.72.1.1]
-  npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK [--dry-run|--confirm]
+  npm run dev -- probe set --property Flicker --value 50Hz [--dry-run|--confirm]
   npm run dev -- probe del --path /SD/Parking/F/FILE.MP4 [--dry-run|--confirm]
 
 Opțiuni comune:

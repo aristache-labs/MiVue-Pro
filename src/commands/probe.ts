@@ -39,8 +39,8 @@ export async function runProbe(context: CommandContext, options: ProbeOptions): 
   }
 
   if (options.action === "set") {
-    const property = options.property ?? "Camera.Menu.UIMode";
-    const value = options.value ?? "MENU";
+    const property = options.property ?? "Flicker";
+    const value = options.value ?? "50Hz";
     const path = buildCgiPath("set", { property, value });
     if (options.dryRun || !options.confirm) {
       context.logger.info(`Dry-run set: GET ${path}`);
