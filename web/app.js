@@ -2,8 +2,10 @@ const THEME_KEY = "mivue-theme";
 const DENSITY_KEY = "mivue-density";
 const FAVORITES_KEY = "mivue-favorites";
 const VIEW_TITLES = { library: "Bibliotecă", settings: "Setări" };
-const ROW_H_COMPACT = 56;
-const ROW_H_COMFORT = 68;
+const ROW_H_COMPACT = 48;
+const ROW_H_COMFORT = 64;
+const SEP_H_COMPACT = 28;
+const SEP_H_COMFORT = 32;
 const VIRTUAL_THRESHOLD = 80;
 const VIRTUAL_BUFFER = 12;
 
@@ -15,7 +17,7 @@ const state = {
   downloadJobs: new Map(), view: "library", renderToken: 0, renderTimer: 0,
   lastTelemetryIndex: -1, telemetryRaf: 0,
   favorites: loadFavorites(), selection: new Set(), selectMode: false,
-  renderPlan: [], visibleFiles: [], virtualScrollBound: false,
+  renderPlan: [], renderOffsets: null, stickyDateKey: null, visibleFiles: [], virtualScrollBound: false,
 };
 let thumbObserver = null;
 const datePicker = {
@@ -58,6 +60,7 @@ const elements = {
   bulkDeleteLocal: $("#bulkDeleteLocal"), bulkClear: $("#bulkClear"),
   storageFileCount: $("#storageFileCount"), storageTotalBytes: $("#storageTotalBytes"),
   openDownloadsBtn: $("#openDownloadsBtn"), refreshStorageBtn: $("#refreshStorageBtn"),
+  listStickyDate: $("#listStickyDate"),
 };
 
 function loadFavorites() {
@@ -75,6 +78,120 @@ function saveFavorites() {
 
 function rowHeight() {
   return document.documentElement.getAttribute("data-density") === "comfortable" ? ROW_H_COMFORT : ROW_H_COMPACT;
+}
+
+function sepHeight() {
+  return document.documentElement.getAttribute("data-density") === "comfortable" ? SEP_H_COMFORT : SEP_H_COMPACT;
+}
+
+function itemHeight(item) {
+  if (item.kind === "sep") {
+    if (item.date === state.stickyDateKey) return 0;
+    return sepHeight();
+  }
+  return rowHeight();
+}
+
+function buildPlanOffsets(plan) {
+  const offsets = new Array(plan.length + 1);
+  offsets[0] = 0;
+  for (let i = 0; i < plan.length; i += 1) offsets[i + 1] = offsets[i] + itemHeight(plan[i]);
+  return offsets;
+}
+
+function indexAtOffset(offsets, y) {
+  let low = 0;
+  let high = offsets.length - 2;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    if (offsets[mid + 1] <= y) low = mid + 1;
+    else if (offsets[mid] > y) high = mid - 1;
+    else return mid;
+  }
+  return Math.max(0, Math.min(offsets.length - 2, low));
+}
+
+function formatStickyDate(key) {
+  if (!key || key === "unknown") return "Dată necunoscută";
+  return new Intl.DateTimeFormat("ro-RO", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${key}T12:00:00`));
+}
+
+function resolveStickyDateKey() {
+  const plan = state.renderPlan;
+  if (!plan.length) return null;
+  let dateKey = null;
+  if (state.virtualScrollBound && state.renderOffsets) {
+    const idx = indexAtOffset(state.renderOffsets, elements.list.scrollTop + 4);
+    for (let i = idx; i >= 0; i -= 1) {
+      if (plan[i].kind === "sep") { dateKey = plan[i].date; break; }
+      if (plan[i].kind === "file") { dateKey = fileDay(plan[i].file); break; }
+    }
+  } else {
+    const top = elements.list.scrollTop + 8;
+    const rows = elements.list.querySelectorAll(".date-separator, .file-row");
+    for (const node of rows) {
+      if (node.offsetTop + node.offsetHeight < top) continue;
+      if (node.classList.contains("date-separator")) {
+        dateKey = node.dataset.date || null;
+        break;
+      }
+      const path = node.dataset.path;
+      const file = state.files.find((item) => item.path === path);
+      if (file) { dateKey = fileDay(file); break; }
+    }
+  }
+  if (!dateKey) {
+    const firstSep = plan.find((item) => item.kind === "sep");
+    dateKey = firstSep?.date ?? null;
+  }
+  return dateKey;
+}
+
+function syncCoveredSeparators() {
+  elements.list.querySelectorAll(".date-separator").forEach((el) => {
+    el.classList.toggle("date-separator--covered", el.dataset.date === state.stickyDateKey);
+  });
+}
+
+function updateStickyDateFromScroll() {
+  const sticky = elements.listStickyDate;
+  if (!sticky) return;
+  if (!state.renderPlan.length) {
+    state.stickyDateKey = null;
+    sticky.classList.add("hidden");
+    sticky.textContent = "";
+    return;
+  }
+  const dateKey = resolveStickyDateKey();
+  if (!dateKey) {
+    state.stickyDateKey = null;
+    sticky.classList.add("hidden");
+    return;
+  }
+  const changed = state.stickyDateKey !== dateKey;
+  sticky.textContent = formatStickyDate(dateKey);
+  sticky.classList.remove("hidden");
+  if (!changed) {
+    syncCoveredSeparators();
+    return;
+  }
+  const scrollTop = elements.list.scrollTop;
+  const oldOffsets = state.renderOffsets;
+  let anchorIdx = 0;
+  let delta = 0;
+  if (oldOffsets) {
+    anchorIdx = indexAtOffset(oldOffsets, scrollTop);
+    delta = scrollTop - oldOffsets[anchorIdx];
+  }
+  state.stickyDateKey = dateKey;
+  state.renderOffsets = buildPlanOffsets(state.renderPlan);
+  if (state.virtualScrollBound) {
+    const nextTop = (state.renderOffsets[anchorIdx] ?? 0) + delta;
+    elements.list.scrollTop = Math.max(0, nextTop);
+    paintVirtualWindow(state.renderToken, true);
+  } else {
+    syncCoveredSeparators();
+  }
 }
 
 function scheduleIdle(fn) {
@@ -140,7 +257,7 @@ function applyDensity(pref) {
   document.querySelectorAll('input[name="densityPref"]').forEach((input) => {
     input.checked = input.value === density;
   });
-  if (state.renderPlan.length) scheduleIdle(() => renderFiles());
+  if (state.renderPlan.length) renderFiles();
 }
 
 /* ——— Views ——— */
@@ -225,8 +342,9 @@ elements.prepareCancel.addEventListener("click", () => {
 elements.video.addEventListener("timeupdate", updateTelemetryMarker);
 window.addEventListener("resize", () => { if (state.mapEnabled) state.map?.invalidateSize(); else drawRoute(currentSampleIndex()); });
 elements.list.addEventListener("scroll", () => {
+  updateStickyDateFromScroll();
   if (!state.virtualScrollBound || state.renderPlan.length < VIRTUAL_THRESHOLD) return;
-  scheduleIdle(() => paintVirtualWindow(state.renderToken));
+  scheduleIdle(() => paintVirtualWindow(state.renderToken, true));
 });
 
 function setCategory(category) {
@@ -365,6 +483,18 @@ function renderFiles() {
   }
   state.visibleFiles = visible;
   state.renderPlan = plan;
+  const firstSep = plan.find((item) => item.kind === "sep");
+  state.stickyDateKey = firstSep?.date ?? null;
+  if (elements.listStickyDate) {
+    if (state.stickyDateKey) {
+      elements.listStickyDate.textContent = formatStickyDate(state.stickyDateKey);
+      elements.listStickyDate.classList.remove("hidden");
+    } else {
+      elements.listStickyDate.textContent = "";
+      elements.listStickyDate.classList.add("hidden");
+    }
+  }
+  state.renderOffsets = buildPlanOffsets(plan);
   elements.resultCount.textContent = `${visible.length} din ${state.files.length} fișiere`;
   elements.status.classList.toggle("hidden", visible.length > 0 || state.files.length === 0);
   if (visible.length === 0 && state.files.length > 0) setStatus("Nu există înregistrări pentru filtrul ales.");
@@ -374,7 +504,7 @@ function renderFiles() {
   resetThumbObserver();
   if (plan.length >= VIRTUAL_THRESHOLD) {
     state.virtualScrollBound = true;
-    paintVirtualWindow(token);
+    paintVirtualWindow(token, true);
     return;
   }
   state.virtualScrollBound = false;
@@ -383,7 +513,10 @@ function renderFiles() {
   const chunkSize = 40;
   const pump = () => {
     if (token !== state.renderToken) return;
-    if (index >= plan.length) return;
+    if (index >= plan.length) {
+      syncCoveredSeparators();
+      return;
+    }
     const fragment = document.createDocumentFragment();
     const end = Math.min(index + chunkSize, plan.length);
     const observer = ensureThumbObserver();
@@ -397,20 +530,22 @@ function renderFiles() {
     }
     elements.list.append(fragment);
     if (index < plan.length) requestAnimationFrame(pump);
+    else syncCoveredSeparators();
   };
   requestAnimationFrame(pump);
 }
 
-function paintVirtualWindow(token) {
+function paintVirtualWindow(token, skipStickyUpdate = false) {
   if (token !== state.renderToken) return;
   const plan = state.renderPlan;
-  const h = rowHeight();
+  const offsets = state.renderOffsets || buildPlanOffsets(plan);
+  state.renderOffsets = offsets;
   const scrollTop = elements.list.scrollTop;
   const viewH = elements.list.clientHeight || 480;
-  const start = Math.max(0, Math.floor(scrollTop / h) - VIRTUAL_BUFFER);
-  const end = Math.min(plan.length, Math.ceil((scrollTop + viewH) / h) + VIRTUAL_BUFFER);
-  const topPad = start * h;
-  const bottomPad = Math.max(0, (plan.length - end) * h);
+  const start = Math.max(0, indexAtOffset(offsets, Math.max(0, scrollTop)) - VIRTUAL_BUFFER);
+  const end = Math.min(plan.length, indexAtOffset(offsets, scrollTop + viewH) + 1 + VIRTUAL_BUFFER);
+  const topPad = offsets[start];
+  const bottomPad = Math.max(0, offsets[plan.length] - offsets[end]);
   resetThumbObserver();
   const fragment = document.createDocumentFragment();
   const top = document.createElement("div");
@@ -420,8 +555,8 @@ function paintVirtualWindow(token) {
   const observer = ensureThumbObserver();
   for (let i = start; i < end; i += 1) {
     const item = plan[i];
+    if (item.kind === "sep" && item.date === state.stickyDateKey) continue;
     const node = item.kind === "sep" ? dateSeparator(item.date) : fileRow(item.file);
-    if (item.kind === "sep") node.style.minHeight = `${h}px`;
     if (node instanceof HTMLElement) {
       node.querySelectorAll("img.file-thumbnail[data-src]").forEach((img) => observer.observe(img));
     }
@@ -432,6 +567,7 @@ function paintVirtualWindow(token) {
   bottom.style.height = `${bottomPad}px`;
   fragment.append(bottom);
   elements.list.replaceChildren(fragment);
+  if (!skipStickyUpdate) updateStickyDateFromScroll();
 }
 
 function fileRow(file) {
@@ -1126,9 +1262,12 @@ function orderWithinDateGroups(files) {
 
 function dateKey(value) { return /^\d{4}-\d{2}-\d{2}/.test(value) ? value.slice(0, 10) : "unknown"; }
 function dateSeparator(key) {
-  const separator = document.createElement("h3"); separator.className = "date-separator";
+  const separator = document.createElement("h3");
+  separator.className = "date-separator";
+  separator.dataset.date = key;
+  if (key === state.stickyDateKey) separator.classList.add("date-separator--covered");
   if (key === "unknown") separator.textContent = "Dată necunoscută";
-  else separator.textContent = new Intl.DateTimeFormat("ro-RO", { day: "numeric", month: "long", year: "numeric" }).format(new Date(`${key}T12:00:00`));
+  else separator.textContent = formatStickyDate(key);
   return separator;
 }
 

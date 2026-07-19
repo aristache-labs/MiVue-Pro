@@ -57,7 +57,11 @@
   --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
   --topbar-h: 52px;
   --sidebar-w: 64px;
-  --row-h: 56px;
+  --row-h: 48px;
+  --thumb-size: 40px;
+  --row-pad-y: 4px;
+  --row-gap: 8px;
+  --sep-h: 28px;
 }
 
 [data-theme="dark"] {
@@ -114,7 +118,21 @@ button { color: inherit; }
 }
 
 html[data-density="comfortable"] {
-  --row-h: 68px;
+  --row-h: 64px;
+  --thumb-size: 56px;
+  --row-pad-y: 8px;
+  --row-gap: 10px;
+  --sep-h: 32px;
+}
+
+html[data-density="compact"] .file-main strong { font-size: 12px; }
+html[data-density="compact"] .file-main span { font-size: 11px; }
+html[data-density="compact"] .file-meta-details { font-size: 10px; }
+html[data-density="compact"] .download-button,
+html[data-density="compact"] .delete-local-btn,
+html[data-density="compact"] .fav-btn {
+  height: 26px;
+  font-size: 11px;
 }
 
 .sr-only {
@@ -864,6 +882,37 @@ main {
   color: var(--accent-strong);
 }
 
+.file-list-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding-top: var(--sep-h);
+}
+.list-sticky-date {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 6;
+  height: var(--sep-h);
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  background: color-mix(in srgb, var(--accent-soft) 85%, var(--panel));
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .01em;
+  text-transform: capitalize;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .18);
+  pointer-events: none;
+}
 .file-list {
   flex: 1;
   min-height: 0;
@@ -872,32 +921,35 @@ main {
 }
 
 .date-separator {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  margin: 10px 0 4px;
-  padding: 8px 12px;
-  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  height: var(--sep-h);
+  margin: 6px 0 2px;
+  padding: 0 10px;
+  border: 0;
   border-left: 3px solid var(--accent);
-  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-  background: color-mix(in srgb, var(--accent-soft) 70%, var(--panel));
+  border-radius: 0 4px 4px 0;
+  background: color-mix(in srgb, var(--accent-soft) 55%, transparent);
   color: var(--ink);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 700;
   letter-spacing: .01em;
   text-transform: capitalize;
-  box-shadow: 0 1px 0 color-mix(in srgb, var(--accent) 18%, transparent);
+  box-shadow: none;
 }
 .date-separator:first-child { margin-top: 0; }
+.date-separator--covered { display: none !important; }
 
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 28px 64px 1fr auto;
-  gap: 10px;
+  grid-template-columns: 28px var(--thumb-size) 1fr auto;
+  gap: var(--row-gap);
   align-items: center;
   min-height: var(--row-h);
-  padding: 6px 8px 6px 8px;
+  height: var(--row-h);
+  box-sizing: border-box;
+  padding: var(--row-pad-y) 8px;
   border-top: 1px solid var(--line-soft);
   cursor: pointer;
   border-radius: 6px;
@@ -906,7 +958,7 @@ main {
   transition: background .15s;
 }
 body:not(.select-mode) .file-row {
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: var(--thumb-size) 1fr auto;
 }
 body:not(.select-mode) .file-check {
   display: none;
@@ -927,8 +979,9 @@ body:not(.select-mode) .file-check {
 .file-row.selected::before { background: var(--accent); }
 
 .file-icon {
-  width: 64px;
-  height: 40px;
+  width: var(--thumb-size);
+  height: calc(var(--thumb-size) * 0.72);
+  min-height: 32px;
   position: relative;
   overflow: hidden;
   border-radius: 6px;

@@ -230,7 +230,10 @@
                 <span id="statusText">Se citesc fișierele camerei…</span>
                 <button id="statusRetry" class="status-retry hidden" type="button">Reîncearcă</button>
               </div>
-              <div id="fileList" class="file-list" aria-live="polite"></div>
+              <div class="file-list-shell">
+                <div id="listStickyDate" class="list-sticky-date hidden" aria-live="polite"></div>
+                <div id="fileList" class="file-list" aria-live="polite"></div>
+              </div>
             </div>
 
             <aside class="viewer-panel">
