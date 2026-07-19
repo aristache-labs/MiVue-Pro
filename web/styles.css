@@ -925,7 +925,7 @@ main {
 .file-row {
   position: relative;
   display: grid;
-  grid-template-columns: 28px var(--thumb-size) 1fr auto;
+  grid-template-columns: 28px var(--thumb-size) minmax(0, 1fr) auto minmax(0, 1fr);
   gap: var(--row-gap);
   align-items: center;
   min-height: var(--row-h);
@@ -940,7 +940,7 @@ main {
   transition: background .15s;
 }
 body:not(.select-mode) .file-row {
-  grid-template-columns: var(--thumb-size) 1fr auto;
+  grid-template-columns: var(--thumb-size) minmax(0, 1fr) auto minmax(0, 1fr);
 }
 body:not(.select-mode) .file-check {
   display: none;
@@ -981,6 +981,10 @@ body:not(.select-mode) .file-check {
   object-fit: cover;
 }
 
+.file-main {
+  min-width: 0;
+  justify-self: start;
+}
 .file-main strong,
 .file-main .file-date { display: block; }
 .file-title-row {
@@ -1023,20 +1027,30 @@ body:not(.select-mode) .file-check {
   letter-spacing: .06em;
 }
 
-.file-meta {
+.file-stats {
   display: flex;
   align-items: center;
-  gap: 10px;
-  justify-content: flex-end;
-  text-align: right;
-}
-.file-meta-details {
+  gap: 12px;
   color: var(--muted);
   font-family: var(--mono);
   font-size: 11px;
-  line-height: 1.4;
-  text-align: right;
   white-space: nowrap;
+  justify-self: center;
+}
+.file-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.file-stat svg { flex-shrink: 0; opacity: .85; }
+
+.file-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: flex-end;
+  justify-self: end;
+  min-width: 0;
 }
 
 .download-actions {
@@ -1636,12 +1650,7 @@ video {
   .filters-row { grid-template-columns: 1fr 1fr; }
   .date-picker-field { grid-column: 1 / -1; }
   .date-picker-popup { left: 0; right: auto; }
-  .file-row { grid-template-columns: 56px 1fr; }
-  body.select-mode .file-row { grid-template-columns: 24px 56px 1fr; }
-  .file-meta {
-    grid-column: 1 / -1;
-    justify-content: flex-start;
-    text-align: left;
-  }
-  .file-meta-details { text-align: left; }
+  .file-row { grid-template-columns: 48px minmax(0, 1fr) auto minmax(0, 1fr); }
+  body.select-mode .file-row { grid-template-columns: 24px 48px minmax(0, 1fr) auto minmax(0, 1fr); }
+  .file-stats { gap: 8px; }
 }

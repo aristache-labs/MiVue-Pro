@@ -593,12 +593,15 @@ function fileRow(file) {
   const date = document.createElement("span"); date.className = "file-date"; date.textContent = formatDate(file.recordedAt);
   main.append(titleRow, date);
 
-  const meta = document.createElement("div"); meta.className = "file-meta";
-  const details = document.createElement("div"); details.className = "file-meta-details";
-  const timeLine = document.createElement("div"); timeLine.textContent = `Time: ${formatDuration(file.durationSeconds)}`;
-  const sizeLine = document.createElement("div"); sizeLine.textContent = `Mărime: ${formatBytes(file.sizeBytes)}`;
-  details.append(timeLine, sizeLine);
+  const stats = document.createElement("div");
+  stats.className = "file-stats";
+  const duration = formatDuration(file.durationSeconds);
+  const size = formatBytes(file.sizeBytes);
+  stats.innerHTML =
+    `<span class="file-stat" title="Durată ${duration}"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><circle cx="6" cy="6" r="4.25" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M6 3.6V6l1.7 1.1" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>${duration}</span>` +
+    `<span class="file-stat" title="Mărime ${size}"><svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><rect x="1.5" y="2.5" width="9" height="7" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.2"/><path d="M1.5 5h9" stroke="currentColor" stroke-width="1.2"/></svg>${size}</span>`;
 
+  const meta = document.createElement("div"); meta.className = "file-meta";
   const actions = document.createElement("div"); actions.className = "download-actions"; actions.dataset.path = file.path;
   const download = document.createElement("button"); download.className = "download-button"; download.type = "button"; download.dataset.path = file.path;
   const cancel = document.createElement("button"); cancel.className = "download-cancel hidden"; cancel.type = "button"; cancel.dataset.path = file.path; cancel.textContent = "✕"; cancel.title = "Anulează"; cancel.setAttribute("aria-label", "Anulează descărcarea");
@@ -632,8 +635,8 @@ function fileRow(file) {
     });
     actions.append(del);
   }
-  meta.append(details, actions, fav);
-  row.append(check, icon, main, meta);
+  meta.append(actions, fav);
+  row.append(check, icon, main, stats, meta);
   row.addEventListener("click", () => {
     if (state.selectMode) {
       toggleSelection(file.path, !state.selection.has(file.path));
