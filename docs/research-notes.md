@@ -1,5 +1,7 @@
 # Note de cercetare
 
+> **CARANTINĂ JURIDICĂ / MOBIL:** secțiunile despre artefactul APK/XAPK și probele mutate sunt materiale de cercetare, nu specificație de produs. Aplicația mobilă comercială este strict read-only și nu preia informații APK-derived fără opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/compatibility.md](compatibility.md). Nu redistribuiți APK/XAPK, decompilări sau hash-uri ca active de produs.
+
 ## Artefact Android
 
 - pachet: `com.mitac.mitubepro`;
@@ -38,6 +40,8 @@ După reactivarea Wi-Fi-ului, executabilul compilat a validat cu succes pe dispo
 Toate cererile de validare (descoperire / list / download) au fost HTTP GET read-only.
 
 ## Probe mutate (delete / set)
+
+> **CARANTINĂ:** `set`/`del` rămân doar în CLI/dashboard experimental (gated). Produsul mobil nu le implementează. Vezi [docs/legal/](legal/) și [docs/security-and-legal.md](security-and-legal.md).
 
 Tooling: `npm run dev -- probe …`
 

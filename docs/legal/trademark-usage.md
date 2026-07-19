@@ -32,7 +32,7 @@
 
 ## 4. Disclaimer obligatoriu — draft
 
-> `[NUMELE_APLICAȚIEI]` este o aplicație independentă și nu este afiliată, sponsorizată, aprobată sau susținută de MiTAC ori de titularii mărcilor Mio/MiVue. „Mio” și „MiVue” sunt folosite numai descriptiv pentru a identifica dispozitivele cu care compatibilitatea a fost testată. Toate mărcile aparțin titularilor lor.
+> `[NUMELE_APLICAȚIEI]` este o aplicație independentă și nu este afiliată, aprobată, sponsorizată sau distribuită de Mio ori MiTAC. Mio și MiVue sunt mărci ale titularilor lor.
 
 Avocatul trebuie să confirme entitatea juridică exactă, titularii mărcilor și traducerile înainte de publicare.
 

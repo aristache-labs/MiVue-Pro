@@ -108,6 +108,8 @@ Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conțin
 
 ## Comenzi observate în APK (probe experimental)
 
+> **CARANTINĂ JURIDICĂ / MOBIL:** această secțiune provine din analiză statică APK și include operații mutabile (`set`/`del`). Nu face parte din specificația aplicației mobile comerciale (strict read-only). Nu se portează în `mobile/` fără opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/mobile/phase0-audit.md](mobile/phase0-audit.md).
+
 ```text
 /cgi-bin/Config.cgi?action=del&property=
 /cgi-bin/Config.cgi?action=reardir&property=

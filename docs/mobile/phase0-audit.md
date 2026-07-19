@@ -116,3 +116,13 @@ Faza 0 este documentată când cele opt livrabile sunt revizuite intern. Trecere
 ## 10. Următorul pas propus
 
 Faza 1 va compara React Native bare, Flutter și Kotlin Multiplatform; va defini modulele viitoare din `mobile/`, modelul STRIDE, fluxul de date și un Demo Mode fără hardware. Alegerea și implementarea sunt în afara acestui raport.
+
+## 11. Remedieri post-audit (20 iulie 2026)
+
+Aplicate după review intern al livrabilelor Fazei 0:
+
+- banner de carantină pe secțiunea APK/mutate din `docs/protocol.md` și `docs/research-notes.md`;
+- clarificare în `docs/security-and-legal.md`: mutate gated doar CLI/dashboard experimental; mobil = read-only;
+- disclaimer aliniat în `docs/legal/trademark-usage.md`;
+- registru `docs/compatibility.md` (MiVue 866; firmware cameră TBD);
+- `AGENTS.md` la rădăcina repository-ului.
