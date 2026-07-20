@@ -162,3 +162,34 @@ export function interpolateGpsAtVideoTime(
     },
   };
 }
+
+/** Meters per degree latitude (approx). */
+const METERS_PER_DEG_LAT = 111_320;
+
+/**
+ * Look-ahead point along bearing so the camera places the vehicle in the lower third
+ * and shows more road ahead (Google Maps follow framing).
+ */
+export function lookAheadCoordinate(
+  latitude: number,
+  longitude: number,
+  bearingDeg: number,
+  distanceMeters = 28,
+): { latitude: number; longitude: number } {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return { latitude, longitude };
+  }
+  const bearing = Number.isFinite(bearingDeg) ? bearingDeg : 0;
+  const rad = (bearing * Math.PI) / 180;
+  const dLat = (distanceMeters * Math.cos(rad)) / METERS_PER_DEG_LAT;
+  const cosLat = Math.cos((latitude * Math.PI) / 180);
+  const metersPerDegLon = METERS_PER_DEG_LAT * Math.max(0.2, Math.abs(cosLat));
+  const dLon = (distanceMeters * Math.sin(rad)) / metersPerDegLon;
+  return {
+    latitude: latitude + dLat,
+    longitude: longitude + dLon,
+  };
+}
+
+/** Camera pitch for Google follow mode (degrees). */
+export const GOOGLE_FOLLOW_PITCH_DEG = 42;

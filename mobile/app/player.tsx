@@ -18,7 +18,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
-  OnlineMapWebView,
+  GoogleRecordedRouteMap,
   SchematicRoute,
   TelemetryPanel,
   interpolateGpsAtVideoTime,
@@ -32,7 +32,7 @@ import {
   type GpsSyncStatus,
   type NormalizedGpsTrack,
 } from "@/components/gps/sampleIndex";
-import type { MapFollowPose } from "@/components/gps/OnlineMapWebView";
+import type { MapFollowPose } from "@/components/gps/GoogleRecordedRouteMap.types";
 import { PlayerMetaCard } from "@/components/player/PlayerMetaCard";
 import { truncatePlayerFilename } from "@/components/player/playerMeta";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -613,7 +613,7 @@ function VideoWithGps({
             </View>
           ) : track && track.samples.length > 0 ? (
             mapMode === "online" ? (
-              <OnlineMapWebView
+              <GoogleRecordedRouteMap
                 samples={track.samples}
                 pose={mapPose}
                 height={220}
@@ -633,9 +633,8 @@ function VideoWithGps({
 
           {track && track.samples.length > 0 ? (
             <Text style={[styles.privacyInline, { color: colors.textFaint }]}>
-              Local schematic works entirely on this device. Online map requests only the visible map
-              area from the configured tile provider after you enable it. Laneory does not upload the
-              video or the complete GPS track.
+              Local mode stays on this device. Online mode loads only the visible Google Maps
+              content. Laneory does not upload the video or the complete GPS track.
             </Text>
           ) : null}
         </View>

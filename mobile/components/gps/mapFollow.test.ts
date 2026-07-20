@@ -6,6 +6,7 @@ import { normalizeGpsTrack } from "./sampleIndex";
 import {
   bearingBetween,
   interpolateGpsAtVideoTime,
+  lookAheadCoordinate,
   smoothBearing,
   zoomForSpeedKmh,
 } from "./mapFollow";
@@ -62,8 +63,15 @@ test("seek before first and after last stay at endpoints", () => {
   assert.equal(after?.index, 1);
 });
 
-test("local map mode does not imply tile requests", () => {
-  // Contract: default / schematic path never constructs OnlineMapWebView.
+test("look-ahead coordinate moves along bearing", () => {
+  const origin = lookAheadCoordinate(45, 25, 90, 100);
+  assert.ok(origin.longitude > 25);
+  assert.ok(Math.abs(origin.latitude - 45) < 0.002);
+  const north = lookAheadCoordinate(45, 25, 0, 100);
+  assert.ok(north.latitude > 45);
+});
+
+test("local map mode does not imply Google MapView", () => {
   const mode: "local" | "online" = "local";
   assert.equal(mode, "local");
 });
