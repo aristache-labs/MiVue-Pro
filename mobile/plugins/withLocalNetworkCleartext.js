@@ -15,7 +15,7 @@ function withLocalNetworkCleartext(config) {
     const plist = config.modResults;
     plist.NSLocalNetworkUsageDescription =
       plist.NSLocalNetworkUsageDescription ||
-      "The app connects to your dashcam on the local Wi-Fi network to list and download files you choose. It does not change camera settings.";
+      "Laneory uses the local network to connect directly to your dashcam and list or download recordings you choose.";
     plist.NSAppTransportSecurity = {
       NSAllowsLocalNetworking: true,
       NSExceptionDomains: {

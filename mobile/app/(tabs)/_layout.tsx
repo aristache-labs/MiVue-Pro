@@ -1,8 +1,6 @@
 import React from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { Platform, StyleSheet } from "react-native";
 
 import Colors from "@/constants/Colors";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -30,19 +28,9 @@ export default function TabLayout() {
         headerStyle: { backgroundColor: colors.bg },
         headerTitleStyle: { color: colors.text, fontFamily: Type.fontBold },
         tabBarStyle: {
-          backgroundColor: Platform.OS === "ios" ? "transparent" : colors.surface,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
         },
-        tabBarBackground:
-          Platform.OS === "ios"
-            ? () => (
-                <BlurView
-                  intensity={80}
-                  tint={colorScheme === "dark" ? "dark" : "light"}
-                  style={StyleSheet.absoluteFill}
-                />
-              )
-            : undefined,
       }}
     >
       <Tabs.Screen

@@ -20,7 +20,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.laneory.mobile",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Laneory connects to your dashcam on the local Wi-Fi network to list and download files you choose. It does not change camera settings."
+        "NSLocalNetworkUsageDescription": "Laneory uses the local network to connect directly to your dashcam and list or download recordings you choose."
       }
     },
     "android": {

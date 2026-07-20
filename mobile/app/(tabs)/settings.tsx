@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { router } from "expo-router";
 import { useCallback, useMemo, useState } from "react";
 import {
   Alert,
@@ -15,6 +16,8 @@ import {
   formatMediaSizeMbGb,
   sanitizeDiagnosticLine,
 } from "@/components/camera/cameraLibraryModel";
+import { getCameraProfile, LEGAL_DRAFT_BANNER } from "@/components/onboarding";
+import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { SettingsRow } from "@/components/settings/SettingsRow";
 import { Card } from "@/components/ui";
 import {
@@ -64,6 +67,14 @@ export default function SettingsScreen() {
     clearThumbCache,
     downloadDir,
   } = useDemoMode();
+  const {
+    state: onboardingState,
+    startChangeCamera,
+    reopenCameraSetup,
+    resetOnboardingDev,
+  } = useOnboarding();
+
+  const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
 
   const [hostDraft, setHostDraft] = useState(cameraHost);
   const [editingHost, setEditingHost] = useState(false);
@@ -133,6 +144,24 @@ export default function SettingsScreen() {
     localFiles.length,
     mapPreference,
   ]);
+
+  const onChangeCamera = useCallback(() => {
+    Alert.alert(
+      "Change camera",
+      "Local downloads and the download queue are kept. You will pick a camera profile again.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Change",
+          onPress: () => {
+            void startChangeCamera().then(() => {
+              router.push("/onboarding/select-camera" as Parameters<typeof router.push>[0]);
+            });
+          },
+        },
+      ],
+    );
+  }, [startChangeCamera]);
 
   const onClearCache = useCallback(() => {
     Alert.alert(
@@ -228,6 +257,93 @@ export default function SettingsScreen() {
         />
       </Section>
 
+      <Section title="Camera setup">
+        <SettingsRow
+          icon="videocam-outline"
+          title="Selected model"
+          value={selectedProfile?.displayName ?? cameraModel ?? "Not set"}
+        />
+        <SettingsRow
+          icon="wifi"
+          title="Connection"
+          value={connectionLabel}
+        />
+        <SettingsRow
+          icon="refresh"
+          title="Reconnect camera"
+          description="Read-only status and library refresh"
+          onPress={() => void refreshFiles()}
+          accessibilityLabel="Reconnect camera"
+        />
+        <SettingsRow
+          icon="swap-horizontal-outline"
+          title="Change camera"
+          description="Does not delete local recordings or clear the queue"
+          onPress={onChangeCamera}
+        />
+        <SettingsRow
+          icon="construct-outline"
+          title="Run camera setup"
+          description="Reopen Wi‑Fi connection guide"
+          onPress={() => {
+            void reopenCameraSetup().then(() => {
+              router.push("/onboarding" as Parameters<typeof router.push>[0]);
+            });
+          }}
+        />
+        <SettingsRow
+          icon="help-circle-outline"
+          title="Connection help"
+          onPress={() => router.push("/connection-help" as Parameters<typeof router.push>[0])}
+        />
+        <SettingsRow
+          icon="document-text-outline"
+          title="Accepted terms"
+          value={onboardingState.acceptedTermsVersion ?? "Not accepted"}
+          description={
+            onboardingState.acceptedTermsAt
+              ? `Accepted ${new Date(onboardingState.acceptedTermsAt).toLocaleString()}`
+              : LEGAL_DRAFT_BANNER
+          }
+        />
+        <SettingsRow
+          icon="book-outline"
+          title="Terms and Conditions"
+          description={LEGAL_DRAFT_BANNER}
+          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
+        />
+        <SettingsRow
+          icon="shield-outline"
+          title="Privacy Policy"
+          description={LEGAL_DRAFT_BANNER}
+          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
+        />
+        <SettingsRow
+          icon="refresh-circle-outline"
+          title="Reset onboarding"
+          description="Clears setup progress and shows Terms again"
+          destructive
+          onPress={() => {
+            Alert.alert(
+              "Reset onboarding?",
+              "Returns to Terms & Privacy. Local downloads and the queue are kept.",
+              [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Reset",
+                  style: "destructive",
+                  onPress: () => {
+                    void resetOnboardingDev().then(() => {
+                      router.replace("/onboarding" as Parameters<typeof router.replace>[0]);
+                    });
+                  },
+                },
+              ],
+            );
+          }}
+        />
+      </Section>
+
       <Section title="App">
         <SettingsRow
           icon="folder-outline"
@@ -277,7 +393,8 @@ export default function SettingsScreen() {
         <SettingsRow
           icon="document-text-outline"
           title="Privacy Policy"
-          description="Store listing draft — full policy URL at release."
+          description={LEGAL_DRAFT_BANNER}
+          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
         />
       </Section>
 
