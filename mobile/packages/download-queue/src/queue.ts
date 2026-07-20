@@ -16,6 +16,8 @@ export class DownloadQueue {
   private items: QueueItem[] = [];
   private pumping = false;
   private transport: Transport;
+  private activeId: string | undefined;
+  private activeController: AbortController | undefined;
 
   constructor(private readonly options: DownloadQueueOptions) {
     this.transport = options.transport;
@@ -90,6 +92,30 @@ export class DownloadQueue {
     return index < 0 ? undefined : index + 1;
   }
 
+  /** Cancel a queued item immediately, or request abort of the active transfer. */
+  async cancel(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined) return;
+
+    if (item.status === "queued") {
+      this.patch(id, { status: "cancelled", errorMessage: "Cancelled by user" });
+      await this.persist();
+      return;
+    }
+
+    if (item.status === "active" && id === this.activeId) {
+      this.activeController?.abort();
+    }
+  }
+
+  /** Remove a finished (failed/cancelled/completed) item from the visible queue. */
+  async remove(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined || item.status === "queued" || item.status === "active") return;
+    this.items = this.items.filter((i) => i.id !== id);
+    await this.persist();
+  }
+
   private async pump(): Promise<void> {
     if (this.pumping) return;
     this.pumping = true;
@@ -111,8 +137,16 @@ export class DownloadQueue {
     const dest = joinPath(this.options.downloadDir, item.localName);
     const part = `${dest}.part`;
 
+    const controller = new AbortController();
+    this.activeId = item.id;
+    this.activeController = controller;
+
     try {
-      const head = await this.transport.request({ method: "HEAD", path: item.remotePath });
+      const head = await this.transport.request({
+        method: "HEAD",
+        path: item.remotePath,
+        signal: controller.signal,
+      });
       if (head.statusCode !== 200) {
         throw new Error(`HEAD HTTP ${head.statusCode}`);
       }
@@ -128,13 +162,18 @@ export class DownloadQueue {
           remotePath: item.remotePath,
           destinationPath: dest,
           expectedBytes,
+          signal: controller.signal,
           onProgress: (progress) => {
             this.patch(item.id, { bytesReceived: progress.bytesReceived });
           },
         });
         this.patch(item.id, { status: "completed", bytesReceived: result.bytesWritten });
       } else {
-        const get = await this.transport.request({ method: "GET", path: item.remotePath });
+        const get = await this.transport.request({
+          method: "GET",
+          path: item.remotePath,
+          signal: controller.signal,
+        });
         if (get.statusCode !== 200) {
           throw new Error(`GET HTTP ${get.statusCode}`);
         }
@@ -152,13 +191,23 @@ export class DownloadQueue {
         this.patch(item.id, { status: "completed", bytesReceived: get.body.byteLength });
       }
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const cancelled = controller.signal.aborted || isAbortError(error);
+      const message = cancelled
+        ? "Cancelled by user"
+        : error instanceof Error
+          ? error.message
+          : String(error);
       try {
         await this.options.sink.remove(part);
       } catch {
         // keep partial for diagnostics if remove fails
       }
-      this.patch(item.id, { status: "failed", errorMessage: message });
+      this.patch(item.id, { status: cancelled ? "cancelled" : "failed", errorMessage: message });
+    } finally {
+      if (this.activeId === item.id) {
+        this.activeId = undefined;
+        this.activeController = undefined;
+      }
     }
 
     await this.persist();
@@ -181,6 +230,10 @@ export class DownloadQueue {
     await this.options.store.save(this.items);
     this.options.onChange?.(this.items);
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && (error.name === "AbortError" || (error as { causeCode?: string }).causeCode === "ABORTED");
 }
 
 function parseContentLength(headers: Readonly<Record<string, string>>): number | undefined {

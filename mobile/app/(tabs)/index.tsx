@@ -1,9 +1,11 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Switch, TextInput } from "react-native";
+import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 
-import { Text, View } from "@/components/Themed";
-import { CATEGORY_COLOR, CATEGORY_LABEL } from "@/constants/CategoryStyle";
-import { APP_NAME, APP_SHORT_DESCRIPTION, APP_SUBTITLE, DISCLAIMER_EN } from "@/constants/Brand";
+import { Badge, Card, IconButton } from "@/components/ui";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { CATEGORY_ICON, CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
+import { useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import { useLibraryFilters, type LibrarySort } from "@/hooks/useLibraryFilters";
 
@@ -14,6 +16,7 @@ const SORT_OPTIONS: readonly { id: LibrarySort; label: string }[] = [
 ];
 
 export default function LibraryScreen() {
+  const { colors, spacing, radius, scheme } = useAppTheme();
   const {
     demoMode,
     setDemoMode,
@@ -33,78 +36,99 @@ export default function LibraryScreen() {
   const emptyMessage = useMemo(() => {
     if (files.length === 0) {
       return demoMode
-        ? "No demo files. Tap Refresh demo library."
-        : "No files. Connect to the camera Wi‑Fi and refresh.";
+        ? "No demo files yet. Tap Refresh to load the demo library."
+        : "No files yet. Connect to the camera Wi‑Fi, then refresh.";
     }
-    return `No files in ${CATEGORY_LABEL[category]}. Try another filter.`;
+    return `Nothing in ${CATEGORY_LABEL[category]}. Try another filter.`;
   }, [files.length, demoMode, category]);
 
   return (
-    <View style={styles.container}>
-      {demoMode ? (
-        <View style={styles.banner} accessibilityRole="text">
-          <Text style={styles.bannerText}>Demo Mode — synthetic data, no camera traffic</Text>
+    <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
+      <View style={styles.headerRow}>
+        {demoMode ? (
+          <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
+        ) : (
+          <Badge
+            label={nativeTcpReady ? "Live · native" : isExpoGo ? "Live · Expo Go" : "Live · fallback"}
+            tone="live"
+            icon="wifi"
+          />
+        )}
+        <View style={styles.demoToggle}>
+          <Text style={[styles.demoToggleLabel, { color: colors.textMuted }]}>Demo</Text>
+          <Switch value={demoMode} onValueChange={setDemoMode} accessibilityLabel="Toggle Demo Mode" />
         </View>
-      ) : (
-        <View style={[styles.banner, styles.liveBanner]} accessibilityRole="text">
-          <Text style={styles.bannerText}>
-            Live — {nativeTcpReady ? "native HTTP/1.0" : isExpoGo ? "Expo Go Fetch probe" : "Fetch fallback"}
-          </Text>
-        </View>
-      )}
-
-      <View style={styles.row}>
-        <Text style={styles.label}>Demo Mode</Text>
-        <Switch value={demoMode} onValueChange={setDemoMode} accessibilityLabel="Toggle Demo Mode" />
       </View>
 
-      {!demoMode ? (
-        <View style={styles.hostBlock}>
-          <Text style={styles.label}>Camera IP</Text>
-          <TextInput
-            style={styles.input}
-            value={cameraHost}
-            onChangeText={setCameraHost}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="numbers-and-punctuation"
-            placeholder="192.72.1.1"
-            accessibilityLabel="Camera IP address"
-          />
-          <Text style={styles.hint}>
-            Connect the iPhone to the camera Wi‑Fi first. Default gateway is often 192.72.1.1.
+      <Card style={{ marginTop: spacing.md, marginBottom: spacing.md }}>
+        {!demoMode ? (
+          <View style={{ marginBottom: spacing.md }}>
+            <Text style={[styles.label, { color: colors.text }]}>Camera IP</Text>
+            <View style={[styles.inputRow, { borderColor: colors.border, borderRadius: radius.md }]}>
+              <Ionicons name="wifi-outline" size={16} color={colors.textFaint} style={{ marginRight: 8 }} />
+              <TextInput
+                style={[styles.input, { color: colors.text }]}
+                value={cameraHost}
+                onChangeText={setCameraHost}
+                autoCapitalize="none"
+                autoCorrect={false}
+                keyboardType="numbers-and-punctuation"
+                placeholder="192.72.1.1"
+                placeholderTextColor={colors.textFaint}
+                accessibilityLabel="Camera IP address"
+              />
+            </View>
+            <Text style={[styles.hint, { color: colors.textFaint }]}>
+              Connect the iPhone to the camera Wi‑Fi first. Default gateway is often 192.72.1.1.
+            </Text>
+          </View>
+        ) : null}
+
+        {connectionNote ? <Text style={[styles.note, { color: colors.textMuted }]}>{connectionNote}</Text> : null}
+        {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
+
+        <Pressable
+          onPress={() => void refreshFiles()}
+          accessibilityRole="button"
+          style={({ pressed }) => [
+            styles.connectBtn,
+            { backgroundColor: colors.brand, borderRadius: radius.md, opacity: pressed ? 0.85 : 1 },
+          ]}
+        >
+          <Ionicons name="refresh" size={16} color={colors.onBrand} style={{ marginRight: 8 }} />
+          <Text style={[styles.connectBtnText, { color: colors.onBrand }]}>
+            {demoMode ? "Refresh demo library" : "Connect / refresh camera"}
           </Text>
-        </View>
-      ) : null}
+        </Pressable>
+      </Card>
 
-      <Text style={styles.brandLine}>
-        {APP_NAME} · {APP_SUBTITLE}
-      </Text>
-      <Text style={styles.disclaimer}>{APP_SHORT_DESCRIPTION}</Text>
-      <Text style={styles.disclaimer}>{DISCLAIMER_EN}</Text>
-
-      {connectionNote ? <Text style={styles.note}>{connectionNote}</Text> : null}
-
-      <Pressable style={styles.button} onPress={() => void refreshFiles()} accessibilityRole="button">
-        <Text style={styles.buttonText}>{demoMode ? "Refresh demo library" : "Connect / refresh camera"}</Text>
-      </Pressable>
-
-      {lastError ? <Text style={styles.error}>{lastError}</Text> : null}
-
-      <Text style={styles.filterLabel}>Category</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
         {categoryFilters.map((id) => {
           const selected = category === id;
           return (
             <Pressable
               key={id}
-              style={[styles.chip, selected && styles.chipSelected]}
               onPress={() => setCategory(id)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={`Filter ${CATEGORY_LABEL[id]}`}
+              hitSlop={6}
+              style={[
+                styles.chip,
+                {
+                  borderRadius: radius.pill,
+                  backgroundColor: selected ? colors.brand : colors.surfaceMuted,
+                  borderColor: selected ? colors.brand : colors.border,
+                },
+              ]}
             >
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
+              <Ionicons
+                name={CATEGORY_ICON[id] as keyof typeof Ionicons.glyphMap}
+                size={13}
+                color={selected ? colors.onBrand : colors.textMuted}
+                style={{ marginRight: 6 }}
+              />
+              <Text style={[styles.chipText, { color: selected ? colors.onBrand : colors.textMuted }]}>
                 {CATEGORY_LABEL[id]}
               </Text>
             </Pressable>
@@ -112,20 +136,29 @@ export default function LibraryScreen() {
         })}
       </ScrollView>
 
-      <Text style={styles.filterLabel}>Sort</Text>
-      <View style={styles.sortRow}>
+      <View style={[styles.sortRow, { marginTop: spacing.sm }]}>
         {SORT_OPTIONS.map((option) => {
           const selected = sort === option.id;
           return (
             <Pressable
               key={option.id}
-              style={[styles.chip, selected && styles.chipSelected]}
               onPress={() => setSort(option.id)}
               accessibilityRole="button"
               accessibilityState={{ selected }}
               accessibilityLabel={`Sort by ${option.label}`}
+              hitSlop={6}
+              style={[
+                styles.sortChip,
+                {
+                  borderRadius: radius.pill,
+                  borderColor: selected ? colors.brand : colors.border,
+                  backgroundColor: selected ? colors.brandSoft : "transparent",
+                },
+              ]}
             >
-              <Text style={[styles.chipText, selected && styles.chipTextSelected]}>{option.label}</Text>
+              <Text style={[styles.sortChipText, { color: selected ? colors.brand : colors.textMuted }]}>
+                {option.label}
+              </Text>
             </Pressable>
           );
         })}
@@ -133,34 +166,47 @@ export default function LibraryScreen() {
 
       <FlatList
         style={styles.list}
+        contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xxl }}
         data={filtered}
         keyExtractor={(item) => item.path}
-        ListEmptyComponent={<Text style={styles.empty}>{emptyMessage}</Text>}
+        ListEmptyComponent={
+          <EmptyState
+            icon={demoMode ? "flask-outline" : "cloud-offline-outline"}
+            title="Nothing here"
+            subtitle={emptyMessage}
+          />
+        }
+        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         renderItem={({ item }) => (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <View
-                style={[styles.placeholder, { backgroundColor: CATEGORY_COLOR[item.category] }]}
-                accessibilityLabel={`${item.category} placeholder`}
-              />
-              <View style={styles.cardBody}>
-                <Text style={styles.cardTitle}>{item.name}</Text>
-                <Text style={styles.meta}>
-                  {CATEGORY_LABEL[item.category]} · {item.recordedAt} ·{" "}
-                  {Math.round(item.sizeBytes / 1024)} KiB
-                </Text>
-              </View>
-            </View>
-            <Text style={styles.hint}>Selecting a card does not download. Use Descarcă.</Text>
-            <Pressable
-              style={styles.downloadBtn}
-              onPress={() => void enqueueDownload(item)}
-              accessibilityRole="button"
-              accessibilityLabel={`Descarcă ${item.name}`}
+          <Card style={styles.fileCard}>
+            <View
+              style={[
+                styles.iconSquare,
+                { backgroundColor: categoryColor(item.category, scheme) + "22", borderRadius: radius.md },
+              ]}
+              accessibilityElementsHidden
             >
-              <Text style={styles.buttonText}>Descarcă</Text>
-            </Pressable>
-          </View>
+              <Ionicons
+                name={CATEGORY_ICON[item.category] as keyof typeof Ionicons.glyphMap}
+                size={18}
+                color={categoryColor(item.category, scheme)}
+              />
+            </View>
+            <View style={styles.fileBody}>
+              <Text style={[styles.fileName, { color: colors.text }]} numberOfLines={1}>
+                {item.name}
+              </Text>
+              <Text style={[styles.fileMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                {CATEGORY_LABEL[item.category]} · {item.recordedAt} · {Math.round(item.sizeBytes / 1024)} KiB
+              </Text>
+            </View>
+            <IconButton
+              icon="download-outline"
+              tone="brand"
+              onPress={() => void enqueueDownload(item)}
+              accessibilityLabel={`Download ${item.name}`}
+            />
+          </Card>
         )}
       />
     </View>
@@ -168,68 +214,50 @@ export default function LibraryScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  banner: { backgroundColor: "#c45c26", padding: 10, marginBottom: 12 },
-  liveBanner: { backgroundColor: "#1f4b3a" },
-  bannerText: { color: "#fff", fontWeight: "700", textAlign: "center" },
-  row: {
+  container: { flex: 1 },
+  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  demoToggle: { flexDirection: "row", alignItems: "center", gap: 8 },
+  demoToggleLabel: { fontSize: 12, fontWeight: "600" },
+  label: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
+  inputRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  hostBlock: { marginBottom: 12 },
-  label: { fontSize: 16, fontWeight: "600", marginBottom: 6 },
-  filterLabel: { fontSize: 13, fontWeight: "600", marginBottom: 6, marginTop: 4 },
-  input: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8888",
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontSize: 16,
-    marginBottom: 6,
   },
-  brandLine: { fontSize: 14, fontWeight: "700", marginBottom: 4 },
-  disclaimer: { fontSize: 12, opacity: 0.8, marginBottom: 8 },
-  note: { fontSize: 12, opacity: 0.75, marginBottom: 8 },
-  button: {
-    backgroundColor: "#1f4b3a",
-    padding: 12,
-    marginBottom: 8,
+  input: { flex: 1, fontSize: 15 },
+  hint: { fontSize: 11, marginTop: 6, lineHeight: 15 },
+  note: { fontSize: 12, marginBottom: 8 },
+  error: { fontSize: 12, marginBottom: 8, fontWeight: "600" },
+  connectBtn: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
   },
-  buttonText: { color: "#fff", fontWeight: "600" },
-  error: { color: "#b00020", marginBottom: 8 },
-  chipRow: { maxHeight: 44, marginBottom: 8 },
-  sortRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 10 },
+  connectBtnText: { fontWeight: "700", fontSize: 14 },
+  chipRow: { maxHeight: 40 },
   chip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8886",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    marginRight: 8,
-    marginBottom: 4,
-  },
-  chipSelected: { backgroundColor: "#1f4b3a", borderColor: "#1f4b3a" },
-  chipText: { fontSize: 13, fontWeight: "600" },
-  chipTextSelected: { color: "#fff" },
-  list: { flex: 1 },
-  empty: { opacity: 0.7, marginTop: 24, textAlign: "center" },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8884",
-    padding: 12,
-    marginBottom: 10,
-  },
-  cardHeader: { flexDirection: "row", marginBottom: 8 },
-  placeholder: { width: 56, height: 56, marginRight: 10 },
-  cardBody: { flex: 1 },
-  cardTitle: { fontWeight: "700", marginBottom: 4 },
-  meta: { fontSize: 12, opacity: 0.75, marginBottom: 4 },
-  hint: { fontSize: 11, opacity: 0.6, marginBottom: 8 },
-  downloadBtn: {
-    backgroundColor: "#1f4b3a",
-    paddingVertical: 8,
+    flexDirection: "row",
     alignItems: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    marginRight: 8,
   },
+  chipText: { fontSize: 12, fontWeight: "700" },
+  sortRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  sortChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  sortChipText: { fontSize: 12, fontWeight: "700" },
+  list: { flex: 1 },
+  fileCard: { flexDirection: "row", alignItems: "center", padding: 12 },
+  iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
+  fileBody: { flex: 1, marginRight: 8 },
+  fileName: { fontSize: 14, fontWeight: "700", marginBottom: 3 },
+  fileMeta: { fontSize: 12 },
 });

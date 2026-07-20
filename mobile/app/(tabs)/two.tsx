@@ -1,8 +1,13 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { ActivityIndicator, FlatList, Pressable, StyleSheet } from "react-native";
+import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
-import { Text, View } from "@/components/Themed";
+import { Badge, type BadgeTone, Card, IconButton, PrimaryButton } from "@/components/ui";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { ProgressBar } from "@/components/ui/ProgressBar";
+import { useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import type { QueueItem, QueueItemStatus } from "@/packages/local-db/src/index";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -10,29 +15,64 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+const STATUS_TONE: Record<QueueItemStatus, BadgeTone> = {
+  queued: "neutral",
+  active: "brand",
+  completed: "success",
+  failed: "danger",
+  cancelled: "neutral",
+};
+
+const STATUS_ICON: Record<QueueItemStatus, keyof typeof Ionicons.glyphMap> = {
+  queued: "time-outline",
+  active: "cloud-download-outline",
+  completed: "checkmark-circle",
+  failed: "alert-circle",
+  cancelled: "close-circle-outline",
+};
+
+const STATUS_LABEL: Record<QueueItemStatus, string> = {
+  queued: "Queued",
+  active: "Downloading",
+  completed: "Completed",
+  failed: "Failed",
+  cancelled: "Cancelled",
+};
+
 export default function QueueScreen() {
-  const { demoMode, queueItems, queuePosition, shareCompleted, lastError, downloadDir } = useDemoMode();
+  const { colors, spacing } = useAppTheme();
+  const {
+    demoMode,
+    queueItems,
+    queuePosition,
+    shareCompleted,
+    cancelDownload,
+    removeFromQueue,
+    lastError,
+    downloadDir,
+  } = useDemoMode();
 
   return (
-    <View style={styles.container}>
-      {demoMode ? (
-        <View style={styles.banner}>
-          <Text style={styles.bannerText}>Demo Mode</Text>
+    <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
+      <View style={styles.headerRow}>
+        <View>
+          <Text style={[styles.title, { color: colors.text }]}>Download queue</Text>
+          <Text style={[styles.subtitle, { color: colors.textMuted }]}>One active transfer at a time</Text>
         </View>
-      ) : null}
+        {demoMode ? <Badge label="Demo Mode" tone="demo" icon="flask-outline" /> : null}
+      </View>
 
-      <Text style={styles.title}>Download queue</Text>
-      <Text style={styles.subtitle}>
-        One active transfer at a time. Progress updates while downloading.
-      </Text>
-
-      {lastError ? <Text style={styles.error}>{lastError}</Text> : null}
+      {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
 
       <FlatList
+        contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xxl }}
         data={[...queueItems]}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={<Text style={styles.empty}>Queue is empty.</Text>}
-        renderItem={({ item }) => {
+        keyExtractor={(item: QueueItem) => item.id}
+        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+        ListEmptyComponent={
+          <EmptyState icon="cloud-download-outline" title="Queue is empty" subtitle="Downloads you start will show up here." />
+        }
+        renderItem={({ item }: { item: QueueItem }) => {
           const position = queuePosition(item.id);
           const localUri = downloadDir.endsWith("/")
             ? `${downloadDir}${item.localName}`
@@ -52,73 +92,86 @@ export default function QueueScreen() {
               : total > 0
                 ? Math.min(100, Math.round((received / total) * 100))
                 : 0;
-          const showBar = item.status === "active" || item.status === "completed";
 
           return (
-            <View style={styles.card}>
-              <Text style={styles.name}>{item.localName}</Text>
-              <Text style={styles.meta}>
-                {item.status}
-                {position !== undefined ? ` · #${position} in queue` : ""}
-                {total > 0
-                  ? ` · ${formatBytes(received)} / ${formatBytes(total)}`
-                  : ` · ${formatBytes(item.expectedBytes)}`}
-                {showBar ? ` · ${percent}%` : ""}
+            <Card>
+              <View style={styles.rowTop}>
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                  {item.localName}
+                </Text>
+                <Badge label={STATUS_LABEL[item.status]} tone={STATUS_TONE[item.status]} icon={STATUS_ICON[item.status]} />
+              </View>
+              <Text style={[styles.meta, { color: colors.textMuted }]}>
+                {position !== undefined ? `#${position} in queue · ` : ""}
+                {total > 0 ? `${formatBytes(received)} / ${formatBytes(total)}` : formatBytes(item.expectedBytes)}
               </Text>
 
               {item.status === "active" ? (
-                <View style={styles.progressBlock}>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, { width: `${Math.max(percent, received > 0 ? percent : 2)}%` }]} />
+                received === 0 ? (
+                  <View style={styles.waitingRow}>
+                    <ActivityIndicator size="small" color={colors.brand} />
+                    <Text style={[styles.waitingText, { color: colors.textMuted }]}>Starting download…</Text>
                   </View>
-                  {received === 0 ? (
-                    <View style={styles.waitingRow}>
-                      <ActivityIndicator size="small" color="#1f4b3a" />
-                      <Text style={styles.waitingText}>Starting download…</Text>
+                ) : (
+                  <ProgressBar percent={percent} label={`Downloading ${percent}%`} />
+                )
+              ) : null}
+
+              {item.status === "completed" ? <ProgressBar percent={100} label="Completed" tone="success" /> : null}
+
+              {item.errorMessage ? (
+                <Text style={[styles.error, { color: colors.danger }]}>{item.errorMessage}</Text>
+              ) : null}
+
+              <View style={[styles.actions, { marginTop: spacing.md }]}>
+                {item.status === "completed" ? (
+                  <>
+                    <View style={{ flex: 1 }}>
+                      <PrimaryButton
+                        label="Open / Play"
+                        icon="play"
+                        onPress={() => {
+                          const href =
+                            `/player?uri=${encodeURIComponent(localUri)}&name=${encodeURIComponent(item.localName)}&kind=${kind}` as const;
+                          router.push(href as Parameters<typeof router.push>[0]);
+                        }}
+                        accessibilityLabel={`Open ${item.localName} in player`}
+                      />
                     </View>
-                  ) : (
-                    <Text style={styles.progressLabel} accessibilityLiveRegion="polite">
-                      Downloading {percent}%
-                    </Text>
-                  )}
-                </View>
-              ) : null}
+                    <IconButton
+                      icon="share-outline"
+                      tone="neutral"
+                      onPress={() => void shareCompleted(item)}
+                      accessibilityLabel={`Share ${item.localName}`}
+                    />
+                  </>
+                ) : null}
 
-              {item.status === "completed" ? (
-                <View style={styles.progressBlock}>
-                  <View style={styles.progressTrack}>
-                    <View style={[styles.progressFill, styles.progressDone, { width: "100%" }]} />
+                {item.status === "queued" || item.status === "active" ? (
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton
+                      label="Cancel"
+                      icon="close"
+                      variant="outline"
+                      onPress={() => void cancelDownload(item.id)}
+                      accessibilityLabel={`Cancel ${item.localName}`}
+                    />
                   </View>
-                  <Text style={styles.progressLabel}>Completed</Text>
-                </View>
-              ) : null}
+                ) : null}
 
-              {item.errorMessage ? <Text style={styles.error}>{item.errorMessage}</Text> : null}
-              {item.status === "completed" ? (
-                <View style={styles.actions}>
-                  <Pressable
-                    style={styles.shareBtn}
-                    onPress={() => {
-                      const href =
-                        `/player?uri=${encodeURIComponent(localUri)}&name=${encodeURIComponent(item.localName)}&kind=${kind}` as const;
-                      router.push(href as Parameters<typeof router.push>[0]);
-                    }}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open ${item.localName} in Local player`}
-                  >
-                    <Text style={styles.buttonText}>Open in Local / Play</Text>
-                  </Pressable>
-                  <Pressable
-                    style={[styles.shareBtn, styles.secondaryBtn]}
-                    onPress={() => void shareCompleted(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Share ${item.localName}`}
-                  >
-                    <Text style={styles.secondaryText}>Share / Save to Files</Text>
-                  </Pressable>
-                </View>
-              ) : null}
-            </View>
+                {item.status === "failed" || item.status === "cancelled" ? (
+                  <View style={{ flex: 1 }}>
+                    <PrimaryButton
+                      label="Dismiss"
+                      icon="trash-outline"
+                      variant="outline"
+                      onPress={() => void removeFromQueue(item.id)}
+                      accessibilityLabel={`Dismiss ${item.localName}`}
+                    />
+                  </View>
+                ) : null}
+              </View>
+            </Card>
           );
         }}
       />
@@ -127,47 +180,15 @@ export default function QueueScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  banner: { backgroundColor: "#c45c26", padding: 10, marginBottom: 12 },
-  bannerText: { color: "#fff", fontWeight: "700", textAlign: "center" },
-  title: { fontSize: 20, fontWeight: "700", marginBottom: 4 },
-  subtitle: { fontSize: 12, opacity: 0.7, marginBottom: 12 },
-  empty: { opacity: 0.7, marginTop: 24, textAlign: "center" },
-  card: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#8884",
-    padding: 12,
-    marginBottom: 10,
-  },
-  name: { fontWeight: "600" },
-  meta: { fontSize: 12, opacity: 0.75, marginTop: 4 },
-  progressBlock: { marginTop: 10 },
-  progressTrack: {
-    height: 8,
-    backgroundColor: "#8883",
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: 8,
-    backgroundColor: "#1f4b3a",
-  },
-  progressDone: { backgroundColor: "#2d6b52" },
-  progressLabel: { fontSize: 12, marginTop: 6, fontWeight: "600" },
-  waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
-  waitingText: { fontSize: 12, opacity: 0.75 },
-  error: { color: "#b00020", marginTop: 4, fontSize: 12, marginBottom: 8 },
-  actions: { marginTop: 10, gap: 8 },
-  shareBtn: {
-    backgroundColor: "#1f4b3a",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    alignItems: "center",
-  },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  secondaryBtn: {
-    backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1f4b3a",
-  },
-  secondaryText: { color: "#1f4b3a", fontWeight: "700" },
+  container: { flex: 1 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
+  title: { fontSize: 20, fontWeight: "800", marginBottom: 2 },
+  subtitle: { fontSize: 12 },
+  rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 },
+  name: { fontWeight: "700", fontSize: 14, flex: 1 },
+  meta: { fontSize: 12 },
+  waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
+  waitingText: { fontSize: 12 },
+  error: { fontSize: 12, fontWeight: "600", marginTop: 8 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
 });

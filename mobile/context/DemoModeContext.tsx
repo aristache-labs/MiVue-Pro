@@ -44,8 +44,11 @@ interface DemoModeContextValue {
   readonly refreshFiles: () => Promise<void>;
   readonly refreshLocalFiles: () => Promise<void>;
   readonly enqueueDownload: (file: RemoteFile) => Promise<void>;
+  readonly cancelDownload: (id: string) => Promise<void>;
+  readonly removeFromQueue: (id: string) => Promise<void>;
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly shareLocalFile: (file: LocalMediaFile) => Promise<void>;
+  readonly deleteLocalFile: (file: LocalMediaFile) => Promise<void>;
   readonly queuePosition: (id: string) => number | undefined;
   readonly downloadDir: string;
   readonly lastError: string | undefined;
@@ -272,6 +275,29 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [demoMode, cameraHost, queue, nativeTcpReady],
   );
 
+  const cancelDownload = useCallback(
+    async (id: string) => {
+      try {
+        await queue.cancel(id);
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [queue],
+  );
+
+  const removeFromQueue = useCallback(
+    async (id: string) => {
+      try {
+        await queue.remove(id);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [queue],
+  );
+
   const shareUri = useCallback(async (uri: string, name: string) => {
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists) {
@@ -320,6 +346,19 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [shareUri],
   );
 
+  const deleteLocalFile = useCallback(
+    async (file: LocalMediaFile) => {
+      try {
+        await FileSystem.deleteAsync(file.uri, { idempotent: true });
+        await refreshLocalFiles();
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [refreshLocalFiles],
+  );
+
   const value = useMemo<DemoModeContextValue>(
     () => ({
       demoMode,
@@ -332,8 +371,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       refreshFiles,
       refreshLocalFiles,
       enqueueDownload,
+      cancelDownload,
+      removeFromQueue,
       shareCompleted,
       shareLocalFile,
+      deleteLocalFile,
       queuePosition: (id) => queue.queuePosition(id),
       downloadDir,
       lastError,
@@ -352,8 +394,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       refreshFiles,
       refreshLocalFiles,
       enqueueDownload,
+      cancelDownload,
+      removeFromQueue,
       shareCompleted,
       shareLocalFile,
+      deleteLocalFile,
       queue,
       downloadDir,
       lastError,

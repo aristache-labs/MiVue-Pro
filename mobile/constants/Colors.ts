@@ -1,19 +1,22 @@
-const tintColorLight = '#2f95dc';
-const tintColorDark = '#fff';
+import { Palette } from "./Theme";
 
+/**
+ * Consumed by components/Themed.tsx and the tab navigator.
+ * Sourced from constants/Theme.ts so there is a single palette definition.
+ */
 export default {
   light: {
-    text: '#000',
-    background: '#fff',
-    tint: tintColorLight,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorLight,
+    text: Palette.light.text,
+    background: Palette.light.bg,
+    tint: Palette.light.brand,
+    tabIconDefault: Palette.light.textFaint,
+    tabIconSelected: Palette.light.brand,
   },
   dark: {
-    text: '#fff',
-    background: '#000',
-    tint: tintColorDark,
-    tabIconDefault: '#ccc',
-    tabIconSelected: tintColorDark,
+    text: Palette.dark.text,
+    background: Palette.dark.bg,
+    tint: Palette.dark.brand,
+    tabIconDefault: Palette.dark.textFaint,
+    tabIconSelected: Palette.dark.brand,
   },
 };

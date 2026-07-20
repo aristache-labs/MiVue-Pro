@@ -1,13 +1,10 @@
 import type { FileCategory } from "../packages/parsers/src/index";
+import { CATEGORY_COLORS, type ColorScheme } from "./Theme";
 
 /** UI placeholders only — not camera thumbnails. */
-export const CATEGORY_COLOR: Record<FileCategory, string> = {
-  normal: "#1f4b3a",
-  event: "#8b3a2a",
-  parking: "#3a4a6b",
-  photo: "#5a4a2a",
-  unknown: "#555555",
-};
+export function categoryColor(category: FileCategory, scheme: ColorScheme): string {
+  return CATEGORY_COLORS[category][scheme];
+}
 
 export const CATEGORY_LABEL: Record<FileCategory | "all", string> = {
   all: "All",
@@ -16,4 +13,22 @@ export const CATEGORY_LABEL: Record<FileCategory | "all", string> = {
   parking: "Parking",
   photo: "Photo",
   unknown: "Other",
+};
+
+export const CATEGORY_ICON: Record<FileCategory | "all", string> = {
+  all: "apps-outline",
+  normal: "videocam-outline",
+  event: "alert-circle-outline",
+  parking: "car-outline",
+  photo: "image-outline",
+  unknown: "help-circle-outline",
+};
+
+/** Backwards-compatible static map (light scheme) for call sites not yet theme-aware. */
+export const CATEGORY_COLOR: Record<FileCategory, string> = {
+  normal: CATEGORY_COLORS.normal.light,
+  event: CATEGORY_COLORS.event.light,
+  parking: CATEGORY_COLORS.parking.light,
+  photo: CATEGORY_COLORS.photo.light,
+  unknown: CATEGORY_COLORS.unknown.light,
 };

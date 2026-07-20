@@ -1,9 +1,10 @@
-import { Stack, useLocalSearchParams } from "expo-router";
-import { useEvent } from "expo";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { BlurView } from "expo-blur";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { Image, Pressable, StyleSheet } from "react-native";
+import { Image, StyleSheet, Text, View } from "react-native";
 
-import { Text, View } from "@/components/Themed";
+import { IconButton } from "@/components/ui";
 import { useDemoMode } from "@/context/DemoModeContext";
 
 export default function PlayerScreen() {
@@ -21,24 +22,31 @@ export default function PlayerScreen() {
 
   return (
     <View style={styles.container}>
-      <Stack.Screen options={{ title: name, presentation: "modal" }} />
-      <Text style={styles.title}>{name}</Text>
-
-      {!uri ? <Text style={styles.error}>Missing media URI.</Text> : null}
+      <Stack.Screen options={{ headerShown: false, presentation: "modal" }} />
 
       {uri && isImage ? (
-        <Image source={{ uri }} style={styles.image} resizeMode="contain" accessibilityLabel={name} />
+        <Image source={{ uri }} style={styles.media} resizeMode="contain" accessibilityLabel={name} />
       ) : null}
 
       {uri && isVideo ? <VideoPlayer uri={uri} /> : null}
 
-      {uri && !isVideo && !isImage ? (
-        <Text style={styles.meta}>This file type has no in-app preview. Use Share to open elsewhere.</Text>
+      {!uri || (!isVideo && !isImage) ? (
+        <View style={styles.centerMessage}>
+          <Ionicons name="document-outline" size={40} color="#8A93A1" />
+          <Text style={styles.centerText}>
+            {uri ? "This file type has no in-app preview. Use Share to open elsewhere." : "Missing media URI."}
+          </Text>
+        </View>
       ) : null}
 
-      {uri ? (
-        <Pressable
-          style={[styles.button, styles.secondary]}
+      <BlurView intensity={60} tint="dark" style={styles.topBar}>
+        <IconButton icon="close" tone="neutral" onPress={() => router.back()} accessibilityLabel="Close player" />
+        <Text style={styles.topBarTitle} numberOfLines={1}>
+          {name}
+        </Text>
+        <IconButton
+          icon="share-outline"
+          tone="neutral"
           onPress={() =>
             void shareLocalFile({
               name,
@@ -47,12 +55,9 @@ export default function PlayerScreen() {
               kind: isVideo ? "video" : isImage ? "image" : "other",
             })
           }
-          accessibilityRole="button"
           accessibilityLabel={`Share ${name}`}
-        >
-          <Text style={styles.secondaryText}>Share / Save to Files</Text>
-        </Pressable>
-      ) : null}
+        />
+      </BlurView>
     </View>
   );
 }
@@ -62,52 +67,31 @@ function VideoPlayer({ uri }: { readonly uri: string }) {
     instance.loop = false;
     instance.play();
   });
-  const { isPlaying } = useEvent(player, "playingChange", {
-    isPlaying: player.playing,
-  });
 
   return (
-    <>
-      <VideoView
-        style={styles.video}
-        player={player}
-        allowsFullscreen
-        allowsPictureInPicture
-        nativeControls
-      />
-      <Pressable
-        style={styles.button}
-        onPress={() => {
-          if (isPlaying) player.pause();
-          else player.play();
-        }}
-        accessibilityRole="button"
-        accessibilityLabel={isPlaying ? "Pause" : "Play"}
-      >
-        <Text style={styles.buttonText}>{isPlaying ? "Pause" : "Play"}</Text>
-      </Pressable>
-    </>
+    <View style={styles.media}>
+      <VideoView style={styles.videoView} player={player} allowsFullscreen allowsPictureInPicture nativeControls />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  title: { fontSize: 16, fontWeight: "700", marginBottom: 12 },
-  meta: { opacity: 0.75, marginBottom: 12 },
-  error: { color: "#b00020", marginBottom: 12 },
-  image: { width: "100%", height: 360, backgroundColor: "#1113", marginBottom: 12 },
-  video: { width: "100%", height: 280, backgroundColor: "#000", marginBottom: 12 },
-  button: {
-    backgroundColor: "#1f4b3a",
-    padding: 12,
-    marginBottom: 10,
+  container: { flex: 1, backgroundColor: "#000" },
+  media: { flex: 1, backgroundColor: "#000" },
+  videoView: { flex: 1 },
+  centerMessage: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
+  centerText: { color: "#A7AFBC", textAlign: "center", marginTop: 12, fontSize: 13, lineHeight: 18 },
+  topBar: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: 48,
+    paddingBottom: 10,
+    paddingHorizontal: 12,
   },
-  buttonText: { color: "#fff", fontWeight: "700" },
-  secondary: {
-    backgroundColor: "transparent",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: "#1f4b3a",
-  },
-  secondaryText: { color: "#1f4b3a", fontWeight: "700" },
+  topBarTitle: { color: "#F2F4F7", fontSize: 14, fontWeight: "700", flex: 1, textAlign: "center", marginHorizontal: 8 },
 });

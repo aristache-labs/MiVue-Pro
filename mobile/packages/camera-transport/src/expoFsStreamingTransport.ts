@@ -10,6 +10,7 @@ type DownloadProgressData = {
 
 type DownloadResumable = {
   downloadAsync(): Promise<{ uri: string; status?: number } | undefined>;
+  pauseAsync?(): Promise<unknown>;
 };
 
 type ExpoFsLike = {
@@ -67,6 +68,12 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
     const partPath = `${options.destinationPath}.part`;
     const url = `http://${this.options.host}:${this.port}${options.remotePath}`;
 
+    if (options.signal?.aborted) {
+      throw new TransportError("Cancelled by user", "ABORTED");
+    }
+
+    let abortedByUser = false;
+
     try {
       if ((await this.options.fs.getInfoAsync(options.destinationPath)).exists) {
         throw new TransportError("Destination already exists", "EXISTS");
@@ -94,9 +101,24 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
         },
       );
 
-      const result = await download.downloadAsync();
+      const onAbort = () => {
+        abortedByUser = true;
+        void download.pauseAsync?.();
+      };
+      options.signal?.addEventListener("abort", onAbort);
+
+      let result: { uri: string; status?: number } | undefined;
+      try {
+        result = await download.downloadAsync();
+      } finally {
+        options.signal?.removeEventListener("abort", onAbort);
+      }
+
       if (result === undefined) {
-        throw new TransportError("Download cancelled or failed", "DOWNLOAD");
+        throw new TransportError(
+          abortedByUser ? "Cancelled by user" : "Download cancelled or failed",
+          abortedByUser ? "ABORTED" : "DOWNLOAD",
+        );
       }
 
       const info = await this.options.fs.getInfoAsync(partPath);
@@ -120,6 +142,9 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
         await this.options.fs.deleteAsync(partPath, { idempotent: true });
       } catch {
         // ignore cleanup errors
+      }
+      if (abortedByUser) {
+        throw new TransportError("Cancelled by user", "ABORTED", { cause: error });
       }
       if (error instanceof TransportError) throw error;
       const message = error instanceof Error ? error.message : String(error);

@@ -131,6 +131,75 @@ test("queue prefers HEAD size over list expectedBytes", async () => {
   assert.ok(await sink.exists("/downloads/C.MP4"));
 });
 
+test("cancel a queued item marks it cancelled without running it", async () => {
+  const transport = new FakeTransport();
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport,
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  // A starts running immediately (only transfer); queue a second one and cancel it before it starts.
+  await queue.enqueue({ remotePath: "/SD/Normal/F/B.MP4", localName: "B.MP4", expectedBytes: 100 });
+  const queuedItem = queue.list().find((i) => i.localName === "B.MP4");
+  assert.ok(queuedItem);
+  assert.equal(queuedItem?.status, "queued");
+
+  await queue.cancel(queuedItem!.id);
+  assert.equal(queue.list().find((i) => i.id === queuedItem!.id)?.status, "cancelled");
+
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "completed");
+  assert.equal(queue.list().find((i) => i.localName === "B.MP4")?.status, "cancelled");
+});
+
+test("cancel the active item aborts the transport and marks cancelled", async () => {
+  class AbortAwareTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      return new Promise((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const abort = () => {
+          if (timer !== undefined) clearTimeout(timer);
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (request.signal?.aborted) {
+          abort();
+          return;
+        }
+        timer = setTimeout(() => {
+          resolve({ statusCode: 200, headers: { "content-length": "100" }, body: demoFileBytes(100) });
+        }, 500);
+        request.signal?.addEventListener("abort", abort);
+      });
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new AbortAwareTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "active");
+
+  const active = queue.list().find((i) => i.localName === "A.MP4");
+  assert.ok(active);
+  await queue.cancel(active!.id);
+
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status !== "active");
+  assert.equal(queue.list().find((i) => i.localName === "A.MP4")?.status, "cancelled");
+});
+
 async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
   while (!predicate()) {
