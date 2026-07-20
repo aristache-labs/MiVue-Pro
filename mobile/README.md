@@ -49,43 +49,42 @@ Rulează **doar din `mobile/`**. Nu din rădăcina repo-ului.
 
 Note: pe Wi‑Fi cameră nu reîncarcă de pe expo.dev (de obicei fără internet). Hot reload nu merge. Fetch HTTP/1.0 poate tot eșua în Expo Go.
 
-## Development build iOS (HTTP/1.0 nativ) — Windows + iPhone
+## Development build (Http10Tcp nativ) — Windows
 
-PC-ul e Windows: **nu** folosi `expo run:ios` local. Folosește **EAS**.
+Expo Go **nu** include modulul `http10-tcp`. Pentru streaming nativ: **EAS development client**.
 
 ### Cerințe
 
-- Cont Expo (`npx expo login`)
-- **Apple Developer Program** (pentru instalare pe iPhone fizic)
-- `eas-cli`: `npm install -g eas-cli` (sau `npx eas-cli`)
+- Cont Expo (deja: `pateutz`)
+- **Apple Developer Program** pentru iPhone fizic (obligatoriu la iOS device)
+- Din `mobile/`: `expo-dev-client` + plugin `withLocalNetworkCleartext` + `modules/http10-tcp`
 
-### Pași
+### iOS
 
 ```powershell
 cd mobile
 npm install
-npx eas login
-npx eas build:configure
-npx eas build -p ios --profile development
+npm run build:dev:ios
 ```
 
-După build: instalează pe iPhone (link Expo / QR), apoi:
+După ce build-ul e gata pe [expo.dev](https://expo.dev/accounts/pateutz/projects/mivue-866-cli): instalează pe iPhone (QR / link), apoi:
 
 ```powershell
-npx expo start --dev-client --clear
+# JS live (același Wi‑Fi ca PC, sau EAS Update pe branch development)
+npm run start:dev-client
+# sau, fără Metro pe LAN:
+npx eas-cli update --branch development --message "Native client JS"
 ```
 
-1. iPhone pe Wi‑Fi-ul camerei.
-2. Demo Mode OFF, IP corect.
-3. Connect / refresh — status + listă via modulul `Http10Tcp`.
-4. Descarcă — streaming pe disc (`documentDirectory/downloads`, `.part` → rename).
+Verificare în app: banner **Live — native HTTP/1.0** (nu „Expo Go Fetch probe”).
 
-### Android (opțional)
+1. iPhone pe Wi‑Fi cameră.
+2. Demo OFF, IP `192.72.1.1`.
+3. Connect → listă; Descarcă → streaming `.part` → rename; Share to Files.
 
-```powershell
-npx eas build -p android --profile development
-# sau pe mașină cu Android SDK: npx expo run:android
-```
+### Android
+
+**Amânat** — nu există device de test. Nu rula `build:dev:android` până există hardware.
 
 ## Teste automate (fără cameră)
 

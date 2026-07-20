@@ -1,10 +1,10 @@
-import { FlatList, StyleSheet } from "react-native";
+import { FlatList, Pressable, StyleSheet } from "react-native";
 
 import { Text, View } from "@/components/Themed";
 import { useDemoMode } from "@/context/DemoModeContext";
 
 export default function QueueScreen() {
-  const { demoMode, queueItems, queuePosition } = useDemoMode();
+  const { demoMode, queueItems, queuePosition, shareCompleted, lastError } = useDemoMode();
 
   return (
     <View style={styles.container}>
@@ -15,7 +15,11 @@ export default function QueueScreen() {
       ) : null}
 
       <Text style={styles.title}>Download queue</Text>
-      <Text style={styles.subtitle}>One active transfer at a time. Position shown for queued items.</Text>
+      <Text style={styles.subtitle}>
+        One active transfer at a time. On completed items, use Share / Save to Files.
+      </Text>
+
+      {lastError ? <Text style={styles.error}>{lastError}</Text> : null}
 
       <FlatList
         data={[...queueItems]}
@@ -34,6 +38,16 @@ export default function QueueScreen() {
                   : ` · ${item.expectedBytes} B`}
               </Text>
               {item.errorMessage ? <Text style={styles.error}>{item.errorMessage}</Text> : null}
+              {item.status === "completed" ? (
+                <Pressable
+                  style={styles.shareBtn}
+                  onPress={() => void shareCompleted(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Share ${item.localName}`}
+                >
+                  <Text style={styles.shareBtnText}>Share / Save to Files</Text>
+                </Pressable>
+              ) : null}
             </View>
           );
         }}
@@ -57,5 +71,13 @@ const styles = StyleSheet.create({
   },
   name: { fontWeight: "600" },
   meta: { fontSize: 12, opacity: 0.75, marginTop: 4 },
-  error: { color: "#b00020", marginTop: 4, fontSize: 12 },
+  error: { color: "#b00020", marginTop: 4, fontSize: 12, marginBottom: 8 },
+  shareBtn: {
+    marginTop: 10,
+    backgroundColor: "#1f4b3a",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    alignItems: "center",
+  },
+  shareBtnText: { color: "#fff", fontWeight: "700" },
 });

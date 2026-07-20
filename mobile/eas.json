@@ -9,10 +9,8 @@
       "distribution": "internal",
       "channel": "development",
       "ios": {
-        "simulator": false
-      },
-      "android": {
-        "buildType": "apk"
+        "simulator": false,
+        "resourceClass": "m-medium"
       }
     },
     "preview": {

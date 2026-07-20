@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { APP_USER_AGENT } from "../constants/Brand";
@@ -29,6 +30,7 @@ interface DemoModeContextValue {
   readonly queueItems: readonly QueueItem[];
   readonly refreshFiles: () => Promise<void>;
   readonly enqueueDownload: (file: RemoteFile) => Promise<void>;
+  readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly queuePosition: (id: string) => number | undefined;
   readonly lastError: string | undefined;
   readonly connectionNote: string | undefined;
@@ -191,6 +193,40 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [demoMode, cameraHost, queue, nativeTcpReady],
   );
 
+  const shareCompleted = useCallback(
+    async (item: QueueItem) => {
+      try {
+        if (item.status !== "completed") {
+          setLastError("Only completed downloads can be shared.");
+          return;
+        }
+        const uri = downloadDir.endsWith("/")
+          ? `${downloadDir}${item.localName}`
+          : `${downloadDir}/${item.localName}`;
+        const info = await FileSystem.getInfoAsync(uri);
+        if (!info.exists) {
+          setLastError("Local file missing. Download again.");
+          return;
+        }
+        const available = await Sharing.isAvailableAsync();
+        if (!available) {
+          setLastError("Sharing is not available on this device.");
+          return;
+        }
+        const mimeType = mimeForName(item.localName);
+        await Sharing.shareAsync(uri, {
+          mimeType,
+          UTI: utiForName(item.localName),
+          dialogTitle: `Save ${item.localName}`,
+        });
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [downloadDir],
+  );
+
   const value = useMemo<DemoModeContextValue>(
     () => ({
       demoMode,
@@ -201,6 +237,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       queueItems,
       refreshFiles,
       enqueueDownload,
+      shareCompleted,
       queuePosition: (id) => queue.queuePosition(id),
       lastError,
       connectionNote,
@@ -216,6 +253,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       queueItems,
       refreshFiles,
       enqueueDownload,
+      shareCompleted,
       queue,
       lastError,
       connectionNote,
@@ -233,4 +271,19 @@ export function useDemoMode(): DemoModeContextValue {
     throw new Error("useDemoMode must be used within DemoModeProvider");
   }
   return ctx;
+}
+
+function mimeForName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".mp4")) return "video/mp4";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "image/jpeg";
+  if (lower.endsWith(".gpx")) return "application/gpx+xml";
+  return "application/octet-stream";
+}
+
+function utiForName(name: string): string {
+  const lower = name.toLowerCase();
+  if (lower.endsWith(".mp4")) return "public.mpeg-4";
+  if (lower.endsWith(".jpg") || lower.endsWith(".jpeg")) return "public.jpeg";
+  return "public.data";
 }
