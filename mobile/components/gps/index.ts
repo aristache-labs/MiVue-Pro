@@ -15,6 +15,7 @@ export {
   bearingBetween,
   smoothBearing,
   zoomForSpeedKmh,
+  lookAheadCoordinate,
 } from "./mapFollow";
 export {
   DEFAULT_ONLINE_MAP_PROVIDER,

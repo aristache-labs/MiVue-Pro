@@ -95,43 +95,13 @@ cd mobile
 npm test
 ```
 
-## Google Maps (Online map — native only)
+## Online map (Leaflet + OpenStreetMap)
 
-Player **Online map** uses **Maps SDK for iOS / Android** via `react-native-maps` (`PROVIDER_GOOGLE`).  
-Local schematic never contacts Google.
+Player **Online map** uses Leaflet in a WebView with public OSM raster tiles (`tile.openstreetmap.org`), opt-in only. Suitable for current/dev use — not a guaranteed commercial product dependency.
 
-### Environment (never commit real keys)
+**Local schematic** stays fully offline (no tile / network requests).
 
-Copy `.env.example` → `.env` (gitignored):
-
-```text
-GOOGLE_MAPS_IOS_API_KEY=
-GOOGLE_MAPS_ANDROID_API_KEY=
-```
-
-Also set the same names as **EAS Secrets** for cloud builds. Keys are injected at prebuild via `app.config.ts` into native config only.
-
-### Key restrictions (Google Cloud Console)
-
-**iOS key**
-
-- Application restriction: bundle ID `app.laneory.mobile`
-- API restriction: **Maps SDK for iOS** only
-
-**Android key**
-
-- Application restriction: package `app.laneory.mobile` + SHA-1 (debug / Play App Signing)
-- API restriction: **Maps SDK for Android** only
-
-Use **separate** keys for development and production. Do **not** enable Places, Routes, Directions, Roads, Street View, Geocoding, Map Tiles, Navigation SDK, or cloud Map IDs.
-
-After changing keys: rebuild the **dev client** (`eas build` / `expo prebuild` + run). Expo Go does not include custom Maps SDK keys the same way.
-
-### Ops
-
-- Set a Google Cloud **budget alert**
-- Review Maps SDK pricing periodically
-- Monitor usage; disable unused APIs
+No Google Maps SDK keys are required.
 
 ## Structură
 
@@ -148,5 +118,4 @@ packages/
   download-queue/
   demo/
 eas.json                  development profile
-app.config.ts             Expo config + Google Maps env keys
 ```
