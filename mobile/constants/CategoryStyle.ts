@@ -11,7 +11,7 @@ export const CATEGORY_LABEL: Record<FileCategory | "all", string> = {
   normal: "Normal",
   event: "Event",
   parking: "Parking",
-  photo: "Photo",
+  photo: "Photos",
   unknown: "Other",
 };
 

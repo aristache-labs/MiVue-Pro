@@ -62,8 +62,8 @@ test("card date formatting stays available", () => {
 });
 
 test("section count label is correct", () => {
-  assert.equal(formatCountLabel(1), "1 fișier");
-  assert.equal(formatCountLabel(4), "4 fișiere");
+  assert.equal(formatCountLabel(1), "1 file");
+  assert.equal(formatCountLabel(4), "4 files");
   const sections = buildLocalLibrarySections([
     file("FILE260719-100000F.MP4"),
     file("FILE260719-110000F.MP4"),
@@ -71,15 +71,21 @@ test("section count label is correct", () => {
     file("FILE260719-130000F.MP4"),
   ]);
   assert.equal(sections[0]?.count, 4);
-  assert.equal(sections[0]?.countLabel, "4 fișiere");
+  assert.equal(sections[0]?.countLabel, "4 files");
 });
 
 test("unknown dates land in stable section", () => {
   assert.equal(dayKeyFromName("random.mp4"), "unknown");
-  assert.equal(formatSectionHeading("unknown"), "DATĂ NECUNOSCUTĂ");
+  assert.equal(formatSectionHeading("unknown"), "UNKNOWN DATE");
   const sections = buildLocalLibrarySections([file("random.mp4"), file("FILE260719-100000F.MP4")]);
   assert.equal(sections[sections.length - 1]?.dayKey, "unknown");
-  assert.equal(sections[sections.length - 1]?.title, "DATĂ NECUNOSCUTĂ");
+  assert.equal(sections[sections.length - 1]?.title, "UNKNOWN DATE");
+});
+
+test("section headings use English en-GB", () => {
+  assert.equal(formatSectionHeading("2026-07-19"), "SUNDAY, 19 JULY 2026");
+  assert.match(formatCompactDateTime("FILE260719-135021F.MP4") ?? "", /Jul/);
+  assert.doesNotMatch(formatCompactDateTime("FILE260719-135021F.MP4") ?? "", /iul/i);
 });
 
 test("section keys are stable day keys", () => {

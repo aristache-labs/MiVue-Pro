@@ -20,6 +20,7 @@ import {
   View,
 } from "react-native";
 
+import { formatCountAbbrev } from "@/components/camera/cameraLibraryModel";
 import {
   deleteLocalA11yLabel,
   deleteLocalButtonLabel,
@@ -33,14 +34,19 @@ import {
   buildFilterChips,
   clearFilterGroup,
   countActiveFilterGroups,
+  countLocalCategories,
   EMPTY_FILTERS,
   filterNormalizedFiles,
   formatResultsSummary,
   formatSelectionSize,
   isFiltersEmpty,
+  LOCAL_CATEGORY_CHIPS,
   normalizeLocalFiles,
   pruneSelectionToUris,
+  sanitizeLocalFiltersForCategoryScope,
+  scopeNormalizedFiles,
   sumBytes,
+  type LocalCategoryScope,
   type LocalLibraryFilters,
 } from "@/components/local/localLibraryFilters";
 import { LocalLibraryCard } from "@/components/local/LocalLibraryCard";
@@ -77,6 +83,7 @@ export default function LocalLibraryScreen() {
 
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<LocalLibraryFilters>(EMPTY_FILTERS);
+  const [category, setCategory] = useState<LocalCategoryScope>("all");
   const [filterOpen, setFilterOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -131,14 +138,25 @@ export default function LocalLibraryScreen() {
     [localFiles, categoryByName],
   );
 
+  const categoryCounts = useMemo(() => countLocalCategories(normalized), [normalized]);
+
+  const scoped = useMemo(
+    () => scopeNormalizedFiles(normalized, category),
+    [normalized, category],
+  );
+
   const filtered = useMemo(
-    () => filterNormalizedFiles(normalized, filters),
-    [normalized, filters],
+    () => filterNormalizedFiles(scoped, filters),
+    [scoped, filters],
   );
 
   const filteredFiles = useMemo(() => filtered.map((n) => n.file), [filtered]);
 
   const sections = useMemo(() => buildLocalLibrarySections(filteredFiles), [filteredFiles]);
+
+  useEffect(() => {
+    setFilters((prev) => sanitizeLocalFiltersForCategoryScope(prev, category));
+  }, [category]);
 
   const activeGroups = countActiveFilterGroups(filters);
   const chips = useMemo(() => buildFilterChips(filters), [filters]);
@@ -175,13 +193,16 @@ export default function LocalLibraryScreen() {
 
   const applyFilters = useCallback(
     (next: LocalLibraryFilters) => {
-      setFilters(next);
+      setFilters(sanitizeLocalFiltersForCategoryScope(next, category));
       setFilterOpen(false);
       if (selecting) exitSelection();
-      const count = filterNormalizedFiles(normalized, next).length;
+      const count = filterNormalizedFiles(
+        scopeNormalizedFiles(normalized, category),
+        sanitizeLocalFiltersForCategoryScope(next, category),
+      ).length;
       void AccessibilityInfo.announceForAccessibility(`${count} files found`);
     },
-    [selecting, exitSelection, normalized],
+    [selecting, exitSelection, normalized, category],
   );
 
   const runRefresh = useCallback(async () => {
@@ -409,6 +430,53 @@ export default function LocalLibraryScreen() {
           {statusMessage}
         </Text>
       ) : null}
+
+      <View
+        style={[styles.catRow, { paddingHorizontal: spacing.lg, paddingTop: spacing.sm }]}
+        testID="local-category-row"
+      >
+        {LOCAL_CATEGORY_CHIPS.map((chip) => {
+          const selectedChip = category === chip.id;
+          const value = categoryCounts[chip.id];
+          const abbrev = formatCountAbbrev(value);
+          return (
+            <Pressable
+              key={chip.id}
+              onPress={() => {
+                setCategory(chip.id);
+                if (selecting) exitSelection();
+              }}
+              accessibilityRole="button"
+              accessibilityState={{ selected: selectedChip }}
+              accessibilityLabel={`${chip.label}, ${abbrev.a11y}`}
+              style={[
+                styles.catCell,
+                {
+                  borderColor: selectedChip ? colors.brand : colors.border,
+                  backgroundColor: selectedChip ? colors.brandSoft : colors.surface,
+                  borderRadius: radius.sm,
+                },
+              ]}
+            >
+              <Text
+                style={[styles.catChipLabel, { color: selectedChip ? colors.brand : colors.text }]}
+                numberOfLines={1}
+              >
+                {chip.label}
+              </Text>
+              <Text
+                style={[
+                  styles.catChipCount,
+                  { color: selectedChip ? colors.brandStrong : colors.textMuted },
+                ]}
+                numberOfLines={1}
+              >
+                {abbrev.display}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
 
       {!isFiltersEmpty(filters) ? (
         <View style={styles.chipsBlock}>
@@ -661,7 +729,8 @@ export default function LocalLibraryScreen() {
       <LocalFilterSheet
         visible={filterOpen}
         initial={filters}
-        normalized={normalized}
+        normalized={scoped}
+        categoryScope={category}
         onClose={() => setFilterOpen(false)}
         onApply={applyFilters}
       />
@@ -705,6 +774,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   filterBadgeText: { fontSize: 10, fontFamily: Type.fontBold },
+  catRow: {
+    flexDirection: "row",
+    gap: 6,
+    marginBottom: 4,
+  },
+  catCell: {
+    flex: 1,
+    minWidth: 0,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: LOCAL_ACTION_HIT,
+  },
+  catChipLabel: { fontSize: 11, fontFamily: Type.fontSemi },
+  catChipCount: { fontSize: 10, fontFamily: Type.font, marginTop: 1 },
   chipsBlock: { paddingBottom: 4 },
   chipsRow: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 6 },
   chip: {

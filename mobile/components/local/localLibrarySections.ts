@@ -1,5 +1,8 @@
 import { parseRecordedParts } from "@/components/mediaMeta";
-import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
+import {
+  formatDateSeparator,
+  formatRecordingDateTime,
+} from "@/components/media/recordingDateTime";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 
 export interface LocalLibrarySection {
@@ -27,21 +30,12 @@ export function dayKeyFromName(name: string): string {
 }
 
 export function formatSectionHeading(dayKey: string): string {
-  if (dayKey === "unknown") return "DATĂ NECUNOSCUTĂ";
-  const d = new Date(`${dayKey}T12:00:00`);
-  if (!Number.isFinite(d.getTime())) return "DATĂ NECUNOSCUTĂ";
-  return d
-    .toLocaleDateString("ro-RO", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-    .toUpperCase();
+  if (dayKey === "unknown") return "UNKNOWN DATE";
+  return formatDateSeparator(dayKey);
 }
 
 export function formatCountLabel(count: number): string {
-  return count === 1 ? "1 fișier" : `${count} fișiere`;
+  return count === 1 ? "1 file" : `${count} files`;
 }
 
 /** Compact card line: `19 Jul 2026 · 13:50` (en-GB). */

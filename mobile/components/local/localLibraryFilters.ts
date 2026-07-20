@@ -1,13 +1,33 @@
 import { parseRecordedParts } from "@/components/mediaMeta";
+import { formatRecordingDate } from "@/components/media/recordingDateTime";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
 
 export type DateFilterMode = "any" | "single" | "range";
 export type TimeFilterMode = "any" | "single" | "range";
 
-/** Recording categories exposed in the filter sheet (extensible). */
-export const RECORDING_CATEGORIES = ["normal", "parking", "event"] as const;
+/** Recording categories exposed in the filter sheet (aligned with Camera Library). */
+export const RECORDING_CATEGORIES = ["normal", "parking", "event", "photo"] as const;
 export type RecordingCategory = (typeof RECORDING_CATEGORIES)[number];
+
+/** Top Local Library chips — same set as Camera Library. */
+export type LocalCategoryScope = "all" | RecordingCategory;
+
+export interface LocalCategoryCounts {
+  readonly all: number;
+  readonly normal: number;
+  readonly parking: number;
+  readonly event: number;
+  readonly photo: number;
+}
+
+export const LOCAL_CATEGORY_CHIPS: readonly { id: LocalCategoryScope; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "normal", label: "Normal" },
+  { id: "parking", label: "Parking" },
+  { id: "event", label: "Event" },
+  { id: "photo", label: "Photos" },
+];
 
 export const MEDIA_TYPES = ["video", "image"] as const;
 export type MediaTypeFilter = (typeof MEDIA_TYPES)[number];
@@ -160,6 +180,43 @@ export function fileMatchesFilters(
   return true;
 }
 
+export function countLocalCategories(
+  items: readonly NormalizedLocalFile[],
+): LocalCategoryCounts {
+  let normal = 0;
+  let parking = 0;
+  let event = 0;
+  let photo = 0;
+  for (const item of items) {
+    if (item.category === "normal") normal += 1;
+    else if (item.category === "parking") parking += 1;
+    else if (item.category === "event") event += 1;
+    else if (item.category === "photo") photo += 1;
+  }
+  return { all: items.length, normal, parking, event, photo };
+}
+
+export function scopeNormalizedFiles(
+  items: readonly NormalizedLocalFile[],
+  category: LocalCategoryScope,
+): readonly NormalizedLocalFile[] {
+  if (category === "all") return items;
+  return items.filter((item) => item.category === category);
+}
+
+export function showLocalCategorySectionInFilters(category: LocalCategoryScope): boolean {
+  return category === "all";
+}
+
+/** Drop multi-select category filters when a top chip other than All is active. */
+export function sanitizeLocalFiltersForCategoryScope(
+  filters: LocalLibraryFilters,
+  category: LocalCategoryScope,
+): LocalLibraryFilters {
+  if (category === "all" || filters.categories.length === 0) return filters;
+  return { ...filters, categories: [] };
+}
+
 export function filterNormalizedFiles(
   items: readonly NormalizedLocalFile[],
   filters: LocalLibraryFilters,
@@ -188,9 +245,7 @@ export function countActiveFilterGroups(filters: LocalLibraryFilters): number {
 }
 
 function formatDayChip(day: string): string {
-  const d = new Date(`${day}T12:00:00`);
-  if (!Number.isFinite(d.getTime())) return day;
-  return d.toLocaleDateString("ro-RO", { day: "numeric", month: "short" });
+  return formatRecordingDate(`${day} 12:00:00`);
 }
 
 export function buildFilterChips(filters: LocalLibraryFilters): FilterChip[] {
@@ -212,7 +267,14 @@ export function buildFilterChips(filters: LocalLibraryFilters): FilterChip[] {
     });
   }
   for (const cat of filters.categories) {
-    const label = cat === "normal" ? "Normal" : cat === "parking" ? "Parking" : "Event";
+    const label =
+      cat === "normal"
+        ? "Normal"
+        : cat === "parking"
+          ? "Parking"
+          : cat === "event"
+            ? "Event"
+            : "Photos";
     chips.push({ id: `cat-${cat}`, group: "category", label });
   }
   for (const mt of filters.mediaTypes) {

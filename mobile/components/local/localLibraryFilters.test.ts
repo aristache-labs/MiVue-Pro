@@ -14,12 +14,16 @@ import {
   buildFilterChips,
   clearFilterGroup,
   countActiveFilterGroups,
+  countLocalCategories,
   EMPTY_FILTERS,
   fileMatchesFilters,
   filterNormalizedFiles,
   minutesInTimeRange,
   normalizeLocalFile,
   pruneSelectionToUris,
+  sanitizeLocalFiltersForCategoryScope,
+  scopeNormalizedFiles,
+  showLocalCategorySectionInFilters,
   type LocalLibraryFilters,
 } from "./localLibraryFilters";
 
@@ -119,17 +123,43 @@ test("overnight time range includes both sides of midnight", () => {
   assert.equal(filterNormalizedFiles(items, filters).length, 2);
 });
 
-test("category multi-select OR", () => {
+test("category multi-select OR includes Photos", () => {
   const items = [
     norm("FILE260719-100000F.MP4", "normal"),
     norm("PARK260719-100000F.MP4", "parking"),
     norm("EVNT260719-100000F.MP4", "event"),
+    normalizeLocalFile(file("SHOT260719-100000F.JPG")),
   ];
   const filters: LocalLibraryFilters = {
     ...EMPTY_FILTERS,
-    categories: ["parking", "event"],
+    categories: ["parking", "photo"],
   };
-  assert.equal(filterNormalizedFiles(items, filters).length, 2);
+  const out = filterNormalizedFiles(items, filters);
+  assert.equal(out.length, 2);
+  assert.ok(out.some((i) => i.category === "parking"));
+  assert.ok(out.some((i) => i.category === "photo"));
+});
+
+test("top category scope All Normal Parking Event Photos", () => {
+  const items = [
+    norm("FILE260719-100000F.MP4", "normal"),
+    norm("PARK260719-100000F.MP4", "parking"),
+    norm("EVNT260719-100000F.MP4", "event"),
+    normalizeLocalFile(file("SHOT260719-100000F.JPG")),
+  ];
+  const counts = countLocalCategories(items);
+  assert.equal(counts.all, 4);
+  assert.equal(counts.normal, 1);
+  assert.equal(counts.parking, 1);
+  assert.equal(counts.event, 1);
+  assert.equal(counts.photo, 1);
+  assert.equal(scopeNormalizedFiles(items, "parking").length, 1);
+  assert.equal(scopeNormalizedFiles(items, "photo")[0]?.category, "photo");
+  assert.equal(showLocalCategorySectionInFilters("all"), true);
+  assert.equal(showLocalCategorySectionInFilters("normal"), false);
+  const dirty: LocalLibraryFilters = { ...EMPTY_FILTERS, categories: ["parking"] };
+  assert.deepEqual(sanitizeLocalFiltersForCategoryScope(dirty, "event").categories, []);
+  assert.deepEqual(sanitizeLocalFiltersForCategoryScope(dirty, "all").categories, ["parking"]);
 });
 
 test("videos and photos media type", () => {

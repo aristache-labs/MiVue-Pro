@@ -30,11 +30,13 @@ import {
   EMPTY_FILTERS,
   filterNormalizedFiles,
   localTodayKey,
+  RECORDING_CATEGORIES,
+  showLocalCategorySectionInFilters,
   TIME_PRESETS,
+  type LocalCategoryScope,
   type LocalLibraryFilters,
   type MediaTypeFilter,
   type NormalizedLocalFile,
-  type RecordingCategory,
 } from "@/components/local/localLibraryFilters";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -43,6 +45,8 @@ interface LocalFilterSheetProps {
   readonly visible: boolean;
   readonly initial: LocalLibraryFilters;
   readonly normalized: readonly NormalizedLocalFile[];
+  /** Top category chip — Category section only when All. */
+  readonly categoryScope?: LocalCategoryScope;
   readonly onClose: () => void;
   readonly onApply: (filters: LocalLibraryFilters) => void;
 }
@@ -169,6 +173,7 @@ export function LocalFilterSheet({
   visible,
   initial,
   normalized,
+  categoryScope = "all",
   onClose,
   onApply,
 }: LocalFilterSheetProps) {
@@ -177,6 +182,7 @@ export function LocalFilterSheet({
   const [draft, setDraft] = useState(initial);
   const [activePicker, setActivePicker] = useState<PickerField | null>(null);
   const [iosTemp, setIosTemp] = useState<Date | null>(null);
+  const showCategory = showLocalCategorySectionInFilters(categoryScope);
 
   useEffect(() => {
     if (visible) {
@@ -425,19 +431,33 @@ export function LocalFilterSheet({
               </View>
             ) : null}
 
-            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
-              Recording category
-            </Text>
-            <View style={styles.rowWrap}>
-              {(["normal", "parking", "event"] as RecordingCategory[]).map((cat) => (
-                <Chip
-                  key={cat}
-                  label={cat === "normal" ? "Normal" : cat === "parking" ? "Parking" : "Event"}
-                  selected={draft.categories.includes(cat)}
-                  onPress={() => setDraft({ ...draft, categories: toggleIn(draft.categories, cat) })}
-                />
-              ))}
-            </View>
+            {showCategory ? (
+              <>
+                <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+                  Category
+                </Text>
+                <View style={styles.rowWrap}>
+                  {RECORDING_CATEGORIES.map((cat) => (
+                    <Chip
+                      key={cat}
+                      label={
+                        cat === "normal"
+                          ? "Normal"
+                          : cat === "parking"
+                            ? "Parking"
+                            : cat === "event"
+                              ? "Event"
+                              : "Photos"
+                      }
+                      selected={draft.categories.includes(cat)}
+                      onPress={() =>
+                        setDraft({ ...draft, categories: toggleIn(draft.categories, cat) })
+                      }
+                    />
+                  ))}
+                </View>
+              </>
+            ) : null}
 
             <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
               Media type
