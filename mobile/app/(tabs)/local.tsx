@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
 import { router, useNavigation } from "expo-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -20,6 +21,14 @@ import {
 } from "react-native";
 
 import { formatDuration } from "@/components/mediaMeta";
+import {
+  deleteLocalA11yLabel,
+  deleteLocalButtonLabel,
+  deleteLocalPartialMessage,
+  deleteLocalSuccessMessage,
+  deleteLocalTitle,
+  selectAllFilteredA11yLabel,
+} from "@/components/local/localCopy";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
 import {
   buildFilterChips,
@@ -117,7 +126,7 @@ const LibraryCard = memo(function LibraryCard({
         accessibilityLabel={
           selecting
             ? selected
-              ? `${item.name}, selected`
+              ? `Deselect ${item.name}`
               : `Select ${item.name}`
             : undefined
         }
@@ -126,7 +135,14 @@ const LibraryCard = memo(function LibraryCard({
           <Pressable
             onPress={() => (selecting ? onToggleSelect(item.uri) : openLocalMedia(item))}
             accessibilityRole="button"
-            accessibilityLabel={selecting ? `Select ${item.name}` : playA11y}
+            accessibilityLabel={
+              selecting
+                ? selected
+                  ? `Deselect ${item.name}`
+                  : `Select ${item.name}`
+                : playA11y
+            }
+            accessibilityState={selecting ? { selected } : undefined}
             style={({ pressed }) => [styles.thumbPress, { opacity: pressed ? 0.82 : 1 }]}
           >
             <VideoThumbnail uri={item.uri} kind={item.kind} width={THUMB_W} height={THUMB_H} />
@@ -153,17 +169,29 @@ const LibraryCard = memo(function LibraryCard({
                 </View>
               </>
             ) : (
-              <View
-                pointerEvents="none"
-                style={[
-                  styles.selectMark,
-                  {
-                    backgroundColor: selected ? colors.brand : colors.surface,
-                    borderColor: selected ? colors.brand : colors.border,
-                  },
-                ]}
-              >
-                {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
+              <View pointerEvents="none" style={styles.selectMarkHit}>
+                <View
+                  style={[
+                    styles.selectMark,
+                    selected
+                      ? {
+                          backgroundColor: colors.brand,
+                          borderColor: colors.brand,
+                        }
+                      : {
+                          backgroundColor: "transparent",
+                          borderColor: "rgba(255,255,255,0.95)",
+                          // Dark rim for contrast on light thumbnails
+                          shadowColor: "#000",
+                          shadowOpacity: 0.55,
+                          shadowRadius: 1.5,
+                          shadowOffset: { width: 0, height: 0 },
+                          elevation: 2,
+                        },
+                  ]}
+                >
+                  {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
+                </View>
               </View>
             )}
             {durationSec !== undefined && durationSec > 0 ? (
@@ -347,6 +375,15 @@ export default function LocalLibraryScreen() {
     setDeleteConfirmOpen(false);
   }, []);
 
+  // Leaving Local Library (tab change / blur) clears selection — no file changes.
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        exitSelection();
+      };
+    }, [exitSelection]),
+  );
+
   const applyFilters = useCallback(
     (next: LocalLibraryFilters) => {
       setFilters(next);
@@ -378,17 +415,23 @@ export default function LocalLibraryScreen() {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
       else next.add(uri);
+      void AccessibilityInfo.announceForAccessibility(`${next.size} selected`);
       return next;
     });
   }, []);
 
   const selectAllFiltered = useCallback(() => {
-    setSelected(new Set(filteredFiles.map((f) => f.uri)));
+    const uris = filteredFiles.map((f) => f.uri);
+    setSelected(new Set(uris));
+    void AccessibilityInfo.announceForAccessibility(
+      `Selected ${uris.length} filtered results`,
+    );
   }, [filteredFiles]);
 
   const deselectAll = useCallback(() => {
     setSelected(new Set());
     setDeleteConfirmOpen(false);
+    void AccessibilityInfo.announceForAccessibility("Deselect all");
   }, []);
 
   const confirmSingleDelete = useCallback(
@@ -411,18 +454,18 @@ export default function LocalLibraryScreen() {
   const confirmBatchDelete = useCallback(() => {
     const n = selectedFiles.length;
     if (n === 0 || deleting) return;
-    setDeleteConfirmOpen(false);
     void actionGateRef.current(async () => {
       setDeleting(true);
       try {
         const result = await deleteLocalFilesBatch(selectedFiles);
-        exitSelection();
         const msg =
           result.failed === 0
-            ? `${result.deleted} local files deleted`
-            : `${result.deleted} deleted · ${result.failed} could not be deleted`;
+            ? deleteLocalSuccessMessage(result.deleted)
+            : deleteLocalPartialMessage(result.deleted, result.failed);
         setStatusMessage(msg);
         void AccessibilityInfo.announceForAccessibility(msg);
+        setDeleteConfirmOpen(false);
+        exitSelection();
       } finally {
         setDeleting(false);
       }
@@ -457,7 +500,7 @@ export default function LocalLibraryScreen() {
             }}
             accessibilityRole="button"
             accessibilityLabel={
-              allSelected ? "Deselect all" : `Select all ${filteredFiles.length} results`
+              allSelected ? "Deselect all" : selectAllFilteredA11yLabel(filteredFiles.length)
             }
             hitSlop={HitSlop44}
             style={styles.headerSideBtn}
@@ -642,17 +685,20 @@ export default function LocalLibraryScreen() {
           onPress={() => setDeleteConfirmOpen(true)}
           disabled={!showDeleteBar || deleting}
           accessibilityRole="button"
-          accessibilityLabel={`Delete ${selected.size} local files`}
+          accessibilityLabel={deleteLocalA11yLabel(selected.size)}
           style={({ pressed }) => [
             styles.selectionDeleteBtn,
             {
               opacity: pressed || deleting ? 0.75 : 1,
+              minHeight: LOCAL_ACTION_HIT,
             },
           ]}
         >
           <Ionicons name="trash-outline" size={16} color={colors.danger} style={{ marginRight: 8 }} />
           <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 14 }}>
-            Delete local{selected.size > 0 ? ` · ${selected.size}` : ""}
+            Delete local
+            {selected.size > 0 ? ` · ${selected.size}` : ""}
+            {selectedBytes > 0 ? ` · ${formatSelectionSize(selectedBytes)}` : ""}
           </Text>
         </Pressable>
       </Animated.View>
@@ -740,7 +786,9 @@ export default function LocalLibraryScreen() {
         animationType="fade"
         visible={deleteConfirmOpen && selecting && selected.size > 0}
         statusBarTranslucent
-        onRequestClose={() => setDeleteConfirmOpen(false)}
+        onRequestClose={() => {
+          if (!deleting) setDeleteConfirmOpen(false);
+        }}
       >
         <View style={styles.selectionOverlay}>
           {Platform.OS === "ios" ? (
@@ -748,8 +796,10 @@ export default function LocalLibraryScreen() {
           ) : null}
           <Pressable
             style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(8,12,20,0.55)" }]}
-            onPress={() => setDeleteConfirmOpen(false)}
-            accessibilityLabel="Cancel delete"
+            onPress={() => {
+              if (!deleting) setDeleteConfirmOpen(false);
+            }}
+            accessibilityLabel="Cancel deletion"
           />
           <View
             style={[
@@ -763,7 +813,7 @@ export default function LocalLibraryScreen() {
             accessibilityViewIsModal
           >
             <Text style={[styles.selectionTitle, { color: colors.text }]}>
-              Delete {selected.size} local files?
+              {deleteLocalTitle(selected.size)}
             </Text>
             <Text style={[styles.selectionSub, { color: colors.textMuted }]}>
               This will remove {formatSelectionSize(selectedBytes)} from this device.
@@ -775,7 +825,7 @@ export default function LocalLibraryScreen() {
               onPress={confirmBatchDelete}
               disabled={deleting}
               accessibilityRole="button"
-              accessibilityLabel={`Delete ${selected.size} local files`}
+              accessibilityLabel={deleteLocalA11yLabel(selected.size)}
               style={({ pressed }) => [
                 styles.deleteLocalBtn,
                 {
@@ -793,16 +843,18 @@ export default function LocalLibraryScreen() {
                 <>
                   <Ionicons name="trash-outline" size={18} color={colors.danger} style={{ marginRight: 8 }} />
                   <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 16 }}>
-                    Delete local files
+                    {deleteLocalButtonLabel(selected.size)}
                   </Text>
                 </>
               )}
             </Pressable>
             <Pressable
-              onPress={() => setDeleteConfirmOpen(false)}
+              onPress={() => {
+                if (!deleting) setDeleteConfirmOpen(false);
+              }}
               disabled={deleting}
               accessibilityRole="button"
-              accessibilityLabel="Cancel"
+              accessibilityLabel="Cancel deletion"
               hitSlop={8}
               style={({ pressed }) => [
                 styles.selectionSecondary,
@@ -936,14 +988,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  selectMark: {
+  selectMarkHit: {
     position: "absolute",
-    top: 6,
-    left: 6,
+    top: 0,
+    left: 0,
+    width: LOCAL_ACTION_HIT,
+    height: LOCAL_ACTION_HIT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectMark: {
     width: 22,
     height: 22,
     borderRadius: 11,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },

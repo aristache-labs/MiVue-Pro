@@ -1,17 +1,30 @@
+import DateTimePicker, {
+  type DateTimePickerEvent,
+} from "@react-native-community/datetimepicker";
 import { useEffect, useMemo, useState } from "react";
 import {
-  KeyboardAvoidingView,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import {
+  clampRangeAfterEnd,
+  clampRangeAfterStart,
+  dateToDayKey,
+  dateToHhmm,
+  dayKeyToDate,
+  formatDayDisplay,
+  formatTimeDisplay,
+  hhmmToDate,
+  pickerA11yLabel,
+  type PickerField,
+} from "@/components/local/localDateTime";
 import {
   datePreset,
   EMPTY_FILTERS,
@@ -23,8 +36,8 @@ import {
   type NormalizedLocalFile,
   type RecordingCategory,
 } from "@/components/local/localLibraryFilters";
-import { Type, useAppTheme } from "@/constants/Theme";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 interface LocalFilterSheetProps {
   readonly visible: boolean;
@@ -66,8 +79,90 @@ function Chip({
   );
 }
 
+function FieldButton({
+  label,
+  value,
+  a11yLabel,
+  onPress,
+}: {
+  readonly label?: string;
+  readonly value: string;
+  readonly a11yLabel: string;
+  readonly onPress: () => void;
+}) {
+  const { colors, radius } = useAppTheme();
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={a11yLabel}
+      style={({ pressed }) => [
+        styles.fieldBtn,
+        {
+          borderColor: colors.border,
+          backgroundColor: colors.surface,
+          borderRadius: radius.sm,
+          opacity: pressed ? 0.8 : 1,
+          flex: label ? 1 : undefined,
+        },
+      ]}
+    >
+      {label ? (
+        <Text style={[styles.fieldLabel, { color: colors.textMuted }]}>{label}</Text>
+      ) : null}
+      <Text style={[styles.fieldValue, { color: colors.text }]} numberOfLines={1}>
+        {value}
+      </Text>
+    </Pressable>
+  );
+}
+
 function toggleIn<T extends string>(list: readonly T[], value: T): T[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
+}
+
+function pickerValue(draft: LocalLibraryFilters, field: PickerField): Date {
+  switch (field) {
+    case "singleDay":
+      return dayKeyToDate(draft.singleDay ?? localTodayKey());
+    case "rangeStart":
+      return dayKeyToDate(draft.rangeStart ?? localTodayKey());
+    case "rangeEnd":
+      return dayKeyToDate(draft.rangeEnd ?? draft.rangeStart ?? localTodayKey());
+    case "singleTime":
+      return hhmmToDate(draft.singleTime ?? "12:00");
+    case "timeFrom":
+      return hhmmToDate(draft.timeFrom ?? "06:00");
+    case "timeTo":
+      return hhmmToDate(draft.timeTo ?? "18:00");
+    default:
+      return new Date();
+  }
+}
+
+function applyPickerDate(
+  draft: LocalLibraryFilters,
+  field: PickerField,
+  date: Date,
+): LocalLibraryFilters {
+  if (field === "singleDay") {
+    return { ...draft, singleDay: dateToDayKey(date) };
+  }
+  if (field === "rangeStart") {
+    const clamped = clampRangeAfterStart(dateToDayKey(date), draft.rangeEnd);
+    return { ...draft, ...clamped };
+  }
+  if (field === "rangeEnd") {
+    const clamped = clampRangeAfterEnd(draft.rangeStart, dateToDayKey(date));
+    return { ...draft, ...clamped };
+  }
+  if (field === "singleTime") {
+    return { ...draft, singleTime: dateToHhmm(date) };
+  }
+  if (field === "timeFrom") {
+    return { ...draft, timeFrom: dateToHhmm(date) };
+  }
+  return { ...draft, timeTo: dateToHhmm(date) };
 }
 
 export function LocalFilterSheet({
@@ -80,9 +175,15 @@ export function LocalFilterSheet({
   const { colors, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(initial);
+  const [activePicker, setActivePicker] = useState<PickerField | null>(null);
+  const [iosTemp, setIosTemp] = useState<Date | null>(null);
 
   useEffect(() => {
-    if (visible) setDraft(initial);
+    if (visible) {
+      setDraft(initial);
+      setActivePicker(null);
+      setIosTemp(null);
+    }
   }, [visible, initial]);
 
   const draftCount = useMemo(
@@ -91,14 +192,43 @@ export function LocalFilterSheet({
   );
 
   const today = localTodayKey();
+  const pickerMode: "date" | "time" =
+    activePicker === "singleTime" || activePicker === "timeFrom" || activePicker === "timeTo"
+      ? "time"
+      : "date";
+
+  const openPicker = (field: PickerField) => {
+    setIosTemp(pickerValue(draft, field));
+    setActivePicker(field);
+  };
+
+  const dismissPicker = () => {
+    setActivePicker(null);
+    setIosTemp(null);
+  };
+
+  const commitPicker = (date: Date) => {
+    if (!activePicker) return;
+    setDraft((prev) => applyPickerDate(prev, activePicker, date));
+    dismissPicker();
+  };
+
+  const onNativeChange = (event: DateTimePickerEvent, date?: Date) => {
+    if (event.type === "dismissed") {
+      dismissPicker();
+      return;
+    }
+    if (!date || !activePicker) return;
+    if (Platform.OS === "android") {
+      commitPicker(date);
+      return;
+    }
+    setIosTemp(date);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <KeyboardAvoidingView
-        style={styles.avoid}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-      >
+      <View style={styles.avoid}>
         <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss filters" />
         <View
           style={[
@@ -126,239 +256,281 @@ export function LocalFilterSheet({
 
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode="on-drag"
             contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 16 }}
-          >          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
-          <View style={styles.rowWrap}>
-            <Chip
-              label="Any"
-              selected={draft.dateMode === "any"}
-              onPress={() =>
-                setDraft({
-                  ...draft,
-                  dateMode: "any",
-                  singleDay: undefined,
-                  rangeStart: undefined,
-                  rangeEnd: undefined,
-                })
-              }
-            />
-            <Chip
-              label="Single day"
-              selected={draft.dateMode === "single"}
-              onPress={() =>
-                setDraft({
-                  ...draft,
-                  dateMode: "single",
-                  singleDay: draft.singleDay ?? today,
-                })
-              }
-            />
-            <Chip
-              label="Date range"
-              selected={draft.dateMode === "range"}
-              onPress={() =>
-                setDraft({
-                  ...draft,
-                  dateMode: "range",
-                  rangeStart: draft.rangeStart ?? today,
-                  rangeEnd: draft.rangeEnd ?? today,
-                })
-              }
-            />
-          </View>
-          {draft.dateMode !== "any" ? (
+          >
+            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
             <View style={styles.rowWrap}>
               <Chip
-                label="Today"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("today", today) })}
+                label="Any"
+                selected={draft.dateMode === "any"}
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    dateMode: "any",
+                    singleDay: undefined,
+                    rangeStart: undefined,
+                    rangeEnd: undefined,
+                  })
+                }
               />
               <Chip
-                label="Yesterday"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("yesterday", today) })}
+                label="Single day"
+                selected={draft.dateMode === "single"}
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    dateMode: "single",
+                    singleDay: draft.singleDay ?? today,
+                  })
+                }
               />
               <Chip
-                label="Last 7 days"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("last7", today) })}
-              />
-              <Chip
-                label="This month"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("thisMonth", today) })}
+                label="Date range"
+                selected={draft.dateMode === "range"}
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    dateMode: "range",
+                    rangeStart: draft.rangeStart ?? today,
+                    rangeEnd: draft.rangeEnd ?? today,
+                  })
+                }
               />
             </View>
-          ) : null}
-          {draft.dateMode === "single" ? (
-            <TextInput
-              value={draft.singleDay ?? ""}
-              onChangeText={(singleDay) => setDraft({ ...draft, singleDay })}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textFaint}
-              autoCapitalize="none"
-              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              accessibilityLabel="Single day"
-            />
-          ) : null}
-          {draft.dateMode === "range" ? (
-            <View style={styles.rangeRow}>
-              <TextInput
-                value={draft.rangeStart ?? ""}
-                onChangeText={(rangeStart) => setDraft({ ...draft, rangeStart })}
-                placeholder="Start YYYY-MM-DD"
-                placeholderTextColor={colors.textFaint}
-                autoCapitalize="none"
-                style={[styles.input, styles.flex, { color: colors.text, borderColor: colors.border }]}
-                accessibilityLabel="Start date"
-              />
-              <TextInput
-                value={draft.rangeEnd ?? ""}
-                onChangeText={(rangeEnd) => setDraft({ ...draft, rangeEnd })}
-                placeholder="End YYYY-MM-DD"
-                placeholderTextColor={colors.textFaint}
-                autoCapitalize="none"
-                style={[styles.input, styles.flex, { color: colors.text, borderColor: colors.border }]}
-                accessibilityLabel="End date"
-              />
-            </View>
-          ) : null}
-
-          <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>Time</Text>
-          <View style={styles.rowWrap}>
-            <Chip
-              label="Any"
-              selected={draft.timeMode === "any"}
-              onPress={() =>
-                setDraft({
-                  ...draft,
-                  timeMode: "any",
-                  singleTime: undefined,
-                  timeFrom: undefined,
-                  timeTo: undefined,
-                })
-              }
-            />
-            <Chip
-              label="Single time"
-              selected={draft.timeMode === "single"}
-              onPress={() =>
-                setDraft({ ...draft, timeMode: "single", singleTime: draft.singleTime ?? "12:00" })
-              }
-            />
-            <Chip
-              label="Time range"
-              selected={draft.timeMode === "range"}
-              onPress={() =>
-                setDraft({
-                  ...draft,
-                  timeMode: "range",
-                  timeFrom: draft.timeFrom ?? "06:00",
-                  timeTo: draft.timeTo ?? "18:00",
-                })
-              }
-            />
-          </View>
-          {draft.timeMode === "range" ? (
-            <View style={styles.rowWrap}>
-              {(Object.keys(TIME_PRESETS) as (keyof typeof TIME_PRESETS)[]).map((key) => (
+            {draft.dateMode !== "any" ? (
+              <View style={styles.rowWrap}>
                 <Chip
-                  key={key}
-                  label={key[0]!.toUpperCase() + key.slice(1)}
-                  selected={
-                    draft.timeFrom === TIME_PRESETS[key].timeFrom &&
-                    draft.timeTo === TIME_PRESETS[key].timeTo
-                  }
-                  onPress={() =>
-                    setDraft({
-                      ...draft,
-                      timeMode: "range",
-                      ...TIME_PRESETS[key],
-                    })
-                  }
+                  label="Today"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("today", today) })}
+                />
+                <Chip
+                  label="Yesterday"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("yesterday", today) })}
+                />
+                <Chip
+                  label="Last 7 days"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("last7", today) })}
+                />
+                <Chip
+                  label="This month"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("thisMonth", today) })}
+                />
+              </View>
+            ) : null}
+            {draft.dateMode === "single" ? (
+              <FieldButton
+                value={formatDayDisplay(draft.singleDay)}
+                a11yLabel={pickerA11yLabel("singleDay")}
+                onPress={() => openPicker("singleDay")}
+              />
+            ) : null}
+            {draft.dateMode === "range" ? (
+              <View style={styles.rangeRow}>
+                <FieldButton
+                  label="From"
+                  value={formatDayDisplay(draft.rangeStart)}
+                  a11yLabel={pickerA11yLabel("rangeStart")}
+                  onPress={() => openPicker("rangeStart")}
+                />
+                <FieldButton
+                  label="To"
+                  value={formatDayDisplay(draft.rangeEnd)}
+                  a11yLabel={pickerA11yLabel("rangeEnd")}
+                  onPress={() => openPicker("rangeEnd")}
+                />
+              </View>
+            ) : null}
+
+            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>Time</Text>
+            <View style={styles.rowWrap}>
+              <Chip
+                label="Any"
+                selected={draft.timeMode === "any"}
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    timeMode: "any",
+                    singleTime: undefined,
+                    timeFrom: undefined,
+                    timeTo: undefined,
+                  })
+                }
+              />
+              <Chip
+                label="Single time"
+                selected={draft.timeMode === "single"}
+                onPress={() =>
+                  setDraft({ ...draft, timeMode: "single", singleTime: draft.singleTime ?? "12:00" })
+                }
+              />
+              <Chip
+                label="Time range"
+                selected={draft.timeMode === "range"}
+                onPress={() =>
+                  setDraft({
+                    ...draft,
+                    timeMode: "range",
+                    timeFrom: draft.timeFrom ?? "06:00",
+                    timeTo: draft.timeTo ?? "18:00",
+                  })
+                }
+              />
+            </View>
+            {draft.timeMode === "range" ? (
+              <View style={styles.rowWrap}>
+                {(Object.keys(TIME_PRESETS) as (keyof typeof TIME_PRESETS)[]).map((key) => (
+                  <Chip
+                    key={key}
+                    label={key[0]!.toUpperCase() + key.slice(1)}
+                    selected={
+                      draft.timeFrom === TIME_PRESETS[key].timeFrom &&
+                      draft.timeTo === TIME_PRESETS[key].timeTo
+                    }
+                    onPress={() =>
+                      setDraft({
+                        ...draft,
+                        timeMode: "range",
+                        ...TIME_PRESETS[key],
+                      })
+                    }
+                  />
+                ))}
+              </View>
+            ) : null}
+            {draft.timeMode === "single" ? (
+              <FieldButton
+                value={formatTimeDisplay(draft.singleTime)}
+                a11yLabel={pickerA11yLabel("singleTime")}
+                onPress={() => openPicker("singleTime")}
+              />
+            ) : null}
+            {draft.timeMode === "range" ? (
+              <View style={styles.rangeRow}>
+                <FieldButton
+                  label="From"
+                  value={formatTimeDisplay(draft.timeFrom)}
+                  a11yLabel={pickerA11yLabel("timeFrom")}
+                  onPress={() => openPicker("timeFrom")}
+                />
+                <FieldButton
+                  label="To"
+                  value={formatTimeDisplay(draft.timeTo)}
+                  a11yLabel={pickerA11yLabel("timeTo")}
+                  onPress={() => openPicker("timeTo")}
+                />
+              </View>
+            ) : null}
+
+            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+              Recording category
+            </Text>
+            <View style={styles.rowWrap}>
+              {(["normal", "parking", "event"] as RecordingCategory[]).map((cat) => (
+                <Chip
+                  key={cat}
+                  label={cat === "normal" ? "Normal" : cat === "parking" ? "Parking" : "Event"}
+                  selected={draft.categories.includes(cat)}
+                  onPress={() => setDraft({ ...draft, categories: toggleIn(draft.categories, cat) })}
                 />
               ))}
             </View>
-          ) : null}
-          {draft.timeMode === "single" ? (
-            <TextInput
-              value={draft.singleTime ?? ""}
-              onChangeText={(singleTime) => setDraft({ ...draft, singleTime })}
-              placeholder="HH:mm"
-              placeholderTextColor={colors.textFaint}
-              autoCapitalize="none"
-              style={[styles.input, { color: colors.text, borderColor: colors.border }]}
-              accessibilityLabel="Single time"
-            />
-          ) : null}
-          {draft.timeMode === "range" ? (
-            <View style={styles.rangeRow}>
-              <TextInput
-                value={draft.timeFrom ?? ""}
-                onChangeText={(timeFrom) => setDraft({ ...draft, timeFrom })}
-                placeholder="From HH:mm"
-                placeholderTextColor={colors.textFaint}
-                style={[styles.input, styles.flex, { color: colors.text, borderColor: colors.border }]}
-                accessibilityLabel="From time"
-              />
-              <TextInput
-                value={draft.timeTo ?? ""}
-                onChangeText={(timeTo) => setDraft({ ...draft, timeTo })}
-                placeholder="To HH:mm"
-                placeholderTextColor={colors.textFaint}
-                style={[styles.input, styles.flex, { color: colors.text, borderColor: colors.border }]}
-                accessibilityLabel="To time"
-              />
+
+            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+              Media type
+            </Text>
+            <View style={styles.rowWrap}>
+              {(["video", "image"] as MediaTypeFilter[]).map((mt) => (
+                <Chip
+                  key={mt}
+                  label={mt === "video" ? "Videos" : "Photos"}
+                  selected={draft.mediaTypes.includes(mt)}
+                  onPress={() => setDraft({ ...draft, mediaTypes: toggleIn(draft.mediaTypes, mt) })}
+                />
+              ))}
             </View>
-          ) : null}
+          </ScrollView>
 
-          <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
-            Recording category
-          </Text>
-          <View style={styles.rowWrap}>
-            {(["normal", "parking", "event"] as RecordingCategory[]).map((cat) => (
-              <Chip
-                key={cat}
-                label={cat === "normal" ? "Normal" : cat === "parking" ? "Parking" : "Event"}
-                selected={draft.categories.includes(cat)}
-                onPress={() => setDraft({ ...draft, categories: toggleIn(draft.categories, cat) })}
-              />
-            ))}
-          </View>
-
-          <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>Media type</Text>
-          <View style={styles.rowWrap}>
-            {(["video", "image"] as MediaTypeFilter[]).map((mt) => (
-              <Chip
-                key={mt}
-                label={mt === "video" ? "Videos" : "Photos"}
-                selected={draft.mediaTypes.includes(mt)}
-                onPress={() => setDraft({ ...draft, mediaTypes: toggleIn(draft.mediaTypes, mt) })}
-              />
-            ))}
-          </View>
-        </ScrollView>
-
-        <Pressable
-          onPress={() => onApply(draft)}
-          accessibilityRole="button"
-          accessibilityLabel={`Show ${draftCount} results`}
-          style={({ pressed }) => [
-            styles.applyBtn,
-            {
-              backgroundColor: colors.brand,
-              borderRadius: radius.md,
-              marginHorizontal: spacing.lg,
-              opacity: pressed ? 0.85 : 1,
-              minHeight: LOCAL_ACTION_HIT,
-            },
-          ]}
-        >
-          <Text style={[styles.applyText, { color: colors.onBrand }]}>Show {draftCount} results</Text>
-        </Pressable>
+          <Pressable
+            onPress={() => onApply(draft)}
+            accessibilityRole="button"
+            accessibilityLabel={`Show ${draftCount} results`}
+            style={({ pressed }) => [
+              styles.applyBtn,
+              {
+                backgroundColor: colors.brand,
+                borderRadius: radius.md,
+                marginHorizontal: spacing.lg,
+                opacity: pressed ? 0.85 : 1,
+                minHeight: LOCAL_ACTION_HIT,
+              },
+            ]}
+          >
+            <Text style={[styles.applyText, { color: colors.onBrand }]}>Show {draftCount} results</Text>
+          </Pressable>
         </View>
-      </KeyboardAvoidingView>
+      </View>
+
+      {activePicker && Platform.OS === "android" ? (
+        <DateTimePicker
+          value={pickerValue(draft, activePicker)}
+          mode={pickerMode}
+          display="default"
+          minuteInterval={1}
+          onChange={onNativeChange}
+        />
+      ) : null}
+
+      {activePicker && Platform.OS === "ios" ? (
+        <Modal transparent animationType="fade" visible onRequestClose={dismissPicker}>
+          <Pressable style={styles.pickerBackdrop} onPress={dismissPicker} accessibilityLabel="Cancel" />
+          <View
+            style={[
+              styles.iosPickerSheet,
+              {
+                backgroundColor: colors.surfaceElevated,
+                paddingBottom: Math.max(insets.bottom, 12),
+                borderTopLeftRadius: radius.lg,
+                borderTopRightRadius: radius.lg,
+              },
+            ]}
+          >
+            <View style={styles.iosPickerHeader}>
+              <Pressable
+                onPress={dismissPicker}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={8}
+                style={styles.headerBtn}
+              >
+                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                  Cancel
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={() => commitPicker(iosTemp ?? pickerValue(draft, activePicker))}
+                accessibilityRole="button"
+                accessibilityLabel="Confirm"
+                hitSlop={8}
+                style={styles.headerBtn}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>Done</Text>
+              </Pressable>
+            </View>
+            <DateTimePicker
+              value={iosTemp ?? pickerValue(draft, activePicker)}
+              mode={pickerMode}
+              display="spinner"
+              minuteInterval={1}
+              onChange={onNativeChange}
+              style={{ alignSelf: "center" }}
+            />
+          </View>
+        </Modal>
+      ) : null}
     </Modal>
   );
 }
@@ -391,18 +563,32 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   chipText: { fontSize: 13, fontFamily: Type.fontSemi },
-  input: {
+  fieldBtn: {
     borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    fontFamily: Type.monoMed,
-    fontSize: 14,
     marginBottom: 8,
-    minHeight: 44,
+    minHeight: LOCAL_ACTION_HIT,
+    justifyContent: "center",
   },
+  fieldLabel: { fontSize: 11, fontFamily: Type.fontSemi, marginBottom: 2 },
+  fieldValue: { fontSize: 15, fontFamily: Type.fontSemi },
   rangeRow: { flexDirection: "row", gap: 8 },
-  flex: { flex: 1 },
   applyBtn: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   applyText: { fontSize: 16, fontFamily: Type.fontBold },
+  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
+  iosPickerSheet: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingTop: 4,
+  },
+  iosPickerHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    minHeight: 44,
+    alignItems: "center",
+  },
 });
