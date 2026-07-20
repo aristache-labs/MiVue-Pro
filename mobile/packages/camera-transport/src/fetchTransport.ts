@@ -57,7 +57,7 @@ export class FetchTransport implements Transport {
       if (timedOut || isAbortError(error)) {
         throw new TransportError(
           timedOut
-            ? `FetchTransport timed out after ${timeoutMs}ms — camera unreachable or HTTP/1.0 not compatible with Expo Go Fetch. Use Demo Mode, or a native build.`
+            ? `FetchTransport timed out after ${timeoutMs}ms — slow camera Wi‑Fi, HTTP/1.0 mismatch, or file too large for Expo Go Fetch. Use a smaller clip, Demo Mode, PC CLI, or native Http10Tcp.`
             : "FetchTransport aborted before completion.",
           timedOut ? "ETIMEDOUT" : "FETCH",
           { cause: error },

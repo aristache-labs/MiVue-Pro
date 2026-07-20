@@ -1,8 +1,14 @@
 import { router } from "expo-router";
-import { FlatList, Pressable, StyleSheet } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, StyleSheet } from "react-native";
 
 import { Text, View } from "@/components/Themed";
 import { useDemoMode } from "@/context/DemoModeContext";
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
 
 export default function QueueScreen() {
   const { demoMode, queueItems, queuePosition, shareCompleted, lastError, downloadDir } = useDemoMode();
@@ -17,7 +23,7 @@ export default function QueueScreen() {
 
       <Text style={styles.title}>Download queue</Text>
       <Text style={styles.subtitle}>
-        One active transfer at a time. Completed files appear in Local and can be shared to Files.
+        One active transfer at a time. Progress updates while downloading.
       </Text>
 
       {lastError ? <Text style={styles.error}>{lastError}</Text> : null}
@@ -38,16 +44,55 @@ export default function QueueScreen() {
               ? "image"
               : "other";
 
+          const received = item.bytesReceived ?? 0;
+          const total = item.expectedBytes > 0 ? item.expectedBytes : 0;
+          const percent =
+            item.status === "completed"
+              ? 100
+              : total > 0
+                ? Math.min(100, Math.round((received / total) * 100))
+                : 0;
+          const showBar = item.status === "active" || item.status === "completed";
+
           return (
             <View style={styles.card}>
               <Text style={styles.name}>{item.localName}</Text>
               <Text style={styles.meta}>
                 {item.status}
                 {position !== undefined ? ` · #${position} in queue` : ""}
-                {item.bytesReceived !== undefined
-                  ? ` · ${item.bytesReceived}/${item.expectedBytes} B`
-                  : ` · ${item.expectedBytes} B`}
+                {total > 0
+                  ? ` · ${formatBytes(received)} / ${formatBytes(total)}`
+                  : ` · ${formatBytes(item.expectedBytes)}`}
+                {showBar ? ` · ${percent}%` : ""}
               </Text>
+
+              {item.status === "active" ? (
+                <View style={styles.progressBlock}>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${Math.max(percent, received > 0 ? percent : 2)}%` }]} />
+                  </View>
+                  {received === 0 ? (
+                    <View style={styles.waitingRow}>
+                      <ActivityIndicator size="small" color="#1f4b3a" />
+                      <Text style={styles.waitingText}>Starting download…</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.progressLabel} accessibilityLiveRegion="polite">
+                      Downloading {percent}%
+                    </Text>
+                  )}
+                </View>
+              ) : null}
+
+              {item.status === "completed" ? (
+                <View style={styles.progressBlock}>
+                  <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, styles.progressDone, { width: "100%" }]} />
+                  </View>
+                  <Text style={styles.progressLabel}>Completed</Text>
+                </View>
+              ) : null}
+
               {item.errorMessage ? <Text style={styles.error}>{item.errorMessage}</Text> : null}
               {item.status === "completed" ? (
                 <View style={styles.actions}>
@@ -96,6 +141,20 @@ const styles = StyleSheet.create({
   },
   name: { fontWeight: "600" },
   meta: { fontSize: 12, opacity: 0.75, marginTop: 4 },
+  progressBlock: { marginTop: 10 },
+  progressTrack: {
+    height: 8,
+    backgroundColor: "#8883",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: 8,
+    backgroundColor: "#1f4b3a",
+  },
+  progressDone: { backgroundColor: "#2d6b52" },
+  progressLabel: { fontSize: 12, marginTop: 6, fontWeight: "600" },
+  waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 6 },
+  waitingText: { fontSize: 12, opacity: 0.75 },
   error: { color: "#b00020", marginTop: 4, fontSize: 12, marginBottom: 8 },
   actions: { marginTop: 10, gap: 8 },
   shareBtn: {

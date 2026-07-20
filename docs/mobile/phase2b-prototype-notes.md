@@ -45,8 +45,14 @@ npx eas-cli update --branch development --message "Native Http10Tcp client"
 |---|---|---|---|---|---|---|
 | — | `192.72.1.1` | Native HTTP/1.0 | blocked | — | — | așteaptă Apple Developer |
 
+## Limită download Expo Go
+
+- Download live folosește `expo-file-system` resumable (progress în Queue), nu buffer JS întreg.
+- Plafon soft **512 MiB**; clipurile foarte mari pot tot eșua pe Wi‑Fi lent al camerei.
+- Fallback: CLI pe PC sau native Http10Tcp după Apple Developer.
+
 ## Concluzie / cale înainte
 
-- Fetch pe Expo Go: **acceptat ca probe 2b** (list + download + share).
+- Fetch pe Expo Go: **acceptat ca probe 2b** (list + download mic/mediu + share).
 - Native Http10Tcp: **amânat** până la Apple Developer.
-- Continuare recomandată: **Faza 3 UI** pe Expo Go (Demo Mode + Fetch live unde merge), fără EAS iOS build.
+- Faza 3 UI: pe Expo Go (Demo + Fetch live sub plafon).

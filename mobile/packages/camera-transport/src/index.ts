@@ -6,6 +6,7 @@ export type {
 } from "./types";
 export { TransportError } from "./types";
 export { FetchTransport } from "./fetchTransport";
+export { ExpoFsStreamingTransport } from "./expoFsStreamingTransport";
 export { NativeTcpTransportStub } from "./nativeTcpStub";
 export { NativeTcpTransport, isNativeTcpAvailable } from "./nativeTcpTransport";
 export { assertLocalFileName, assertRemoteSdPath, isPrivateIpv4 } from "./pathSafety";

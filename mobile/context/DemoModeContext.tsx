@@ -6,7 +6,7 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import {
-  FetchTransport,
+  ExpoFsStreamingTransport,
   NativeTcpTransport,
   isNativeTcpAvailable,
   isPrivateIpv4,
@@ -20,6 +20,11 @@ import { CameraClient } from "../packages/protocol/src/index";
 
 const DEFAULT_HOST = "192.72.1.1";
 const HOST_KEY = "@laneory/camera_host_v1";
+/**
+ * Soft cap for Expo Go live downloads (FileSystem streaming to disk).
+ * Very large clips can still fail on slow camera Wi‑Fi; progress is visible in Queue.
+ */
+const FETCH_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 
 export interface LocalMediaFile {
   readonly name: string;
@@ -51,12 +56,33 @@ interface DemoModeContextValue {
 
 const DemoModeContext = createContext<DemoModeContextValue | undefined>(undefined);
 
-function createLiveTransport(host: string): Transport {
+function createLiveTransport(host: string, timeoutMs = 30_000): Transport {
   if (isNativeTcpAvailable()) {
-    return new NativeTcpTransport({ host, port: 80, timeoutMs: 5_000, userAgent: APP_USER_AGENT });
+    return new NativeTcpTransport({
+      host,
+      port: 80,
+      timeoutMs: Math.min(timeoutMs, 5_000),
+      userAgent: APP_USER_AGENT,
+    });
   }
-  // Expo Go: buffer whole file in JS — OK for short clips; prefer native streaming later.
-  return new FetchTransport({ host, port: 80, timeoutMs: 120_000, userAgent: APP_USER_AGENT });
+  // Expo Go: CGI via Fetch; file body via FileSystem download (progress + less JS RAM).
+  return new ExpoFsStreamingTransport({
+    host,
+    port: 80,
+    timeoutMs,
+    userAgent: APP_USER_AGENT,
+    fs: FileSystem,
+  });
+}
+
+function fetchTimeoutForBytes(sizeBytes: number): number {
+  // Worst-case ~150 KiB/s on camera AP + headroom.
+  const estimatedMs = Math.ceil((sizeBytes / (150 * 1024)) * 1000) + 60_000;
+  return Math.min(Math.max(estimatedMs, 180_000), 600_000);
+}
+
+function formatMiB(bytes: number): string {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 export function DemoModeProvider({ children }: { readonly children: React.ReactNode }) {
@@ -119,7 +145,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       downloadDir,
       onChange: (items) => {
         setQueueItems(items);
-        void refreshLocalFiles();
+        const justFinished = items.some(
+          (item) => item.status === "completed" || item.status === "failed",
+        );
+        if (justFinished) void refreshLocalFiles();
       },
     });
   }
@@ -214,10 +243,17 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             setLastError("Host must be a private IPv4 address.");
             return;
           }
-          queue.setTransport(createLiveTransport(cameraHost));
+          if (!nativeTcpReady && file.sizeBytes > FETCH_MAX_DOWNLOAD_BYTES) {
+            setLastError(
+              `${file.name} is ~${formatMiB(file.sizeBytes)}. Expo Go Fetch cannot download clips over ${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} (memory/timeout). Pick a smaller file, use Demo Mode, download via PC CLI, or wait for native Http10Tcp (Apple Developer).`,
+            );
+            return;
+          }
+          const timeoutMs = nativeTcpReady ? 5_000 : fetchTimeoutForBytes(file.sizeBytes);
+          queue.setTransport(createLiveTransport(cameraHost, timeoutMs));
           if (!nativeTcpReady) {
             setConnectionNote(
-              "Expo Go Fetch download (buffered). Large clips may be slow or fail; native streaming is more reliable.",
+              `Expo Go download with live progress (FileSystem). Max ~${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} per file.`,
             );
           }
         } else {
