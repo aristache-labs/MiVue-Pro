@@ -29,3 +29,14 @@ test("DemoTransport serves synthetic NMEA sidecar for GPS demo clip", async () =
   assert.ok(samples.length >= 20);
 });
 
+test("DemoTransport serves JPEG thumbnails under /thumb for videos", async () => {
+  const transport = new DemoTransport();
+  const path = "/thumb/Normal/F/DEMO260720-100000F.MP4";
+  const head = await transport.request({ method: "HEAD", path });
+  assert.equal(head.statusCode, 200);
+  const get = await transport.request({ method: "GET", path });
+  assert.equal(get.statusCode, 200);
+  assert.equal(get.body[0], 0xff);
+  assert.equal(get.body[1], 0xd8);
+});
+

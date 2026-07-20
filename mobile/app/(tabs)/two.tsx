@@ -12,30 +12,31 @@ import {
   View,
 } from "react-native";
 
-import { parseRecordedParts, transferRateBps } from "@/components/mediaMeta";
+import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
 import {
   actionsForStatus,
+  createQueueActionGate,
   filterVisibleQueueItems,
   formatCompactDateTime,
-  formatDurationHuman,
   formatEtaRemaining,
   formatQueueSummary,
   formatSizeMb,
   isExpandedCard,
+  QUEUE_ACTION_HIT_SLOP,
+  QUEUE_ACTION_VISUAL_HEIGHT,
+  QUEUE_LIST_BOTTOM_PADDING,
   queueDisplayPosition,
+  queueThumbSize,
   smoothRate,
   sortQueueForDisplay,
   type QueueAction,
 } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { VideoThumbnail } from "@/components/VideoThumbnail";
+import { QueueThumbnail } from "@/components/QueueThumbnail";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { QueueItem } from "@/packages/local-db/src/index";
-
-const THUMB_W = 72;
-const THUMB_H = 54;
 
 function kindFromName(name: string): "video" | "image" | "other" {
   const lower = name.toLowerCase();
@@ -44,28 +45,21 @@ function kindFromName(name: string): "video" | "image" | "other" {
   return "other";
 }
 
-function statusBadge(status: QueueItem["status"]): {
-  label: string;
-  fg: string;
-  bg: string;
-} {
-  // Colors resolved in component via theme tokens.
-  return {
-    label:
-      status === "active"
-        ? "Downloading"
-        : status === "paused"
-          ? "Paused"
-          : status === "queued"
-            ? "Queued"
-            : status === "failed"
-              ? "Failed"
-              : status === "cancelled"
-                ? "Cancelled"
-                : "Done",
-    fg: status,
-    bg: status,
-  };
+function statusLabel(status: QueueItem["status"]): string {
+  switch (status) {
+    case "active":
+      return "Downloading";
+    case "paused":
+      return "Paused";
+    case "queued":
+      return "Queued";
+    case "failed":
+      return "Failed";
+    case "cancelled":
+      return "Cancelled";
+    default:
+      return "Done";
+  }
 }
 
 export default function QueueScreen() {
@@ -80,14 +74,14 @@ export default function QueueScreen() {
     removeFromQueue,
     enqueueDownload,
     lastError,
-    downloadDir,
     files,
   } = useDemoMode();
 
   const startedAtRef = useRef(new Map<string, number>());
   const smoothedRateRef = useRef(new Map<string, number>());
-  const busyRef = useRef<string | undefined>(undefined);
-  const lastAnnouncedRef = useRef<Map<string, string>>(new Map());
+  const actionGateRef = useRef(createQueueActionGate());
+  const [actionBusy, setActionBusy] = useState(false);
+  const lastAnnouncedRef = useRef(new Map<string, string>());
   const [, setTick] = useState(0);
 
   const visibleItems = useMemo(
@@ -117,7 +111,6 @@ export default function QueueScreen() {
     return () => clearInterval(id);
   }, [visibleItems]);
 
-  // Announce meaningful status transitions (not every percent tick).
   useEffect(() => {
     for (const item of visibleItems) {
       const prev = lastAnnouncedRef.current.get(item.id);
@@ -143,25 +136,24 @@ export default function QueueScreen() {
 
   const runAction = useCallback(
     async (item: QueueItem, action: QueueAction) => {
-      const key = `${item.id}:${action}`;
-      if (busyRef.current) return;
-      busyRef.current = key;
-      try {
-        if (action === "pause") await pauseDownload(item.id);
-        else if (action === "resume") await resumeDownload(item.id);
-        else if (action === "cancel") await cancelDownload(item.id);
-        else if (action === "remove") {
-          // Queued items must be cancelled (still in the transfer lane).
-          if (item.status === "queued") await cancelDownload(item.id);
-          else await removeFromQueue(item.id);
-        } else if (action === "retry") {
-          const remote = files.find((f) => f.name === item.localName);
-          await removeFromQueue(item.id);
-          if (remote) await enqueueDownload(remote);
+      await actionGateRef.current(async () => {
+        setActionBusy(true);
+        try {
+          if (action === "pause") await pauseDownload(item.id);
+          else if (action === "resume") await resumeDownload(item.id);
+          else if (action === "cancel") await cancelDownload(item.id);
+          else if (action === "remove") {
+            if (item.status === "queued") await cancelDownload(item.id);
+            else await removeFromQueue(item.id);
+          } else if (action === "retry") {
+            const remote = files.find((f) => f.name === item.localName);
+            await removeFromQueue(item.id);
+            if (remote) await enqueueDownload(remote);
+          }
+        } finally {
+          setActionBusy(false);
         }
-      } finally {
-        busyRef.current = undefined;
-      }
+      });
     },
     [pauseDownload, resumeDownload, cancelDownload, removeFromQueue, enqueueDownload, files],
   );
@@ -176,11 +168,80 @@ export default function QueueScreen() {
         return { fg: colors.textMuted, bg: colors.surfaceMuted };
       case "failed":
         return { fg: colors.danger, bg: colors.dangerSoft };
-      case "cancelled":
-        return { fg: colors.textMuted, bg: colors.surfaceMuted };
       default:
-        return { fg: colors.success, bg: colors.successSoft };
+        return { fg: colors.textMuted, bg: colors.surfaceMuted };
     }
+  };
+
+  const renderActions = (item: QueueItem, compact: boolean) => {
+    const actions = actionsForStatus(item.status);
+    if (actions.length === 0) return null;
+
+    return (
+      <View style={[styles.actions, compact && styles.actionsInline]}>
+        {actions.map((action) => {
+          const isDanger = action === "cancel" || action === "remove";
+          const isWarn = action === "pause" || action === "resume";
+          const label =
+            action === "pause"
+              ? "Pause"
+              : action === "resume"
+                ? "Resume"
+                : action === "cancel"
+                  ? "Cancel"
+                  : action === "retry"
+                    ? "Retry"
+                    : "Remove";
+          const a11y =
+            action === "pause"
+              ? `Pause download ${item.localName}`
+              : action === "resume"
+                ? `Resume download ${item.localName}`
+                : action === "cancel"
+                  ? `Cancel download ${item.localName}`
+                  : action === "retry"
+                    ? `Retry download ${item.localName}`
+                    : `Remove ${item.localName} from queue`;
+          const icon: keyof typeof Ionicons.glyphMap =
+            action === "pause"
+              ? "pause"
+              : action === "resume"
+                ? "play"
+                : action === "retry"
+                  ? "refresh"
+                  : action === "remove"
+                    ? "trash-outline"
+                    : "close";
+          const fg = isDanger ? colors.danger : isWarn ? colors.warn : colors.brand;
+          const bg = isDanger ? "transparent" : isWarn ? colors.warnSoft : colors.brandSoft;
+          const border = isDanger ? colors.danger : isWarn ? colors.warn : colors.brand;
+
+          return (
+            <Pressable
+              key={action}
+              onPress={() => void runAction(item, action)}
+              disabled={actionBusy}
+              accessibilityRole="button"
+              accessibilityLabel={a11y}
+              hitSlop={QUEUE_ACTION_HIT_SLOP}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                {
+                  borderColor: border,
+                  backgroundColor: bg,
+                  borderRadius: radius.sm,
+                  minHeight: QUEUE_ACTION_VISUAL_HEIGHT,
+                  opacity: pressed || actionBusy ? 0.7 : 1,
+                },
+              ]}
+            >
+              <Ionicons name={icon} size={14} color={fg} style={{ marginRight: 4 }} />
+              <Text style={[styles.actionLabel, { color: fg }]}>{label}</Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
   };
 
   return (
@@ -198,7 +259,7 @@ export default function QueueScreen() {
       <FlatList
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: 96 }}
+        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: QUEUE_LIST_BOTTOM_PADDING }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
           <EmptyState
@@ -209,24 +270,20 @@ export default function QueueScreen() {
         }
         renderItem={({ item }) => {
           const kind = kindFromName(item.localName);
-          const localUri = downloadDir.endsWith("/")
-            ? `${downloadDir}${item.localName}`
-            : `${downloadDir}/${item.localName}`;
+          const thumb = queueThumbSize(item.status);
           const when = formatCompactDateTime(item.localName, parseRecordedParts);
           const durationSec = durationByName.get(item.localName);
-          const durationLabel =
-            durationSec !== undefined && durationSec > 0 ? formatDurationHuman(durationSec) : undefined;
-          const sizeLabel =
-            item.expectedBytes > 0 ? formatSizeMb(item.expectedBytes) : undefined;
+          const sizeLabel = item.expectedBytes > 0 ? formatSizeMb(item.expectedBytes) : undefined;
 
           const received = item.bytesReceived ?? 0;
           const total = item.expectedBytes > 0 ? item.expectedBytes : 0;
           const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
-          const expanded = isExpandedCard(item.status);
-          const actions = actionsForStatus(item.status);
+          const active = isExpandedCard(item.status);
+          const paused = item.status === "paused";
+          const queued = item.status === "queued";
           const position = queueDisplayPosition(visibleItems, item.id);
-          const badge = statusBadge(item.status);
           const tone = badgeColors(item.status);
+          const label = statusLabel(item.status);
 
           if (item.status === "active" && received > 0 && !startedAtRef.current.has(item.id)) {
             startedAtRef.current.set(item.id, Date.now());
@@ -257,30 +314,59 @@ export default function QueueScreen() {
             }
           }
 
-          const metaSecond = [sizeLabel, durationLabel].filter(Boolean).join(" · ");
+          // Size stays in progress (active/paused). Queued/failed still show size in meta.
+          const metaSecond =
+            queued || item.status === "failed" || item.status === "cancelled" ? sizeLabel : undefined;
+          const pausedMeta =
+            total > 0
+              ? `${formatSizeMb(received)} / ${formatSizeMb(total)} · ${percent}%`
+              : sizeLabel;
 
           const a11yStatus =
             item.status === "active"
               ? `Downloading ${item.localName}, ${percent} percent`
-              : item.status === "queued" && position !== undefined
-                ? `Queued in position ${position}`
-                : `${badge.label} ${item.localName}`;
+              : item.status === "paused"
+                ? `Paused at ${percent} percent`
+                : item.status === "queued" && position !== undefined
+                  ? `Queued in position ${position}`
+                  : `${label} ${item.localName}`;
+
+          const badgeText =
+            queued && position !== undefined ? `Queued · #${position}` : label;
 
           return (
             <Card
               style={[
                 styles.card,
                 {
-                  padding: expanded ? 14 : 12,
+                  padding: active ? 12 : queued ? 10 : 11,
                   borderRadius: radius.md,
-                  opacity: item.status === "queued" ? 0.96 : 1,
                 },
               ]}
               accessibilityLabel={a11yStatus}
             >
               <View style={styles.row}>
-                <View style={styles.thumbWrap} importantForAccessibility="no-hide-descendants">
-                  <VideoThumbnail uri={localUri} kind={kind} width={THUMB_W} height={THUMB_H} />
+                <View
+                  style={[styles.thumbWrap, { width: thumb.width, height: thumb.height }]}
+                  importantForAccessibility="no-hide-descendants"
+                >
+                  <QueueThumbnail
+                    remotePath={item.remotePath}
+                    localName={item.localName}
+                    kind={kind}
+                    width={thumb.width}
+                    height={thumb.height}
+                  />
+                  {durationSec !== undefined && durationSec > 0 ? (
+                    <View
+                      pointerEvents="none"
+                      style={[styles.durationBadge, { backgroundColor: colors.bg }]}
+                    >
+                      <Text style={[styles.durationText, { color: colors.text }]}>
+                        {formatDuration(durationSec)}
+                      </Text>
+                    </View>
+                  ) : null}
                 </View>
 
                 <View style={styles.body}>
@@ -288,13 +374,11 @@ export default function QueueScreen() {
                     <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                       {item.localName}
                     </Text>
-                    <View style={[styles.statusBadge, { backgroundColor: tone.bg }]}>
-                      <Text style={[styles.statusBadgeText, { color: tone.fg }]}>
-                        {item.status === "queued" && position !== undefined
-                          ? `Queued · #${position}`
-                          : badge.label}
-                      </Text>
-                    </View>
+                    {!queued ? (
+                      <View style={[styles.statusBadge, { backgroundColor: tone.bg }]}>
+                        <Text style={[styles.statusBadgeText, { color: tone.fg }]}>{badgeText}</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   {when ? (
@@ -303,17 +387,30 @@ export default function QueueScreen() {
                     </Text>
                   ) : null}
 
-                  {metaSecond ? (
+                  {paused ? (
+                    <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
+                      {pausedMeta}
+                    </Text>
+                  ) : metaSecond ? (
                     <Text style={[styles.meta, { color: colors.textMuted }]} numberOfLines={1}>
                       {metaSecond}
                     </Text>
                   ) : null}
                 </View>
+
+                {queued ? (
+                  <View style={styles.queuedSide}>
+                    <View style={[styles.statusBadge, { backgroundColor: tone.bg, marginBottom: 4 }]}>
+                      <Text style={[styles.statusBadgeText, { color: tone.fg }]}>{badgeText}</Text>
+                    </View>
+                    {renderActions(item, true)}
+                  </View>
+                ) : null}
               </View>
 
-              {expanded ? (
+              {active ? (
                 <View style={styles.progressBlock}>
-                  {item.status === "active" && received === 0 ? (
+                  {received === 0 ? (
                     <View style={styles.waitingRow}>
                       <ActivityIndicator size="small" color={colors.brand} />
                       <Text style={[styles.waitingText, { color: colors.textMuted }]}>
@@ -328,7 +425,6 @@ export default function QueueScreen() {
                           {rateLabel ? ` · ${rateLabel}` : ""}
                         </Text>
                       ) : null}
-
                       <View style={styles.barRow}>
                         <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
                           <View
@@ -343,93 +439,45 @@ export default function QueueScreen() {
                         </View>
                         <Text style={[styles.percent, { color: colors.brand }]}>{percent}%</Text>
                       </View>
-
                       {etaLabel ? (
                         <Text style={[styles.eta, { color: colors.textMuted }]}>{etaLabel}</Text>
-                      ) : item.status === "paused" ? (
-                        <Text style={[styles.eta, { color: colors.textMuted }]}>Paused</Text>
                       ) : null}
                     </>
                   )}
-
                   {item.errorMessage ? (
                     <Text style={[styles.error, { color: colors.danger }]}>{item.errorMessage}</Text>
                   ) : null}
+                  {renderActions(item, false)}
                 </View>
               ) : null}
 
-              {item.status === "failed" && item.errorMessage ? (
-                <Text style={[styles.error, { color: colors.danger, marginTop: 6 }]}>
-                  {item.errorMessage}
-                </Text>
+              {paused ? (
+                <View style={styles.pausedBlock}>
+                  {total > 0 ? (
+                    <View style={styles.barRow}>
+                      <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
+                        <View
+                          style={[
+                            styles.fill,
+                            {
+                              width: `${Math.max(percent, percent > 0 ? percent : 2)}%`,
+                              backgroundColor: colors.brand,
+                            },
+                          ]}
+                        />
+                      </View>
+                    </View>
+                  ) : null}
+                  {renderActions(item, false)}
+                </View>
               ) : null}
 
-              {actions.length > 0 ? (
-                <View style={[styles.actions, { marginTop: expanded ? 12 : 8 }]}>
-                  {actions.map((action) => {
-                    const isDanger = action === "cancel" || action === "remove";
-                    const isWarn = action === "pause" || action === "resume";
-                    const label =
-                      action === "pause"
-                        ? "Pause"
-                        : action === "resume"
-                          ? "Resume"
-                          : action === "cancel"
-                            ? "Cancel"
-                            : action === "retry"
-                              ? "Retry"
-                              : "Remove";
-                    const a11y =
-                      action === "pause"
-                        ? `Pause download ${item.localName}`
-                        : action === "resume"
-                          ? `Resume download ${item.localName}`
-                          : action === "cancel"
-                            ? `Cancel download ${item.localName}`
-                            : action === "retry"
-                              ? `Retry download ${item.localName}`
-                              : `Remove ${item.localName} from queue`;
-                    const icon: keyof typeof Ionicons.glyphMap =
-                      action === "pause"
-                        ? "pause"
-                        : action === "resume"
-                          ? "play"
-                          : action === "retry"
-                            ? "refresh"
-                            : action === "remove"
-                              ? "trash-outline"
-                              : "close";
-                    const fg = isDanger ? colors.danger : isWarn ? colors.warn : colors.brand;
-                    const bg = isDanger
-                      ? "transparent"
-                      : isWarn
-                        ? colors.warnSoft
-                        : colors.brandSoft;
-                    const border = isDanger ? colors.danger : isWarn ? colors.warn : colors.brand;
-
-                    return (
-                      <Pressable
-                        key={action}
-                        onPress={() => void runAction(item, action)}
-                        accessibilityRole="button"
-                        accessibilityLabel={a11y}
-                        style={({ pressed }) => [
-                          styles.actionBtn,
-                          {
-                            borderColor: border,
-                            backgroundColor: bg,
-                            borderRadius: radius.sm,
-                            opacity: pressed ? 0.75 : 1,
-                            flex: expanded || actions.length > 1 ? 1 : undefined,
-                            minWidth: actions.length === 1 ? 120 : undefined,
-                          },
-                        ]}
-                      >
-                        <Ionicons name={icon} size={15} color={fg} style={{ marginRight: 6 }} />
-                        <Text style={[styles.actionLabel, { color: fg }]}>{label}</Text>
-                      </Pressable>
-                    );
-                  })}
+              {item.status === "failed" || item.status === "cancelled" ? (
+                <View style={styles.failedBlock}>
+                  {item.errorMessage ? (
+                    <Text style={[styles.error, { color: colors.danger }]}>{item.errorMessage}</Text>
+                  ) : null}
+                  {renderActions(item, false)}
                 </View>
               ) : null}
             </Card>
@@ -450,30 +498,56 @@ const styles = StyleSheet.create({
   card: { overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   thumbWrap: { borderRadius: 8, overflow: "hidden" },
+  durationBadge: {
+    position: "absolute",
+    right: 3,
+    bottom: 3,
+    borderRadius: 4,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    opacity: 0.88,
+  },
+  durationText: { fontSize: 9, fontFamily: Type.monoMed },
   body: { flex: 1, minWidth: 0 },
   titleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   name: { flex: 1, fontFamily: Type.fontSemi, fontSize: 14, lineHeight: 18 },
-  statusBadge: { borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3 },
+  statusBadge: { borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, flexShrink: 0 },
   statusBadgeText: { fontSize: 10, fontFamily: Type.fontSemi },
   meta: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
-  progressBlock: { marginTop: 12 },
-  progressMeta: { fontSize: 12, fontFamily: Type.monoMed, marginBottom: 6 },
+  queuedSide: { alignItems: "flex-end", justifyContent: "center", gap: 2 },
+  progressBlock: { marginTop: 10 },
+  pausedBlock: { marginTop: 8 },
+  failedBlock: { marginTop: 8 },
+  progressMeta: { fontSize: 12, fontFamily: Type.monoMed, marginBottom: 4 },
   barRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  track: { flex: 1, height: 6, borderRadius: 3, overflow: "hidden" },
-  fill: { height: 6, borderRadius: 3 },
-  percent: { fontSize: 12, fontFamily: Type.fontSemi, minWidth: 36, textAlign: "right" },
-  eta: { fontSize: 12, fontFamily: Type.font, marginTop: 6 },
+  track: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },
+  fill: { height: 5, borderRadius: 3 },
+  percent: { fontSize: 12, fontFamily: Type.fontSemi, minWidth: 34, textAlign: "right" },
+  eta: { fontSize: 11, fontFamily: Type.font, marginTop: 4 },
   waitingRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   waitingText: { fontSize: 12, fontFamily: Type.font },
-  actions: { flexDirection: "row", alignItems: "center", gap: 8, justifyContent: "flex-end" },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 8,
+    marginTop: 8,
+    flexWrap: "wrap",
+  },
+  actionsInline: {
+    marginTop: 0,
+    justifyContent: "flex-end",
+  },
   actionBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 10,
+    paddingVertical: 6,
     paddingHorizontal: 12,
-    minHeight: 44,
+    minHeight: QUEUE_ACTION_VISUAL_HEIGHT,
+    // Visual ~36; hitSlop keeps the real target ≥44pt.
+    minWidth: 72,
   },
-  actionLabel: { fontSize: 13, fontFamily: Type.fontSemi },
+  actionLabel: { fontSize: 12, fontFamily: Type.fontSemi },
 });

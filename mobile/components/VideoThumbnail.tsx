@@ -4,8 +4,12 @@ import { useEffect, useState } from "react";
 import { Image, StyleSheet, View } from "react-native";
 
 import { useAppTheme } from "@/constants/Theme";
+import {
+  loadVideoThumb,
+  peekVideoThumbCache,
+} from "@/components/videoThumbCache";
 
-const cache = new Map<string, string>();
+export { isVideoThumbInflight, peekVideoThumbCache } from "@/components/videoThumbCache";
 
 interface VideoThumbnailProps {
   readonly uri: string;
@@ -16,10 +20,10 @@ interface VideoThumbnailProps {
   readonly height?: number;
 }
 
-/** Local video/image preview; falls back to a brand icon. */
+/** Local video/image preview; falls back to a brand icon. Shared by Local + Queue. */
 export function VideoThumbnail({ uri, kind, size = 56, width, height }: VideoThumbnailProps) {
   const { colors, radius } = useAppTheme();
-  const [thumb, setThumb] = useState<string | undefined>(() => cache.get(uri));
+  const [thumb, setThumb] = useState<string | undefined>(() => peekVideoThumbCache(uri));
   const w = width ?? size;
   const h = height ?? size;
 
@@ -32,21 +36,21 @@ export function VideoThumbnail({ uri, kind, size = 56, width, height }: VideoThu
       setThumb(undefined);
       return;
     }
-    const cached = cache.get(uri);
+    const cached = peekVideoThumbCache(uri);
     if (cached) {
       setThumb(cached);
       return;
     }
     let cancelled = false;
     void (async () => {
-      try {
-        const result = await VideoThumbnails.getThumbnailAsync(uri, { time: 800, quality: 0.6 });
-        if (cancelled) return;
-        cache.set(uri, result.uri);
-        setThumb(result.uri);
-      } catch {
-        if (!cancelled) setThumb(undefined);
-      }
+      const result = await loadVideoThumb(uri, async (sourceUri) => {
+        const generated = await VideoThumbnails.getThumbnailAsync(sourceUri, {
+          time: 800,
+          quality: 0.6,
+        });
+        return generated.uri;
+      });
+      if (!cancelled) setThumb(result);
     })();
     return () => {
       cancelled = true;
@@ -68,7 +72,12 @@ export function VideoThumbnail({ uri, kind, size = 56, width, height }: VideoThu
       accessibilityElementsHidden
     >
       {thumb ? (
-        <Image source={{ uri: thumb }} style={styles.image} accessibilityIgnoresInvertColors />
+        <Image
+          source={{ uri: thumb }}
+          style={styles.image}
+          resizeMode="cover"
+          accessibilityIgnoresInvertColors
+        />
       ) : (
         <Ionicons
           name={kind === "image" ? "image" : kind === "video" ? "videocam" : "document"}

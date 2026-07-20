@@ -58,7 +58,31 @@ export function actionsForStatus(status: QueueItemStatus): readonly QueueAction[
 }
 
 export function isExpandedCard(status: QueueItemStatus): boolean {
+  /** Only the actively downloading transfer uses the large card. */
+  return status === "active";
+}
+
+export function showsProgress(status: QueueItemStatus): boolean {
   return status === "active" || status === "paused";
+}
+
+export type QueueThumbSize = { readonly width: number; readonly height: number };
+
+export function queueThumbSize(status: QueueItemStatus): QueueThumbSize {
+  if (status === "active") return { width: 64, height: 52 };
+  return { width: 58, height: 46 };
+}
+
+/** Prefer an already-local library URI so Queue reuses Local Library thumb cache. */
+export function resolveQueueThumbnailUri(input: {
+  readonly localName: string;
+  readonly downloadDir: string;
+  readonly localFiles: readonly { readonly name: string; readonly uri: string }[];
+}): string {
+  const existing = input.localFiles.find((f) => f.name === input.localName);
+  if (existing) return existing.uri;
+  if (input.downloadDir.endsWith("/")) return `${input.downloadDir}${input.localName}`;
+  return `${input.downloadDir}/${input.localName}`;
 }
 
 export function formatQueueSummary(items: readonly QueueItem[]): string {
@@ -137,4 +161,32 @@ export function smoothRate(previous: number, instant: number, alpha = 0.25): num
   if (!Number.isFinite(instant) || instant <= 0) return previous;
   if (!Number.isFinite(previous) || previous <= 0) return instant;
   return previous * (1 - alpha) + instant * alpha;
+}
+
+/** FlatList bottom inset so the last card clears the tab bar. */
+export const QUEUE_LIST_BOTTOM_PADDING = 96;
+
+/** Visual control height; pair with hitSlop so the real target stays ≥44. */
+export const QUEUE_ACTION_VISUAL_HEIGHT = 36;
+export const QUEUE_ACTION_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 } as const;
+
+export function queueActionHitHeight(
+  visualHeight = QUEUE_ACTION_VISUAL_HEIGHT,
+  hitSlop = QUEUE_ACTION_HIT_SLOP,
+): number {
+  return visualHeight + hitSlop.top + hitSlop.bottom;
+}
+
+/** Serializes UI actions so double-taps do not fire twice. */
+export function createQueueActionGate() {
+  let busy = false;
+  return async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
+    if (busy) return undefined;
+    busy = true;
+    try {
+      return await fn();
+    } finally {
+      busy = false;
+    }
+  };
 }

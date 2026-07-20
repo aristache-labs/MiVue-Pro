@@ -6,6 +6,12 @@ import React, { createContext, useCallback, useContext, useMemo, useRef, useStat
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import {
+  cameraThumbCacheFileName,
+  cameraThumbRequestPath,
+  isJpegMagic,
+  uint8ToBase64,
+} from "../components/cameraThumb";
+import {
   ExpoFsStreamingTransport,
   NativeTcpTransport,
   isNativeTcpAvailable,
@@ -57,6 +63,8 @@ interface DemoModeContextValue {
   readonly connectionNote: string | undefined;
   readonly nativeTcpReady: boolean;
   readonly isExpoGo: boolean;
+  /** Fetch camera SD thumbnail (GET /thumb…); cached on disk. Failures return undefined. */
+  readonly resolveCameraThumbUri: (remotePath: string) => Promise<string | undefined>;
 }
 
 const DemoModeContext = createContext<DemoModeContextValue | undefined>(undefined);
@@ -106,6 +114,77 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     FileSystem.documentDirectory !== null && FileSystem.documentDirectory !== undefined
       ? `${FileSystem.documentDirectory}downloads`
       : "/demo-downloads";
+
+  const thumbDir = `${downloadDir}/.thumbs`;
+  const thumbInflightRef = useRef(new Map<string, Promise<string | undefined>>());
+  const thumbActiveRef = useRef(0);
+  const thumbWaitersRef = useRef<Array<() => void>>([]);
+  const THUMB_CONCURRENCY = 2;
+
+  const acquireThumbSlot = useCallback((): Promise<void> => {
+    if (thumbActiveRef.current < THUMB_CONCURRENCY) {
+      thumbActiveRef.current += 1;
+      return Promise.resolve();
+    }
+    return new Promise((resolve) => {
+      thumbWaitersRef.current.push(() => {
+        thumbActiveRef.current += 1;
+        resolve();
+      });
+    });
+  }, []);
+
+  const releaseThumbSlot = useCallback(() => {
+    thumbActiveRef.current = Math.max(0, thumbActiveRef.current - 1);
+    const next = thumbWaitersRef.current.shift();
+    if (next) next();
+  }, []);
+
+  const resolveCameraThumbUri = useCallback(
+    async (remotePath: string): Promise<string | undefined> => {
+      try {
+        const requestPath = cameraThumbRequestPath(remotePath);
+        const cacheName = cameraThumbCacheFileName(remotePath);
+        const cacheUri = `${thumbDir}/${cacheName}`;
+
+        const existing = await FileSystem.getInfoAsync(cacheUri);
+        if (existing.exists) return cacheUri;
+
+        const inflight = thumbInflightRef.current.get(remotePath);
+        if (inflight) return inflight;
+
+        const task = (async () => {
+          await acquireThumbSlot();
+          try {
+            const again = await FileSystem.getInfoAsync(cacheUri);
+            if (again.exists) return cacheUri;
+
+            await FileSystem.makeDirectoryAsync(thumbDir, { intermediates: true }).catch(() => undefined);
+
+            const transport: Transport = demoMode
+              ? new DemoTransport()
+              : createLiveTransport(cameraHost, 15_000);
+            const response = await transport.request({ method: "GET", path: requestPath });
+            if (response.statusCode !== 200 || !isJpegMagic(response.body)) return undefined;
+
+            await FileSystem.writeAsStringAsync(cacheUri, uint8ToBase64(response.body), {
+              encoding: FileSystem.EncodingType?.Base64 ?? "base64",
+            });
+            return cacheUri;
+          } finally {
+            releaseThumbSlot();
+            thumbInflightRef.current.delete(remotePath);
+          }
+        })();
+
+        thumbInflightRef.current.set(remotePath, task);
+        return task;
+      } catch {
+        return undefined;
+      }
+    },
+    [demoMode, cameraHost, thumbDir, acquireThumbSlot, releaseThumbSlot],
+  );
 
   const refreshLocalFiles = useCallback(async () => {
     try {
@@ -462,6 +541,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       connectionNote,
       nativeTcpReady,
       isExpoGo,
+      resolveCameraThumbUri,
     }),
     [
       demoMode,
@@ -487,6 +567,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       connectionNote,
       nativeTcpReady,
       isExpoGo,
+      resolveCameraThumbUri,
     ],
   );
 

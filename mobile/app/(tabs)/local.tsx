@@ -28,8 +28,12 @@ import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
 
-const THUMB_W = 88;
-const THUMB_H = 66;
+const THUMB_W = 84;
+const THUMB_H = 63;
+
+function displayMediaName(name: string): string {
+  return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
+}
 
 function openLocalMedia(item: LocalMediaFile): void {
   const href =
@@ -182,13 +186,6 @@ export default function LocalLibraryScreen() {
 
           return (
             <Card style={[styles.card, { padding: 12, borderRadius: radius.md }]}>
-              <View
-                style={[styles.typeBadge, { backgroundColor: catAccent + "22" }]}
-                accessibilityLabel={typeLabel}
-              >
-                <Text style={[styles.typeBadgeText, { color: catAccent }]}>{typeLabel}</Text>
-              </View>
-
               <View style={styles.row}>
                 <Pressable
                   onPress={() => openLocalMedia(item)}
@@ -229,11 +226,8 @@ export default function LocalLibraryScreen() {
                 </Pressable>
 
                 <View style={styles.body}>
-                  <Text
-                    style={[styles.name, { color: colors.text, paddingRight: 64 }]}
-                    numberOfLines={1}
-                  >
-                    {item.name}
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                    {displayMediaName(item.name)}
                   </Text>
                   {when ? (
                     <Text style={[styles.metaLine, { color: colors.textMuted }]} numberOfLines={1}>
@@ -245,25 +239,33 @@ export default function LocalLibraryScreen() {
                   </Text>
                 </View>
 
-                <View style={styles.actions}>
-                  <Pressable
-                    onPress={() => void shareLocalFile(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Share ${item.name}`}
-                    hitSlop={4}
-                    style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
+                <View style={styles.side}>
+                  <View
+                    style={[styles.typeBadge, { backgroundColor: catAccent + "22" }]}
+                    accessibilityLabel={typeLabel}
                   >
-                    <Ionicons name="share-outline" size={18} color={colors.textMuted} />
-                  </Pressable>
-                  <Pressable
-                    onPress={() => confirmDelete(item)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Delete ${item.name}`}
-                    hitSlop={4}
-                    style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
-                  >
-                    <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  </Pressable>
+                    <Text style={[styles.typeBadgeText, { color: catAccent }]}>{typeLabel}</Text>
+                  </View>
+                  <View style={styles.actions}>
+                    <Pressable
+                      onPress={() => void shareLocalFile(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Share ${item.name}`}
+                      hitSlop={4}
+                      style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
+                    >
+                      <Ionicons name="share-outline" size={22} color={colors.textMuted} />
+                    </Pressable>
+                    <Pressable
+                      onPress={() => confirmDelete(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Delete ${item.name}`}
+                      hitSlop={4}
+                      style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
+                    >
+                      <Ionicons name="trash-outline" size={22} color={colors.danger} />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
             </Card>
@@ -314,15 +316,12 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: Type.font,
   },
-  card: { overflow: "hidden", position: "relative" },
+  card: { overflow: "hidden" },
   typeBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    zIndex: 2,
     borderRadius: 4,
     paddingHorizontal: 7,
     paddingVertical: 3,
+    alignSelf: "flex-end",
   },
   typeBadgeText: {
     fontSize: 10,
@@ -365,16 +364,21 @@ const styles = StyleSheet.create({
   },
   durationText: { fontSize: 10, fontFamily: Type.monoMed },
   body: { flex: 1, minWidth: 0, justifyContent: "center" },
-  name: { fontFamily: Type.fontSemi, fontSize: 14, lineHeight: 18 },
+  name: { fontFamily: Type.fontSemi, fontSize: 13, lineHeight: 17 },
   metaLine: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
+  side: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
   actions: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    alignSelf: "center",
   },
   iconHit: {
-    width: 40,
+    width: 44,
     height: 44,
     alignItems: "center",
     justifyContent: "center",
