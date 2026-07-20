@@ -10,13 +10,18 @@ const cache = new Map<string, string>();
 interface VideoThumbnailProps {
   readonly uri: string;
   readonly kind: "video" | "image" | "other";
+  /** Square size when width/height omitted. */
   readonly size?: number;
+  readonly width?: number;
+  readonly height?: number;
 }
 
 /** Local video/image preview; falls back to a brand icon. */
-export function VideoThumbnail({ uri, kind, size = 56 }: VideoThumbnailProps) {
+export function VideoThumbnail({ uri, kind, size = 56, width, height }: VideoThumbnailProps) {
   const { colors, radius } = useAppTheme();
   const [thumb, setThumb] = useState<string | undefined>(() => cache.get(uri));
+  const w = width ?? size;
+  const h = height ?? size;
 
   useEffect(() => {
     if (kind === "image") {
@@ -53,19 +58,21 @@ export function VideoThumbnail({ uri, kind, size = 56 }: VideoThumbnailProps) {
       style={[
         styles.box,
         {
-          width: size,
-          height: size,
+          width: w,
+          height: h,
           borderRadius: radius.sm,
           backgroundColor: colors.brandSoft,
         },
       ]}
+      importantForAccessibility="no-hide-descendants"
+      accessibilityElementsHidden
     >
       {thumb ? (
-        <Image source={{ uri: thumb }} style={styles.image} />
+        <Image source={{ uri: thumb }} style={styles.image} accessibilityIgnoresInvertColors />
       ) : (
         <Ionicons
           name={kind === "image" ? "image" : kind === "video" ? "videocam" : "document"}
-          size={size * 0.36}
+          size={Math.min(w, h) * 0.36}
           color={colors.brand}
         />
       )}

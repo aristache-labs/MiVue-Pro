@@ -1,6 +1,7 @@
 /** Abstract sink so Node tests and Expo FileSystem can share queue logic. */
 export interface FileSink {
   exists(path: string): Promise<boolean>;
+  sizeOf(path: string): Promise<number | undefined>;
   writeExclusive(path: string, data: Uint8Array): Promise<void>;
   rename(from: string, to: string): Promise<void>;
   remove(path: string): Promise<void>;
@@ -11,6 +12,11 @@ export class MemoryFileSink implements FileSink {
 
   async exists(path: string): Promise<boolean> {
     return this.files.has(path);
+  }
+
+  async sizeOf(path: string): Promise<number | undefined> {
+    const data = this.files.get(path);
+    return data?.byteLength;
   }
 
   async writeExclusive(path: string, data: Uint8Array): Promise<void> {

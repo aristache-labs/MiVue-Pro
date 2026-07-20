@@ -1,7 +1,7 @@
 import type { FileSink } from "./fileSink";
 
 type FileSystemLike = {
-  getInfoAsync(path: string): Promise<{ exists: boolean }>;
+  getInfoAsync(path: string): Promise<{ exists: boolean; size?: number }>;
   writeAsStringAsync(path: string, data: string, options?: { encoding?: string }): Promise<void>;
   moveAsync(options: { from: string; to: string }): Promise<void>;
   deleteAsync(path: string, options?: { idempotent?: boolean }): Promise<void>;
@@ -15,6 +15,12 @@ export class ExpoFileSink implements FileSink {
   async exists(path: string): Promise<boolean> {
     const info = await this.fs.getInfoAsync(path);
     return info.exists;
+  }
+
+  async sizeOf(path: string): Promise<number | undefined> {
+    const info = await this.fs.getInfoAsync(path);
+    if (!info.exists || typeof info.size !== "number") return undefined;
+    return info.size;
   }
 
   async writeExclusive(path: string, data: Uint8Array): Promise<void> {

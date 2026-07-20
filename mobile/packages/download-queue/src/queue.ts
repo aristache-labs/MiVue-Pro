@@ -57,7 +57,7 @@ export class DownloadQueue {
     const duplicate = this.items.find(
       (item) =>
         item.remotePath === input.remotePath &&
-        (item.status === "queued" || item.status === "active"),
+        (item.status === "queued" || item.status === "active" || item.status === "paused"),
     );
     if (duplicate) {
       throw new Error("Duplicate transfer already queued");
@@ -100,6 +100,7 @@ export class DownloadQueue {
     if (item === undefined) return;
 
     if (item.status === "queued" || item.status === "paused") {
+      await this.cleanupPartial(item.localName);
       this.patch(id, { status: "cancelled", errorMessage: "Cancelled by user" });
       await this.persist();
       return;
@@ -111,7 +112,7 @@ export class DownloadQueue {
     }
   }
 
-  /** Pause a queued item, or abort the active transfer and mark it paused. */
+  /** Pause a queued item, or abort the active transfer and mark it paused (keeps partial). */
   async pause(id: string): Promise<void> {
     const item = this.items.find((i) => i.id === id);
     if (item === undefined) return;
@@ -128,11 +129,11 @@ export class DownloadQueue {
     }
   }
 
-  /** Resume a paused item (restarts the transfer from the beginning). */
+  /** Resume a paused item; continues from the saved partial when available. */
   async resume(id: string): Promise<void> {
     const item = this.items.find((i) => i.id === id);
     if (item === undefined || item.status !== "paused") return;
-    this.patch(id, { status: "queued", errorMessage: undefined, bytesReceived: 0 });
+    this.patch(id, { status: "queued", errorMessage: undefined });
     await this.persist();
     void this.pump();
   }
@@ -160,11 +161,16 @@ export class DownloadQueue {
   }
 
   private async runOne(item: QueueItem): Promise<void> {
-    this.patch(item.id, { status: "active", bytesReceived: 0 });
-    await this.persist();
-
     const dest = joinPath(this.options.downloadDir, item.localName);
     const part = `${dest}.part`;
+    const existingPart = await this.options.sink.sizeOf(part);
+    const startBytes =
+      existingPart !== undefined && existingPart > 0
+        ? existingPart
+        : (item.bytesReceived ?? 0);
+
+    this.patch(item.id, { status: "active", bytesReceived: startBytes });
+    await this.persist();
 
     const controller = new AbortController();
     this.activeId = item.id;
@@ -192,6 +198,7 @@ export class DownloadQueue {
           destinationPath: dest,
           expectedBytes,
           signal: controller.signal,
+          keepPartialOnAbort: true,
           onProgress: (progress) => {
             this.patch(item.id, { bytesReceived: progress.bytesReceived });
           },
@@ -223,18 +230,21 @@ export class DownloadQueue {
       const aborted = controller.signal.aborted || isAbortError(error);
       const intent = this.abortIntent;
       this.abortIntent = "cancel";
-      try {
-        await this.options.sink.remove(part);
-      } catch {
-        // keep partial for diagnostics if remove fails
-      }
       if (aborted && intent === "pause") {
-        this.patch(item.id, { status: "paused", errorMessage: undefined });
-      } else if (aborted) {
-        this.patch(item.id, { status: "cancelled", errorMessage: "Cancelled by user" });
+        const kept = (await this.options.sink.sizeOf(part)) ?? item.bytesReceived;
+        this.patch(item.id, {
+          status: "paused",
+          errorMessage: undefined,
+          ...(kept !== undefined ? { bytesReceived: kept } : {}),
+        });
       } else {
-        const message = error instanceof Error ? error.message : String(error);
-        this.patch(item.id, { status: "failed", errorMessage: message });
+        await this.cleanupPartial(item.localName);
+        if (aborted) {
+          this.patch(item.id, { status: "cancelled", errorMessage: "Cancelled by user" });
+        } else {
+          const message = error instanceof Error ? error.message : String(error);
+          this.patch(item.id, { status: "failed", errorMessage: message });
+        }
       }
     } finally {
       if (this.activeId === item.id) {
@@ -250,6 +260,22 @@ export class DownloadQueue {
     if (final?.status === "completed") {
       this.items = this.items.filter((entry) => entry.id !== item.id);
       await this.persist();
+    }
+  }
+
+  private async cleanupPartial(localName: string): Promise<void> {
+    const dest = joinPath(this.options.downloadDir, localName);
+    const part = `${dest}.part`;
+    const resume = `${part}.resume`;
+    try {
+      await this.options.sink.remove(part);
+    } catch {
+      // ignore
+    }
+    try {
+      await this.options.sink.remove(resume);
+    } catch {
+      // ignore
     }
   }
 

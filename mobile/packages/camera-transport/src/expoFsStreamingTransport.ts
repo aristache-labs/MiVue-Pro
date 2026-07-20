@@ -8,9 +8,17 @@ type DownloadProgressData = {
   readonly totalBytesExpectedToWrite: number;
 };
 
+type DownloadPauseState = {
+  readonly url: string;
+  readonly fileUri: string;
+  readonly options: { headers?: Record<string, string> };
+  readonly resumeData?: string;
+};
+
 type DownloadResumable = {
   downloadAsync(): Promise<{ uri: string; status?: number } | undefined>;
-  pauseAsync?(): Promise<unknown>;
+  pauseAsync(): Promise<DownloadPauseState>;
+  savable?(): DownloadPauseState;
 };
 
 type ExpoFsLike = {
@@ -19,10 +27,13 @@ type ExpoFsLike = {
     fileUri: string,
     options?: { headers?: Record<string, string> },
     callback?: (data: DownloadProgressData) => void,
+    resumeData?: string,
   ): DownloadResumable;
   getInfoAsync(path: string): Promise<{ exists: boolean; size?: number }>;
   moveAsync(options: { from: string; to: string }): Promise<void>;
   deleteAsync(path: string, options?: { idempotent?: boolean }): Promise<void>;
+  writeAsStringAsync(path: string, contents: string): Promise<void>;
+  readAsStringAsync(path: string): Promise<string>;
 };
 
 /**
@@ -66,24 +77,52 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
     }
 
     const partPath = `${options.destinationPath}.part`;
+    const resumePath = `${partPath}.resume`;
     const url = `http://${this.options.host}:${this.port}${options.remotePath}`;
+    const fs = this.options.fs;
 
     if (options.signal?.aborted) {
       throw new TransportError("Cancelled by user", "ABORTED");
     }
 
     let abortedByUser = false;
+    let pausePersist: Promise<void> | undefined;
 
     try {
-      if ((await this.options.fs.getInfoAsync(options.destinationPath)).exists) {
+      if ((await fs.getInfoAsync(options.destinationPath)).exists) {
         throw new TransportError("Destination already exists", "EXISTS");
       }
-      if ((await this.options.fs.getInfoAsync(partPath)).exists) {
-        await this.options.fs.deleteAsync(partPath, { idempotent: true });
+
+      let resumeData: string | undefined;
+      const resumeInfo = await fs.getInfoAsync(resumePath);
+      if (resumeInfo.exists) {
+        try {
+          const raw = await fs.readAsStringAsync(resumePath);
+          const state = JSON.parse(raw) as DownloadPauseState;
+          if (typeof state.resumeData === "string" && state.resumeData.length > 0) {
+            resumeData = state.resumeData;
+          }
+        } catch {
+          resumeData = undefined;
+        }
+      }
+
+      const partInfo = await fs.getInfoAsync(partPath);
+      if (!resumeData && partInfo.exists) {
+        // Orphan partial without resume metadata — restart cleanly.
+        await fs.deleteAsync(partPath, { idempotent: true });
+        await fs.deleteAsync(resumePath, { idempotent: true });
+      }
+
+      if (resumeData && partInfo.exists && typeof partInfo.size === "number" && partInfo.size > 0) {
+        options.onProgress?.({
+          bytesReceived: partInfo.size,
+          totalBytes: options.expectedBytes,
+        });
       }
 
       let lastEmit = 0;
-      const download = this.options.fs.createDownloadResumable(
+      const download = fs.createDownloadResumable(
         url,
         partPath,
         { headers: { "User-Agent": this.userAgent, Connection: "close" } },
@@ -99,11 +138,31 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
                 : options.expectedBytes,
           });
         },
+        resumeData,
       );
 
       const onAbort = () => {
         abortedByUser = true;
-        void download.pauseAsync?.();
+        pausePersist = (async () => {
+          try {
+            const state = await download.pauseAsync();
+            if (options.keepPartialOnAbort) {
+              await fs.writeAsStringAsync(resumePath, JSON.stringify(state));
+            } else {
+              await fs.deleteAsync(partPath, { idempotent: true });
+              await fs.deleteAsync(resumePath, { idempotent: true });
+            }
+          } catch {
+            if (!options.keepPartialOnAbort) {
+              try {
+                await fs.deleteAsync(partPath, { idempotent: true });
+                await fs.deleteAsync(resumePath, { idempotent: true });
+              } catch {
+                // ignore
+              }
+            }
+          }
+        })();
       };
       options.signal?.addEventListener("abort", onAbort);
 
@@ -112,6 +171,7 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
         result = await download.downloadAsync();
       } finally {
         options.signal?.removeEventListener("abort", onAbort);
+        if (pausePersist) await pausePersist;
       }
 
       if (result === undefined) {
@@ -121,29 +181,39 @@ export class ExpoFsStreamingTransport implements StreamingTransport {
         );
       }
 
-      const info = await this.options.fs.getInfoAsync(partPath);
+      const info = await fs.getInfoAsync(partPath);
       if (!info.exists) {
         throw new TransportError("Partial file missing after download", "DOWNLOAD");
       }
       const written = typeof info.size === "number" ? info.size : 0;
       if (options.expectedBytes !== undefined && written !== options.expectedBytes) {
-        await this.options.fs.deleteAsync(partPath, { idempotent: true });
+        await fs.deleteAsync(partPath, { idempotent: true });
+        await fs.deleteAsync(resumePath, { idempotent: true });
         throw new TransportError(
           `Size invalid: expected ${options.expectedBytes}, got ${written}`,
           "SIZE",
         );
       }
 
-      await this.options.fs.moveAsync({ from: partPath, to: options.destinationPath });
+      await fs.moveAsync({ from: partPath, to: options.destinationPath });
+      await fs.deleteAsync(resumePath, { idempotent: true });
       options.onProgress?.({ bytesReceived: written, totalBytes: written });
       return { bytesWritten: written, destinationPath: options.destinationPath };
     } catch (error) {
-      try {
-        await this.options.fs.deleteAsync(partPath, { idempotent: true });
-      } catch {
-        // ignore cleanup errors
+      const isAbort =
+        abortedByUser ||
+        (error instanceof TransportError && error.causeCode === "ABORTED");
+
+      if (!(isAbort && options.keepPartialOnAbort)) {
+        try {
+          await fs.deleteAsync(partPath, { idempotent: true });
+          await fs.deleteAsync(resumePath, { idempotent: true });
+        } catch {
+          // ignore cleanup errors
+        }
       }
-      if (abortedByUser) {
+
+      if (isAbort) {
         throw new TransportError("Cancelled by user", "ABORTED", { cause: error });
       }
       if (error instanceof TransportError) throw error;

@@ -11,6 +11,11 @@ export interface StreamDownloadOptions {
   readonly expectedBytes?: number;
   readonly signal?: AbortSignal;
   readonly onProgress?: (progress: DownloadProgress) => void;
+  /**
+   * When the user aborts, keep the `.part` file and write a `.resume` sidecar
+   * so the next downloadToFile can continue (Expo DownloadResumable).
+   */
+  readonly keepPartialOnAbort?: boolean;
 }
 
 export interface StreamDownloadResult {
