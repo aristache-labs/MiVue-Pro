@@ -1,8 +1,6 @@
 export { SchematicRoute } from "./SchematicRoute";
 export { TelemetryPanel } from "./TelemetryPanel";
-export { GoogleRecordedRouteMap } from "./GoogleRecordedRouteMap";
-export type { MapFollowPose, GoogleRecordedRouteMapProps } from "./GoogleRecordedRouteMap.types";
-export { isGoogleMapsSdkConfigured } from "./GoogleRecordedRouteMap.types";
+export { OnlineMapWebView } from "./OnlineMapWebView";
 export {
   sampleIndexAtTime,
   normalizeGpsTrack,
@@ -17,12 +15,11 @@ export {
   bearingBetween,
   smoothBearing,
   zoomForSpeedKmh,
-  lookAheadCoordinate,
-  GOOGLE_FOLLOW_PITCH_DEG,
 } from "./mapFollow";
 export {
+  DEFAULT_ONLINE_MAP_PROVIDER,
+  OPENSTREETMAP_TILE_SOURCE,
   MAP_MODE_OPTIONS,
-  ALLOWED_GOOGLE_MAP_APIS,
-  FORBIDDEN_GOOGLE_MAP_APIS,
+  buildLeafletBootstrapConfig,
 } from "./onlineMapProvider";
 export { loadSiblingNmea } from "./loadSiblingNmea";
