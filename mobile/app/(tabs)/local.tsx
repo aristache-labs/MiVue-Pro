@@ -2,8 +2,8 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useFocusEffect } from "@react-navigation/native";
 import { BlurView } from "expo-blur";
-import { router, useNavigation } from "expo-router";
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useNavigation } from "expo-router";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -20,7 +20,6 @@ import {
   View,
 } from "react-native";
 
-import { formatDuration } from "@/components/mediaMeta";
 import {
   deleteLocalA11yLabel,
   deleteLocalButtonLabel,
@@ -44,9 +43,9 @@ import {
   sumBytes,
   type LocalLibraryFilters,
 } from "@/components/local/localLibraryFilters";
+import { LocalLibraryCard } from "@/components/local/LocalLibraryCard";
 import {
   buildLocalLibrarySections,
-  formatCompactDateTime,
   LOCAL_ACTION_HIT,
   LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
@@ -54,222 +53,12 @@ import {
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { VideoThumbnail } from "@/components/VideoThumbnail";
-import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
 
-const THUMB_W = 84;
-const THUMB_H = 63;
 /** Compact sticky delete strip under the nav header (wide, not tall). */
 const SELECTION_DELETE_BAR_H = 44;
-
-function displayMediaName(name: string): string {
-  return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
-}
-
-function openLocalMedia(item: LocalMediaFile): void {
-  const href =
-    `/player?uri=${encodeURIComponent(item.uri)}&name=${encodeURIComponent(item.name)}&kind=${item.kind}` as const;
-  router.push(href as Parameters<typeof router.push>[0]);
-}
-
-interface LibraryCardProps {
-  readonly item: LocalMediaFile;
-  readonly category: FileCategory;
-  readonly durationSec?: number;
-  readonly selecting: boolean;
-  readonly selected: boolean;
-  readonly onToggleSelect: (uri: string) => void;
-  readonly onShare: (file: LocalMediaFile) => void;
-  readonly onDelete: (file: LocalMediaFile) => void;
-}
-
-const LibraryCard = memo(function LibraryCard({
-  item,
-  category,
-  durationSec,
-  selecting,
-  selected,
-  onToggleSelect,
-  onShare,
-  onDelete,
-}: LibraryCardProps) {
-  const { colors, radius, scheme } = useAppTheme();
-  const when = formatCompactDateTime(item.name);
-  const sizeLabel =
-    item.sizeBytes > 0
-      ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
-      : "—";
-  const typeLabel = CATEGORY_LABEL[category];
-  const catAccent = categoryColor(category, scheme);
-  const playA11y = item.kind === "image" ? `View ${item.name}` : `Play ${item.name}`;
-
-  return (
-    <Card
-      style={[
-        styles.card,
-        {
-          padding: 12,
-          borderRadius: radius.md,
-          borderColor: selected ? colors.brand : colors.border,
-          borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
-        },
-      ]}
-    >
-      <Pressable
-        disabled={!selecting}
-        onPress={() => onToggleSelect(item.uri)}
-        accessibilityRole={selecting ? "checkbox" : undefined}
-        accessibilityState={selecting ? { checked: selected } : undefined}
-        accessibilityLabel={
-          selecting
-            ? selected
-              ? `Deselect ${item.name}`
-              : `Select ${item.name}`
-            : undefined
-        }
-      >
-        <View style={styles.row} pointerEvents={selecting ? "box-only" : "auto"}>
-          <Pressable
-            onPress={() => (selecting ? onToggleSelect(item.uri) : openLocalMedia(item))}
-            accessibilityRole="button"
-            accessibilityLabel={
-              selecting
-                ? selected
-                  ? `Deselect ${item.name}`
-                  : `Select ${item.name}`
-                : playA11y
-            }
-            accessibilityState={selecting ? { selected } : undefined}
-            style={({ pressed }) => [styles.thumbPress, { opacity: pressed ? 0.82 : 1 }]}
-          >
-            <VideoThumbnail uri={item.uri} kind={item.kind} width={THUMB_W} height={THUMB_H} />
-            {!selecting ? (
-              <>
-                <View
-                  pointerEvents="none"
-                  style={[styles.thumbScrim, { backgroundColor: colors.bg, opacity: 0.35 }]}
-                />
-                <View pointerEvents="none" style={styles.playHit}>
-                  <View
-                    style={[
-                      styles.playGlyph,
-                      { backgroundColor: colors.surface, borderColor: colors.border },
-                    ]}
-                  >
-                    <Ionicons
-                      name={item.kind === "image" ? "eye" : "play"}
-                      size={16}
-                      color={colors.brand}
-                      style={item.kind === "image" ? undefined : { marginLeft: 2 }}
-                    />
-                  </View>
-                </View>
-              </>
-            ) : (
-              <View pointerEvents="none" style={styles.selectMarkHit}>
-                <View
-                  style={[
-                    styles.selectMark,
-                    selected
-                      ? {
-                          backgroundColor: colors.brand,
-                          borderColor: colors.brand,
-                        }
-                      : {
-                          backgroundColor: "transparent",
-                          borderColor: "rgba(255,255,255,0.95)",
-                          // Dark rim for contrast on light thumbnails
-                          shadowColor: "#000",
-                          shadowOpacity: 0.55,
-                          shadowRadius: 1.5,
-                          shadowOffset: { width: 0, height: 0 },
-                          elevation: 2,
-                        },
-                  ]}
-                >
-                  {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
-                </View>
-              </View>
-            )}
-            {durationSec !== undefined && durationSec > 0 ? (
-              <View
-                pointerEvents="none"
-                style={[styles.durationBadge, { backgroundColor: colors.bg }]}
-              >
-                <Text style={[styles.durationText, { color: colors.text }]}>
-                  {formatDuration(durationSec)}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-
-          <View style={styles.body}>
-            <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-              {displayMediaName(item.name)}
-            </Text>
-            {when ? (
-              <Text style={[styles.metaLine, { color: colors.textMuted }]} numberOfLines={1}>
-                {when}
-              </Text>
-            ) : null}
-            <Text style={[styles.metaLine, { color: colors.textMuted }]} numberOfLines={1}>
-              {sizeLabel}
-            </Text>
-          </View>
-
-          {!selecting ? (
-            <View style={styles.side}>
-              <View
-                style={[styles.typeBadge, { backgroundColor: catAccent + "22" }]}
-                accessibilityLabel={typeLabel}
-              >
-                <Text style={[styles.typeBadgeText, { color: catAccent }]}>{typeLabel}</Text>
-              </View>
-              <View style={styles.actions}>
-                <Pressable
-                  onPress={() => onShare(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Share ${item.name}`}
-                  hitSlop={4}
-                  style={({ pressed }) => [
-                    styles.iconHit,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <Ionicons name="share-outline" size={22} color={colors.textMuted} />
-                </Pressable>
-                <Pressable
-                  onPress={() => onDelete(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Delete ${item.name}`}
-                  hitSlop={4}
-                  style={({ pressed }) => [
-                    styles.iconHit,
-                    { opacity: pressed ? 0.6 : 1 },
-                  ]}
-                >
-                  <Ionicons name="trash-outline" size={22} color={colors.danger} />
-                </Pressable>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.side}>
-              <View
-                style={[styles.typeBadge, { backgroundColor: catAccent + "22" }]}
-                accessibilityLabel={typeLabel}
-              >
-                <Text style={[styles.typeBadgeText, { color: catAccent }]}>{typeLabel}</Text>
-              </View>
-            </View>
-          )}
-        </View>
-      </Pressable>
-    </Card>
-  );
-});
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
@@ -767,7 +556,7 @@ export default function LocalLibraryScreen() {
           const category: FileCategory =
             item.kind === "image" ? "photo" : (categoryByName.get(item.name) ?? "unknown");
           return (
-            <LibraryCard
+            <LocalLibraryCard
               item={item}
               category={category}
               durationSec={durationByName.get(item.name)}
@@ -962,72 +751,6 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { flex: 1, fontSize: 11, fontFamily: Type.fontSemi, letterSpacing: 0.5 },
   sectionCount: { fontSize: 11, fontFamily: Type.font },
-  card: { overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", gap: 10 },
-  thumbPress: {
-    width: THUMB_W,
-    height: THUMB_H,
-    borderRadius: 8,
-    overflow: "hidden",
-  },
-  thumbScrim: {
-    ...StyleSheet.absoluteFillObject,
-    top: undefined,
-    height: 28,
-  },
-  playHit: {
-    ...StyleSheet.absoluteFillObject,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  playGlyph: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectMarkHit: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: LOCAL_ACTION_HIT,
-    height: LOCAL_ACTION_HIT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectMark: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  durationBadge: {
-    position: "absolute",
-    right: 4,
-    bottom: 4,
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 1,
-    opacity: 0.88,
-  },
-  durationText: { fontSize: 10, fontFamily: Type.monoMed },
-  body: { flex: 1, minWidth: 0, justifyContent: "center" },
-  name: { fontFamily: Type.fontSemi, fontSize: 13, lineHeight: 17 },
-  metaLine: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
-  side: { alignItems: "flex-end", justifyContent: "center", gap: 6, flexShrink: 0 },
-  typeBadge: { borderRadius: 4, paddingHorizontal: 7, paddingVertical: 3, alignSelf: "flex-end" },
-  typeBadgeText: { fontSize: 10, fontFamily: Type.fontSemi, letterSpacing: 0.3 },
-  actions: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 4 },
-  iconHit: {
-    width: LOCAL_ACTION_HIT,
-    height: LOCAL_ACTION_HIT,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   selectionOverlay: {
     flex: 1,
     alignItems: "center",

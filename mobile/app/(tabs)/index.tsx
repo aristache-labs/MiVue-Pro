@@ -29,7 +29,6 @@ import {
   EMPTY_CAMERA_FILTERS,
   filterAndSortRemoteFiles,
   formatMediaSizeMbGb,
-  formatRemoteDateTime,
   friendlyConnectionError,
   isCameraFiltersEmpty,
   isCameraLibraryInteractive,
@@ -41,18 +40,17 @@ import {
   type CameraLibrarySort,
   type CategoryFilter,
 } from "@/components/camera/cameraLibraryModel";
+import { RemoteDetailSheet } from "@/components/camera/RemoteDetailSheet";
 import { RemoteRecordingCard } from "@/components/camera/RemoteRecordingCard";
 import {
   resolveRemoteDownloadState,
   shouldEnqueueOnDownloadPress,
 } from "@/components/camera/remoteDownloadState";
-import { formatDuration } from "@/components/mediaMeta";
 import {
   LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
 } from "@/components/local/localLibrarySections";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { CATEGORY_LABEL } from "@/constants/CategoryStyle";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { RemoteFile } from "@/packages/parsers/src/index";
@@ -92,6 +90,7 @@ export default function LibraryScreen() {
     queueItems,
     localFiles,
     enqueueDownload,
+    resumeDownload,
     refreshFiles,
     lastError,
     cameraLinkState,
@@ -209,9 +208,22 @@ export default function LibraryScreen() {
       });
       if (!shouldEnqueueOnDownloadPress(state)) return;
       void enqueueDownload(file);
-      setDetailFile(null);
     },
     [enqueueDownload, queueItems, localNames, queuePosition],
+  );
+
+  const onResume = useCallback(
+    (file: RemoteFile) => {
+      const state = resolveRemoteDownloadState({
+        file,
+        queueItems,
+        localNames,
+        queuePosition,
+      });
+      if (state.kind !== "paused") return;
+      void resumeDownload(state.queueId);
+    },
+    [queueItems, localNames, queuePosition, resumeDownload],
   );
 
   const openDownloaded = useCallback(
@@ -221,9 +233,20 @@ export default function LibraryScreen() {
       const href =
         `/player?uri=${encodeURIComponent(local.uri)}&name=${encodeURIComponent(local.name)}&kind=${local.kind}` as const;
       router.push(href as Parameters<typeof router.push>[0]);
+      setDetailFile(null);
     },
     [localFiles],
   );
+
+  const detailDownloadState = useMemo(() => {
+    if (!detailFile) return null;
+    return resolveRemoteDownloadState({
+      file: detailFile,
+      queueItems,
+      localNames,
+      queuePosition,
+    });
+  }, [detailFile, queueItems, localNames, queuePosition]);
 
   const showSkeleton =
     isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
@@ -462,6 +485,7 @@ export default function LibraryScreen() {
                 file={item}
                 downloadState={downloadState}
                 onDownload={onDownload}
+                onResume={onResume}
                 onOpenDownloaded={openDownloaded}
                 onOpenDetail={setDetailFile}
               />
@@ -526,48 +550,19 @@ export default function LibraryScreen() {
         </Pressable>
       </Modal>
 
-      <Modal
+      <RemoteDetailSheet
+        file={detailFile}
+        downloadState={detailDownloadState}
         visible={detailFile !== null}
-        animationType="slide"
-        transparent
-        onRequestClose={() => setDetailFile(null)}
-      >
-        <Pressable style={styles.sortBackdrop} onPress={() => setDetailFile(null)}>
-          <View
-            style={[
-              styles.detailSheet,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-            onStartShouldSetResponder={() => true}
-          >
-            {detailFile ? (
-              <>
-                <Text style={[styles.sortTitle, { color: colors.text }]} numberOfLines={2}>
-                  {detailFile.name}
-                </Text>
-                <Text style={{ color: colors.textMuted, fontFamily: Type.font, marginBottom: 4 }}>
-                  {CATEGORY_LABEL[detailFile.category]} · {formatRemoteDateTime(detailFile.recordedAt)}
-                </Text>
-                <Text style={{ color: colors.textMuted, fontFamily: Type.font, marginBottom: 16 }}>
-                  {formatMediaSizeMbGb(detailFile.sizeBytes)}
-                  {detailFile.durationSeconds
-                    ? ` · ${formatDuration(detailFile.durationSeconds)}`
-                    : ""}
-                </Text>
-                <Pressable
-                  onPress={() => onDownload(detailFile)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Download ${detailFile.name}`}
-                  style={[styles.downloadCta, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}
-                >
-                  <Ionicons name="download-outline" size={18} color={colors.brand} />
-                  <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Download</Text>
-                </Pressable>
-              </>
-            ) : null}
-          </View>
-        </Pressable>
-      </Modal>
+        onClose={() => setDetailFile(null)}
+        onDownload={onDownload}
+        onResume={onResume}
+        onPlay={openDownloaded}
+        onViewQueue={() => {
+          setDetailFile(null);
+          router.push("/(tabs)/two" as Parameters<typeof router.push>[0]);
+        }}
+      />
     </View>
   );
 }
@@ -643,10 +638,18 @@ const styles = StyleSheet.create({
   list: { flex: 1 },
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "baseline",
     justifyContent: "space-between",
-    paddingVertical: 8,
+    gap: 12,
+    paddingTop: 10,
+    paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 3,
+    ...Platform.select({
+      android: { elevation: 3 },
+      ios: {},
+      default: {},
+    }),
   },
   sectionTitle: { flex: 1, fontSize: 11, fontFamily: Type.fontSemi, letterSpacing: 0.5 },
   sectionCount: { fontSize: 11, fontFamily: Type.font },
@@ -677,21 +680,5 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 8,
-  },
-  detailSheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 20,
-    paddingBottom: 32,
-  },
-  downloadCta: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
   },
 });

@@ -256,7 +256,7 @@ export class DownloadQueue {
       }
     } catch (error) {
       const aborted = controller.signal.aborted || isAbortError(error);
-      const intent = this.abortIntent;
+      const intent = this.abortIntent as "cancel" | "pause" | "stall";
       this.abortIntent = "cancel";
       if (aborted && intent === "pause") {
         const kept = (await this.options.sink.sizeOf(part)) ?? item.bytesReceived;
