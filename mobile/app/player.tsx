@@ -74,30 +74,37 @@ export default function PlayerScreen() {
           },
         ]}
       >
-        <IconButton icon="close" tone="ghost" onPress={() => router.back()} accessibilityLabel="Close player" />
-        <View style={styles.topBarCenter}>
+        <View style={styles.titleRow}>
+          <IconButton
+            icon="close"
+            tone="ghost"
+            size={28}
+            onPress={() => router.back()}
+            accessibilityLabel="Close player"
+          />
           <Text style={[styles.topBarTitle, { color: colors.text }]} numberOfLines={1}>
             {name}
           </Text>
-          {metaChips.length > 0 ? (
-            <View style={styles.metaWrap}>
-              <MediaMetaRow chips={metaChips} compact />
-            </View>
-          ) : null}
+          <IconButton
+            icon="share-outline"
+            tone="ghost"
+            size={28}
+            onPress={() =>
+              void shareLocalFile({
+                name,
+                uri,
+                sizeBytes,
+                kind: isVideo ? "video" : isImage ? "image" : "other",
+              })
+            }
+            accessibilityLabel={`Share ${name}`}
+          />
         </View>
-        <IconButton
-          icon="share-outline"
-          tone="ghost"
-          onPress={() =>
-            void shareLocalFile({
-              name,
-              uri,
-              sizeBytes,
-              kind: isVideo ? "video" : isImage ? "image" : "other",
-            })
-          }
-          accessibilityLabel={`Share ${name}`}
-        />
+        {metaChips.length > 0 ? (
+          <View style={styles.metaWrap}>
+            <MediaMetaRow chips={metaChips} compact singleLine />
+          </View>
+        ) : null}
       </View>
 
       <ScrollView
@@ -197,7 +204,7 @@ function VideoWithGps({
 
       <View style={[styles.gpsBlock, { padding: spacing.md, backgroundColor: colors.bg }]}>
         <Text style={[styles.gpsTitle, { color: colors.text }]}>GPS track</Text>
-        <TelemetryPanel frame={frame} sampleCount={samples.length} videoTimeSec={videoTimeSec} />
+        <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} />
 
         <View style={{ height: spacing.sm }} />
 
@@ -260,19 +267,22 @@ const styles = StyleSheet.create({
   centerMessage: { alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 48 },
   centerText: { textAlign: "center", marginTop: 12, fontSize: 13, lineHeight: 18, fontFamily: Type.font },
   topBar: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingBottom: 8,
-    paddingHorizontal: 4,
+    paddingBottom: 10,
+    paddingHorizontal: 8,
   },
-  topBarCenter: { flex: 1, marginHorizontal: 4, alignItems: "center" },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
   topBarTitle: {
-    fontSize: 14,
+    flex: 1,
+    fontSize: 15,
     fontFamily: Type.fontSemi,
     textAlign: "center",
+    marginHorizontal: 4,
   },
-  metaWrap: { marginTop: 6, width: "100%", maxWidth: 340 },
+  metaWrap: { marginTop: 8, width: "100%" },
   gpsBlock: { gap: 0 },
   gpsTitle: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 8 },
   noGps: {

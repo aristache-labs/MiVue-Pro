@@ -113,7 +113,11 @@ export default function TabLayout() {
 }
 
 const styles = StyleSheet.create({
-  headerTitleWrap: { alignItems: Platform.OS === "ios" ? "center" : "flex-start" },
+  headerTitleWrap: {
+    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
+    marginTop: Platform.OS === "ios" ? -2 : 0,
+    paddingBottom: 6,
+  },
   headerTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  headerSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 1 },
+  headerSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 0 },
 });

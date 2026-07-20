@@ -33,6 +33,8 @@ export function IconButton({
   };
   const { fg, bg } = toneColors[tone];
 
+  const hit = Math.max(44, size + 16);
+
   return (
     <Pressable
       onPress={onPress}
@@ -42,7 +44,13 @@ export function IconButton({
       hitSlop={8}
       style={({ pressed }) => [
         styles.base,
-        { backgroundColor: bg, opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+        {
+          backgroundColor: bg,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+          width: hit,
+          height: hit,
+          borderRadius: hit / 2,
+        },
       ]}
     >
       <Ionicons name={icon} size={size} color={fg} />
@@ -52,9 +60,6 @@ export function IconButton({
 
 const styles = StyleSheet.create({
   base: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
     alignItems: "center",
     justifyContent: "center",
   },

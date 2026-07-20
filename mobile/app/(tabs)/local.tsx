@@ -83,20 +83,26 @@ export default function LocalLibraryScreen() {
                 <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
                   <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
                 </View>
-                <View style={styles.body}>
-                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                    {item.name}
-                  </Text>
-                  {chips.length > 0 ? (
-                    <View style={styles.metaRow}>
-                      <MediaMetaRow chips={chips} compact />
-                    </View>
-                  ) : (
-                    <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
-                  )}
-                </View>
+                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                  {item.name}
+                </Text>
               </View>
+
+              {chips.length > 0 ? (
+                <View style={styles.metaRow}>
+                  <MediaMetaRow chips={chips} compact singleLine />
+                </View>
+              ) : (
+                <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
+              )}
+
               <View style={[styles.actions, { marginTop: spacing.md }]}>
+                <IconButton
+                  icon="share-outline"
+                  tone="neutral"
+                  onPress={() => void shareLocalFile(item)}
+                  accessibilityLabel={`Share ${item.name}`}
+                />
                 <PrimaryButton
                   label={item.kind === "image" ? "View" : "Play"}
                   icon={item.kind === "image" ? "eye-outline" : "play"}
@@ -107,12 +113,6 @@ export default function LocalLibraryScreen() {
                     router.push(href as Parameters<typeof router.push>[0]);
                   }}
                   accessibilityLabel={`Open ${item.name}`}
-                />
-                <IconButton
-                  icon="share-outline"
-                  tone="neutral"
-                  onPress={() => void shareLocalFile(item)}
-                  accessibilityLabel={`Share ${item.name}`}
                 />
                 <IconButton
                   icon="trash-outline"
@@ -145,9 +145,13 @@ const styles = StyleSheet.create({
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center" },
   iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  body: { flex: 1, minWidth: 0 },
-  name: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 4 },
-  metaRow: { marginTop: 0 },
-  metaFallback: { fontSize: 12, fontFamily: Type.mono },
-  actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  name: { flex: 1, fontFamily: Type.fontSemi, fontSize: 14, minWidth: 0 },
+  metaRow: { marginTop: 10 },
+  metaFallback: { fontSize: 12, fontFamily: Type.mono, marginTop: 10 },
+  actions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
 });

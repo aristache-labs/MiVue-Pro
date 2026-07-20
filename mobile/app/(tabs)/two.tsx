@@ -148,14 +148,15 @@ export default function QueueScreen() {
 
               {chips.length > 0 ? (
                 <View style={styles.metaRow}>
-                  <MediaMetaRow chips={chips} compact />
+                  <MediaMetaRow chips={chips} compact singleLine />
                 </View>
               ) : null}
 
               <Text style={[styles.meta, { color: colors.textMuted }]}>
                 {position !== undefined ? `#${position} in queue · ` : ""}
-                {total > 0 ? `${formatBytesShort(received)} / ${formatBytesShort(total)}` : formatBytesShort(item.expectedBytes)}
-                {eta ? ` · ETA ${eta}` : ""}
+                {total > 0
+                  ? `${formatBytesShort(received)} / ${formatBytesShort(total)}`
+                  : formatBytesShort(item.expectedBytes)}
               </Text>
 
               {item.status === "active" ? (

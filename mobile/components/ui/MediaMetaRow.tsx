@@ -11,10 +11,12 @@ export interface MetaChip {
 interface MediaMetaRowProps {
   readonly chips: readonly MetaChip[];
   readonly compact?: boolean;
+  /** Keep chips on one row (no wrap). */
+  readonly singleLine?: boolean;
 }
 
 /** Professional meta chips: icon + value, separated by vertical rules. */
-export function MediaMetaRow({ chips, compact = false }: MediaMetaRowProps) {
+export function MediaMetaRow({ chips, compact = false, singleLine = false }: MediaMetaRowProps) {
   const { colors, radius } = useAppTheme();
   if (chips.length === 0) return null;
 
@@ -26,16 +28,28 @@ export function MediaMetaRow({ chips, compact = false }: MediaMetaRowProps) {
           backgroundColor: colors.surfaceMuted,
           borderRadius: radius.sm,
           paddingVertical: compact ? 6 : 8,
-          paddingHorizontal: compact ? 8 : 10,
+          paddingHorizontal: compact ? 6 : 10,
+          flexWrap: singleLine ? "nowrap" : "wrap",
         },
       ]}
     >
       {chips.map((chip, index) => (
-        <View key={`${chip.icon}-${chip.label}-${index}`} style={styles.chipWrap}>
+        <View
+          key={`${chip.icon}-${chip.label}-${index}`}
+          style={[styles.chipWrap, singleLine ? styles.chipWrapFlex : null]}
+        >
           {index > 0 ? <View style={[styles.sep, { backgroundColor: colors.border }]} /> : null}
-          <View style={styles.chip}>
-            <Ionicons name={chip.icon} size={compact ? 12 : 13} color={colors.brand} style={styles.icon} />
-            <Text style={[styles.label, { color: colors.textMuted, fontSize: compact ? 11 : 12 }]} numberOfLines={1}>
+          <View style={[styles.chip, singleLine ? styles.chipFlex : null]}>
+            <Ionicons
+              name={chip.icon}
+              size={compact ? 11 : 13}
+              color={colors.brand}
+              style={styles.icon}
+            />
+            <Text
+              style={[styles.label, { color: colors.textMuted, fontSize: compact ? 10 : 12 }]}
+              numberOfLines={1}
+            >
               {chip.label}
             </Text>
           </View>
@@ -46,10 +60,12 @@ export function MediaMetaRow({ chips, compact = false }: MediaMetaRowProps) {
 }
 
 const styles = StyleSheet.create({
-  row: { flexDirection: "row", alignItems: "center", flexWrap: "wrap" },
+  row: { flexDirection: "row", alignItems: "center" },
   chipWrap: { flexDirection: "row", alignItems: "center" },
-  sep: { width: StyleSheet.hairlineWidth, height: 14, marginHorizontal: 8 },
+  chipWrapFlex: { flex: 1, minWidth: 0 },
+  sep: { width: StyleSheet.hairlineWidth, height: 12, marginRight: 6 },
   chip: { flexDirection: "row", alignItems: "center" },
-  icon: { marginRight: 4 },
-  label: { fontFamily: Type.monoMed },
+  chipFlex: { flex: 1, minWidth: 0, justifyContent: "center" },
+  icon: { marginRight: 3 },
+  label: { fontFamily: Type.monoMed, flexShrink: 1 },
 });
