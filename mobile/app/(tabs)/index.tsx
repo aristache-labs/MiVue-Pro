@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useNavigation } from "expo-router";
-import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   Platform,
@@ -22,18 +22,20 @@ import { CameraUnavailableBanner } from "@/components/camera/CameraUnavailableBa
 import {
   buildCameraFilterChips,
   buildCameraLibrarySections,
-  CAMERA_SORT_OPTIONS,
+  cameraSortOptionsForCategory,
   clearCameraFilterGroup,
   countCameraFilterGroups,
   countCategories,
   EMPTY_CAMERA_FILTERS,
   filterAndSortRemoteFiles,
+  formatCountAbbrev,
   formatMediaSizeMbGb,
   friendlyConnectionError,
   isCameraFiltersEmpty,
   isCameraLibraryInteractive,
   libraryEmptyInstruction,
   librarySubtitle,
+  sanitizeFiltersForCategoryScope,
   shouldShowCameraUnavailableBanner,
   sumRemoteBytes,
   type CameraLibraryFilters,
@@ -103,6 +105,7 @@ export default function LibraryScreen() {
 
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [sort, setSort] = useState<CameraLibrarySort>("newest");
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<CameraLibraryFilters>(EMPTY_CAMERA_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
@@ -110,12 +113,46 @@ export default function LibraryScreen() {
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
   const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | undefined>();
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
+  const queuedNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const item of queueItems) {
+      if (
+        item.status === "queued" ||
+        item.status === "active" ||
+        item.status === "paused"
+      ) {
+        names.add(item.localName);
+      }
+    }
+    return names;
+  }, [queueItems]);
   const counts = useMemo(() => countCategories(files), [files]);
   const hasAdvanced = !isCameraFiltersEmpty(filters);
+  const hasSecondaryFilters = hasAdvanced || search.trim().length > 0;
   const hasActiveFilters = hasAdvanced || category !== "all" || search.trim().length > 0;
   const activeGroups = countCameraFilterGroups(filters);
+  const sortOptions = useMemo(() => cameraSortOptionsForCategory(category), [category]);
+
+  useEffect(() => {
+    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    searchTimerRef.current = setTimeout(() => setSearch(searchInput), 200);
+    return () => {
+      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
+    };
+  }, [searchInput]);
+
+  useEffect(() => {
+    setFilters((prev) => sanitizeFiltersForCategoryScope(prev, category));
+  }, [category]);
+
+  useEffect(() => {
+    if (category === "photo" && (sort === "longest" || sort === "shortest")) {
+      setSort("newest");
+    }
+  }, [category, sort]);
 
   const filtered = useMemo(
     () =>
@@ -126,8 +163,9 @@ export default function LibraryScreen() {
         filters,
         sort,
         downloadedNames: localNames,
+        queuedNames,
       }),
-    [files, category, search, filters, sort, localNames],
+    [files, category, search, filters, sort, localNames, queuedNames],
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
@@ -265,9 +303,15 @@ export default function LibraryScreen() {
       />
     ) : filtered.length === 0 && files.length > 0 ? (
       <EmptyState
-        icon="filter-outline"
-        title="No recordings match these filters."
-        subtitle="Try clearing search or filters."
+        icon={search.trim() ? "search-outline" : "filter-outline"}
+        title={
+          search.trim()
+            ? "No recordings match your search"
+            : "No recordings match these filters."
+        }
+        subtitle={search.trim() ? undefined : "Try clearing search or filters."}
+        actionLabel={search.trim() ? "Clear search" : undefined}
+        onAction={search.trim() ? () => { setSearchInput(""); setSearch(""); } : undefined}
       />
     ) : null;
 
@@ -296,16 +340,15 @@ export default function LibraryScreen() {
           </Pressable>
         ) : null}
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={{ maxHeight: 40, opacity: libraryInteractive ? 1 : 0.55 }}
-          contentContainerStyle={{ gap: 8 }}
+        <View
+          style={[styles.catRow, { opacity: libraryInteractive ? 1 : 0.55 }]}
           pointerEvents={libraryInteractive ? "auto" : "none"}
+          testID="camera-category-row"
         >
           {CATEGORY_CHIPS.map((chip) => {
             const selected = category === chip.id;
             const value = counts[chip.id];
+            const abbrev = formatCountAbbrev(value);
             return (
               <Pressable
                 key={chip.id}
@@ -313,9 +356,9 @@ export default function LibraryScreen() {
                 disabled={!libraryInteractive}
                 accessibilityRole="button"
                 accessibilityState={{ selected, disabled: !libraryInteractive }}
-                accessibilityLabel={`${chip.label} ${value}`}
+                accessibilityLabel={`${chip.label}, ${abbrev.a11y}`}
                 style={[
-                  styles.catChip,
+                  styles.catCell,
                   {
                     borderColor: selected ? colors.brand : colors.border,
                     backgroundColor: selected ? colors.brandSoft : colors.surface,
@@ -323,18 +366,25 @@ export default function LibraryScreen() {
                   },
                 ]}
               >
-                <Text style={[styles.catChipLabel, { color: selected ? colors.brand : colors.text }]}>
+                <Text
+                  style={[styles.catChipLabel, { color: selected ? colors.brand : colors.text }]}
+                  numberOfLines={1}
+                >
                   {chip.label}
                 </Text>
                 <Text
-                  style={[styles.catChipCount, { color: selected ? colors.brandStrong : colors.textMuted }]}
+                  style={[
+                    styles.catChipCount,
+                    { color: selected ? colors.brandStrong : colors.textMuted },
+                  ]}
+                  numberOfLines={1}
                 >
-                  {value}
+                  {abbrev.display}
                 </Text>
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
 
         <View style={[styles.toolbar, { opacity: libraryInteractive ? 1 : 0.55 }]}>
           <View
@@ -346,17 +396,31 @@ export default function LibraryScreen() {
           >
             <Ionicons name="search" size={16} color={colors.textFaint} />
             <TextInput
-              value={search}
-              onChangeText={setSearch}
-              placeholder="Search recordings"
+              value={searchInput}
+              onChangeText={setSearchInput}
+              placeholder="Search name, date or time"
               placeholderTextColor={colors.textFaint}
               style={[styles.searchInput, { color: colors.text }]}
-              accessibilityLabel="Search recordings"
+              accessibilityLabel="Search name, date or time"
               accessibilityState={{ disabled: !libraryInteractive }}
               editable={libraryInteractive}
               autoCorrect={false}
               autoCapitalize="none"
             />
+            {searchInput.length > 0 ? (
+              <Pressable
+                onPress={() => {
+                  setSearchInput("");
+                  setSearch("");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Clear search"
+                hitSlop={HitSlop44}
+                style={styles.searchClear}
+              >
+                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
+              </Pressable>
+            ) : null}
           </View>
           <Pressable
             onPress={() => setFilterOpen(true)}
@@ -391,7 +455,7 @@ export default function LibraryScreen() {
           </Pressable>
         </View>
 
-        {filterChips.length > 0 || hasActiveFilters ? (
+        {filterChips.length > 0 || hasSecondaryFilters ? (
           <View style={styles.summaryRow}>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
               {filterChips.map((chip) => (
@@ -410,20 +474,22 @@ export default function LibraryScreen() {
               ))}
             </ScrollView>
             <Text style={[styles.summaryText, { color: colors.textMuted }]}>
-              {filtered.length} · {formatMediaSizeMbGb(filteredBytes)}
+              {filtered.length} results · {formatMediaSizeMbGb(filteredBytes)}
             </Text>
-            {hasActiveFilters ? (
+            {hasSecondaryFilters ? (
               <Pressable
                 onPress={() => {
                   setFilters(EMPTY_CAMERA_FILTERS);
-                  setCategory("all");
+                  setSearchInput("");
                   setSearch("");
                 }}
                 accessibilityRole="button"
                 accessibilityLabel="Clear all filters"
                 hitSlop={HitSlop44}
               >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 12 }}>Clear all</Text>
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 12 }}>
+                  Clear all
+                </Text>
               </Pressable>
             ) : null}
           </View>
@@ -510,6 +576,11 @@ export default function LibraryScreen() {
       <CameraFilterSheet
         visible={filterOpen}
         initial={filters}
+        categoryScope={category}
+        files={files}
+        search={search}
+        downloadedNames={localNames}
+        queuedNames={queuedNames}
         onClose={() => setFilterOpen(false)}
         onApply={setFilters}
       />
@@ -523,7 +594,7 @@ export default function LibraryScreen() {
             ]}
           >
             <Text style={[styles.sortTitle, { color: colors.text }]}>Sort</Text>
-            {CAMERA_SORT_OPTIONS.map((opt) => (
+            {sortOptions.map((opt) => (
               <Pressable
                 key={opt.id}
                 onPress={() => {
@@ -584,16 +655,24 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
-  catChip: {
+  catRow: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "stretch",
     gap: 6,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    minHeight: 50,
   },
-  catChipLabel: { fontSize: 13, fontFamily: Type.fontSemi },
-  catChipCount: { fontSize: 12, fontFamily: Type.monoMed },
+  catCell: {
+    flex: 1,
+    minHeight: 48,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+  },
+  catChipLabel: { fontSize: 11, fontFamily: Type.fontSemi, textAlign: "center" },
+  catChipCount: { fontSize: 11, fontFamily: Type.monoMed, textAlign: "center" },
   toolbar: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchWrap: {
     flex: 1,
@@ -605,6 +684,7 @@ const styles = StyleSheet.create({
     minHeight: 40,
   },
   searchInput: { flex: 1, fontSize: 14, fontFamily: Type.font, paddingVertical: 8 },
+  searchClear: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
   toolBtn: {
     width: 44,
     height: 44,

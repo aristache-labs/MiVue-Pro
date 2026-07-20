@@ -15,7 +15,7 @@ export function remoteDownloadActionA11y(
     case "paused":
       return `${fileName}, paused`;
     case "downloaded":
-      return `${fileName}, downloaded`;
+      return "Downloaded. Open local recording";
     case "failed":
       return `Retry download for ${fileName}`;
     default:

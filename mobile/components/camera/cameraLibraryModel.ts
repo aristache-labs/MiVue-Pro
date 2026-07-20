@@ -5,7 +5,6 @@ import {
   parseMinutesOfDay,
   type DateFilterMode,
   type MediaTypeFilter,
-  type RecordingCategory,
   type TimeFilterMode,
 } from "@/components/local/localLibraryFilters";
 
@@ -53,7 +52,9 @@ export const CAMERA_SORT_OPTIONS: readonly { id: CameraLibrarySort; label: strin
   { id: "shortest", label: "Shortest first" },
 ];
 
-export type DownloadedFilter = "any" | "downloaded" | "not_downloaded";
+export type CameraFilterCategory = "normal" | "parking" | "event" | "photo";
+
+export type DownloadedFilter = "any" | "downloaded" | "not_downloaded" | "in_queue";
 
 export interface CameraLibraryFilters {
   readonly dateMode: DateFilterMode;
@@ -64,11 +65,14 @@ export interface CameraLibraryFilters {
   readonly singleTime?: string;
   readonly timeFrom?: string;
   readonly timeTo?: string;
-  readonly categories: readonly RecordingCategory[];
+  /** Multi-select only when main category scope is All. */
+  readonly categories: readonly CameraFilterCategory[];
   readonly mediaTypes: readonly MediaTypeFilter[];
   readonly downloaded: DownloadedFilter;
   readonly durationMinSec?: number;
   readonly durationMaxSec?: number;
+  readonly sizeMinBytes?: number;
+  readonly sizeMaxBytes?: number;
 }
 
 export const EMPTY_CAMERA_FILTERS: CameraLibraryFilters = {
@@ -99,7 +103,7 @@ export interface CameraLibrarySection {
 export interface CameraFilterChip {
   readonly id: string;
   readonly label: string;
-  readonly group: "date" | "time" | "category" | "media" | "downloaded" | "duration";
+  readonly group: "date" | "time" | "category" | "media" | "downloaded" | "duration" | "size";
 }
 
 export type CameraLinkState =
@@ -120,6 +124,17 @@ export const PRODUCTION_LIBRARY_FORBIDDEN_UI = Object.freeze([
   "gateway",
 ] as const);
 
+export function formatCountAbbrev(count: number): { readonly display: string; readonly a11y: string } {
+  const a11y = String(count);
+  if (count < 1000) return { display: a11y, a11y };
+  if (count < 10_000) {
+    const k = (count / 1000).toFixed(1).replace(/\.0$/u, "");
+    return { display: `${k}K`, a11y };
+  }
+  const k = (count / 1000).toFixed(1).replace(/\.0$/u, "");
+  return { display: `${k}K`, a11y };
+}
+
 export function formatMediaSizeMbGb(bytes: number): string {
   if (!Number.isFinite(bytes) || bytes <= 0) return "—";
   const gb = bytes / (1024 * 1024 * 1024);
@@ -128,6 +143,44 @@ export function formatMediaSizeMbGb(bytes: number): string {
   if (mb >= 0.1) return `${mb.toFixed(1)} MB`;
   const kb = bytes / 1024;
   return `${Math.max(1, Math.round(kb))} KB`;
+}
+
+export function cameraSortOptionsForCategory(
+  category: CategoryFilter,
+): readonly { id: CameraLibrarySort; label: string }[] {
+  if (category === "photo") {
+    return CAMERA_SORT_OPTIONS.filter((o) => o.id !== "longest" && o.id !== "shortest");
+  }
+  return CAMERA_SORT_OPTIONS;
+}
+
+/** Drop filter fields that conflict with the main category chip. */
+export function sanitizeFiltersForCategoryScope(
+  filters: CameraLibraryFilters,
+  category: CategoryFilter,
+): CameraLibraryFilters {
+  if (category === "all") return filters;
+  let next: CameraLibraryFilters = {
+    ...filters,
+    categories: [],
+    mediaTypes: [],
+  };
+  if (category === "photo") {
+    next = {
+      ...next,
+      durationMinSec: undefined,
+      durationMaxSec: undefined,
+    };
+  }
+  return next;
+}
+
+export function showCategorySectionInFilters(category: CategoryFilter): boolean {
+  return category === "all";
+}
+
+export function showDurationSectionInFilters(category: CategoryFilter): boolean {
+  return category !== "photo";
 }
 
 export function dayKeyFromRemote(file: RemoteFile): string {
@@ -201,7 +254,9 @@ export function isCameraFiltersEmpty(filters: CameraLibraryFilters): boolean {
     filters.mediaTypes.length === 0 &&
     filters.downloaded === "any" &&
     filters.durationMinSec === undefined &&
-    filters.durationMaxSec === undefined
+    filters.durationMaxSec === undefined &&
+    filters.sizeMinBytes === undefined &&
+    filters.sizeMaxBytes === undefined
   );
 }
 
@@ -213,6 +268,7 @@ export function countCameraFilterGroups(filters: CameraLibraryFilters): number {
   if (filters.mediaTypes.length > 0) n += 1;
   if (filters.downloaded !== "any") n += 1;
   if (filters.durationMinSec !== undefined || filters.durationMaxSec !== undefined) n += 1;
+  if (filters.sizeMinBytes !== undefined || filters.sizeMaxBytes !== undefined) n += 1;
   return n;
 }
 
@@ -224,6 +280,7 @@ export function remoteMatchesFilters(
   file: RemoteFile,
   filters: CameraLibraryFilters,
   downloadedNames: ReadonlySet<string>,
+  queuedNames: ReadonlySet<string> = new Set(),
 ): boolean {
   const dayKey = dayKeyFromRemote(file);
 
@@ -255,7 +312,7 @@ export function remoteMatchesFilters(
   }
 
   if (filters.categories.length > 0) {
-    if (!filters.categories.includes(file.category as RecordingCategory)) return false;
+    if (!filters.categories.includes(file.category as CameraFilterCategory)) return false;
   }
 
   if (filters.mediaTypes.length > 0) {
@@ -265,6 +322,7 @@ export function remoteMatchesFilters(
 
   if (filters.downloaded === "downloaded" && !downloadedNames.has(file.name)) return false;
   if (filters.downloaded === "not_downloaded" && downloadedNames.has(file.name)) return false;
+  if (filters.downloaded === "in_queue" && !queuedNames.has(file.name)) return false;
 
   const dur = file.durationSeconds;
   if (filters.durationMinSec !== undefined) {
@@ -274,16 +332,57 @@ export function remoteMatchesFilters(
     if (dur === undefined || dur > filters.durationMaxSec) return false;
   }
 
+  if (filters.sizeMinBytes !== undefined && file.sizeBytes < filters.sizeMinBytes) return false;
+  if (filters.sizeMaxBytes !== undefined && file.sizeBytes > filters.sizeMaxBytes) return false;
+
   return true;
 }
 
+function normalizeSearchText(raw: string): string {
+  return raw
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .toLowerCase()
+    .replace(/[./\-_:]+/gu, " ")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function searchHaystacks(file: RemoteFile): string[] {
+  const name = file.name.toLowerCase();
+  const base = name.replace(/\.[^.]+$/u, "");
+  const recorded = file.recordedAt.toLowerCase();
+  const day = recorded.slice(0, 10);
+  const time = recorded.slice(11, 16);
+  const timeCompact = time.replace(":", "");
+  const d = new Date(recorded.includes("T") ? recorded : recorded.replace(" ", "T"));
+  const hay: string[] = [
+    name,
+    base,
+    file.category.toLowerCase(),
+    recorded,
+    day,
+    day.replace(/-/gu, "."),
+    day.replace(/-/gu, "/"),
+    time,
+    timeCompact,
+  ];
+  if (Number.isFinite(d.getTime())) {
+    hay.push(
+      d.toLocaleDateString(CAMERA_UI_LOCALE, { day: "numeric", month: "short", year: "numeric" }).toLowerCase(),
+      d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).toLowerCase(),
+    );
+  }
+  if (file.category === "photo") hay.push("photos", "photo", "image");
+  return hay.map(normalizeSearchText);
+}
+
+/** Local AND-token search over name, category, date, and time — no camera I/O. */
 export function matchesSearch(file: RemoteFile, query: string): boolean {
-  const q = query.trim().toLowerCase();
-  if (!q) return true;
-  if (file.name.toLowerCase().includes(q)) return true;
-  if (file.recordedAt.toLowerCase().includes(q)) return true;
-  if (file.category.toLowerCase().includes(q)) return true;
-  return false;
+  const tokens = normalizeSearchText(query).split(" ").filter(Boolean);
+  if (tokens.length === 0) return true;
+  const hay = searchHaystacks(file);
+  return tokens.every((token) => hay.some((h) => h.includes(token)));
 }
 
 export function filterAndSortRemoteFiles(options: {
@@ -293,17 +392,42 @@ export function filterAndSortRemoteFiles(options: {
   readonly filters: CameraLibraryFilters;
   readonly sort: CameraLibrarySort;
   readonly downloadedNames: ReadonlySet<string>;
+  readonly queuedNames?: ReadonlySet<string>;
 }): RemoteFile[] {
-  const { files, category, search, filters, sort, downloadedNames } = options;
+  const {
+    files,
+    category,
+    search,
+    filters,
+    sort,
+    downloadedNames,
+    queuedNames = new Set(),
+  } = options;
+  const scoped = sanitizeFiltersForCategoryScope(filters, category);
   const out: RemoteFile[] = [];
   for (const file of files) {
     if (category !== "all" && file.category !== category) continue;
     if (!matchesSearch(file, search)) continue;
-    if (!remoteMatchesFilters(file, filters, downloadedNames)) continue;
+    if (!remoteMatchesFilters(file, scoped, downloadedNames, queuedNames)) continue;
     out.push(file);
   }
   out.sort((a, b) => compareRemoteFiles(a, b, sort));
   return out;
+}
+
+export function countFilteredRemoteFiles(options: {
+  readonly files: readonly RemoteFile[];
+  readonly category: CategoryFilter;
+  readonly search: string;
+  readonly filters: CameraLibraryFilters;
+  readonly downloadedNames: ReadonlySet<string>;
+  readonly queuedNames?: ReadonlySet<string>;
+}): number {
+  return filterAndSortRemoteFiles({
+    ...options,
+    sort: "newest",
+    queuedNames: options.queuedNames,
+  }).length;
 }
 
 export function buildCameraLibrarySections(
@@ -377,7 +501,14 @@ export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFil
     });
   }
   for (const cat of filters.categories) {
-    const label = cat === "normal" ? "Normal" : cat === "parking" ? "Parking" : "Event";
+    const label =
+      cat === "normal"
+        ? "Normal"
+        : cat === "parking"
+          ? "Parking"
+          : cat === "event"
+            ? "Event"
+            : "Photos";
     chips.push({ id: `cat-${cat}`, group: "category", label });
   }
   for (const mt of filters.mediaTypes) {
@@ -391,11 +522,34 @@ export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFil
     chips.push({ id: "downloaded", group: "downloaded", label: "Downloaded" });
   } else if (filters.downloaded === "not_downloaded") {
     chips.push({ id: "downloaded", group: "downloaded", label: "Not downloaded" });
+  } else if (filters.downloaded === "in_queue") {
+    chips.push({ id: "downloaded", group: "downloaded", label: "In queue" });
   }
   if (filters.durationMinSec !== undefined || filters.durationMaxSec !== undefined) {
-    const min = filters.durationMinSec ?? 0;
-    const max = filters.durationMaxSec ?? "∞";
-    chips.push({ id: "duration", group: "duration", label: `${min}s–${max}s` });
+    if (filters.durationMaxSec === 60 && filters.durationMinSec === undefined) {
+      chips.push({ id: "duration", group: "duration", label: "Under 1 min" });
+    } else if (filters.durationMinSec === 60 && filters.durationMaxSec === 300) {
+      chips.push({ id: "duration", group: "duration", label: "1–5 min" });
+    } else if (filters.durationMinSec === 300 && filters.durationMaxSec === undefined) {
+      chips.push({ id: "duration", group: "duration", label: "Over 5 min" });
+    } else {
+      const min = filters.durationMinSec ?? 0;
+      const max = filters.durationMaxSec ?? "∞";
+      chips.push({ id: "duration", group: "duration", label: `${min}s–${max}s` });
+    }
+  }
+  if (filters.sizeMinBytes !== undefined || filters.sizeMaxBytes !== undefined) {
+    const mb100 = 100 * 1024 * 1024;
+    const mb300 = 300 * 1024 * 1024;
+    if (filters.sizeMaxBytes === mb100 && filters.sizeMinBytes === undefined) {
+      chips.push({ id: "size", group: "size", label: "Under 100 MB" });
+    } else if (filters.sizeMinBytes === mb100 && filters.sizeMaxBytes === mb300) {
+      chips.push({ id: "size", group: "size", label: "100–300 MB" });
+    } else if (filters.sizeMinBytes === mb300 && filters.sizeMaxBytes === undefined) {
+      chips.push({ id: "size", group: "size", label: "Over 300 MB" });
+    } else {
+      chips.push({ id: "size", group: "size", label: "Size" });
+    }
   }
   return chips;
 }
@@ -423,7 +577,7 @@ export function clearCameraFilterGroup(
     };
   }
   if (chipId.startsWith("cat-")) {
-    const cat = chipId.slice(4) as RecordingCategory;
+    const cat = chipId.slice(4) as CameraFilterCategory;
     return { ...filters, categories: filters.categories.filter((c) => c !== cat) };
   }
   if (chipId.startsWith("media-")) {
@@ -435,6 +589,9 @@ export function clearCameraFilterGroup(
   }
   if (chipId === "duration") {
     return { ...filters, durationMinSec: undefined, durationMaxSec: undefined };
+  }
+  if (chipId === "size") {
+    return { ...filters, sizeMinBytes: undefined, sizeMaxBytes: undefined };
   }
   return filters;
 }

@@ -49,7 +49,7 @@ test("compact download a11y labels", () => {
     remoteDownloadActionA11y(name, { kind: "downloading", percent: 42, queueId: "q" }),
     `${name}, downloading 42 percent`,
   );
-  assert.equal(remoteDownloadActionA11y(name, { kind: "downloaded" }), `${name}, downloaded`);
+  assert.equal(remoteDownloadActionA11y(name, { kind: "downloaded" }), "Downloaded. Open local recording");
   assert.equal(
     remoteDownloadActionA11y(name, { kind: "failed", queueId: "q" }),
     `Retry download for ${name}`,
@@ -93,7 +93,8 @@ test("library index wires RemoteDetailSheet and does not slide-detail Modal", ()
 
 test("compact action hit area contract", () => {
   const action = readFileSync(join(__dirname, "CompactDownloadAction.tsx"), "utf8");
-  assert.match(action, /mediaCardActionHitStyle/);
+  assert.match(action, /MEDIA_ACTION_HIT/);
+  assert.match(action, /downloadChip/);
   assert.match(action, /testID="compact-download-action"/);
   const media = readFileSync(join(__dirname, "../media/MediaCard.tsx"), "utf8");
   assert.match(media, /MEDIA_ACTION_HIT/);

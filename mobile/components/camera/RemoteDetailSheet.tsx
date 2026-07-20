@@ -228,9 +228,22 @@ export function RemoteDetailSheet({
           </View>
 
           <View style={styles.metaBlock}>
-            <MetaRow label="Size" value={sizeLabel} />
-            {duration ? <MetaRow label="Duration" value={duration} /> : null}
-            <MetaRow label="Status" value={primary} />
+            <View style={styles.metaCols}>
+              <View style={styles.metaCol}>
+                <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Size</Text>
+                <Text style={[styles.metaValue, { color: colors.text }]} numberOfLines={1}>
+                  {sizeLabel}
+                </Text>
+              </View>
+              {duration ? (
+                <View style={styles.metaCol}>
+                  <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Duration</Text>
+                  <Text style={[styles.metaValue, { color: colors.text }]} numberOfLines={1}>
+                    {duration}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
           </View>
 
           <PrimaryButton
@@ -262,18 +275,6 @@ export function RemoteDetailSheet({
         </Animated.View>
       </View>
     </Modal>
-  );
-}
-
-function MetaRow({ label, value }: { readonly label: string; readonly value: string }) {
-  const { colors } = useAppTheme();
-  return (
-    <View style={styles.metaRow}>
-      <Text style={[styles.metaLabel, { color: colors.textMuted }]}>{label}</Text>
-      <Text style={[styles.metaValue, { color: colors.text }]} numberOfLines={1}>
-        {value}
-      </Text>
-    </View>
   );
 }
 
@@ -317,14 +318,9 @@ const styles = StyleSheet.create({
     marginTop: -8,
     marginRight: -8,
   },
-  metaBlock: { gap: 8, marginBottom: 4 },
-  metaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    minHeight: 28,
-    gap: 12,
-  },
-  metaLabel: { fontSize: 13, fontFamily: Type.font },
-  metaValue: { fontSize: 13, fontFamily: Type.fontSemi, flexShrink: 1, textAlign: "right" },
+  metaBlock: { marginBottom: 4 },
+  metaCols: { flexDirection: "row", gap: 16 },
+  metaCol: { flex: 1, gap: 2 },
+  metaLabel: { fontSize: 12, fontFamily: Type.font },
+  metaValue: { fontSize: 14, fontFamily: Type.fontSemi },
 });

@@ -4,7 +4,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-nati
 
 import { remoteDownloadActionA11y } from "@/components/camera/remoteDownloadA11y";
 import type { RemoteDownloadUiState } from "@/components/camera/remoteDownloadState";
-import { mediaCardActionHitStyle } from "@/components/media/MediaCard";
+import { MEDIA_ACTION_HIT } from "@/components/media/mediaCardTokens";
 import { Type, useAppTheme } from "@/constants/Theme";
 
 interface CompactDownloadActionProps {
@@ -14,8 +14,8 @@ interface CompactDownloadActionProps {
 }
 
 /**
- * Compact right-column download control (icon / #queue / spinner / check).
- * Hit area ≥44×44; glyph ~20–22.
+ * Compact right-column download control.
+ * Available/failed: icon + "Download"/"Retry" chip (~36–40h) inside ≥44 hit area.
  */
 export const CompactDownloadAction = memo(function CompactDownloadAction({
   fileName,
@@ -42,37 +42,46 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
   return (
     <Pressable
       onPress={(e) => {
-        // Prevent bubbling to card body when nested.
         e?.stopPropagation?.();
-        if (interactive || state.kind === "queued" || state.kind === "downloading") {
-          onPress();
-        }
+        if (interactive) onPress();
       }}
       accessibilityRole="button"
       accessibilityLabel={label}
-      accessibilityState={{ disabled: state.kind === "queued" || state.kind === "downloading" }}
-      disabled={state.kind === "queued" || state.kind === "downloading"}
+      accessibilityState={{ disabled: !interactive }}
+      disabled={!interactive}
       hitSlop={4}
       style={({ pressed }) => [
-        mediaCardActionHitStyle,
-        { opacity: pressed && interactive ? 0.65 : 1 },
+        styles.hit,
+        { opacity: pressed && interactive ? 0.7 : 1 },
       ]}
       testID="compact-download-action"
     >
-      {state.kind === "available" ? (
-        <Ionicons name="download-outline" size={22} color={tone} />
-      ) : null}
-      {state.kind === "failed" ? (
-        <Ionicons name="refresh" size={22} color={tone} />
+      {state.kind === "available" || state.kind === "failed" ? (
+        <View
+          style={[
+            styles.downloadChip,
+            {
+              borderColor: tone,
+              backgroundColor: colors.brandSoft,
+            },
+          ]}
+        >
+          <Ionicons
+            name={state.kind === "failed" ? "refresh" : "download-outline"}
+            size={16}
+            color={tone}
+          />
+          <Text style={[styles.downloadText, { color: tone }]} numberOfLines={1}>
+            {state.kind === "failed" ? "Retry" : "Download"}
+          </Text>
+        </View>
       ) : null}
       {state.kind === "downloaded" ? (
         <View style={[styles.checkWrap, { backgroundColor: colors.successSoft }]}>
           <Ionicons name="checkmark" size={18} color={tone} />
         </View>
       ) : null}
-      {state.kind === "paused" ? (
-        <Ionicons name="pause" size={20} color={tone} />
-      ) : null}
+      {state.kind === "paused" ? <Ionicons name="pause" size={20} color={tone} /> : null}
       {state.kind === "downloading" ? (
         <View style={styles.progressWrap} accessibilityElementsHidden>
           <ActivityIndicator size="small" color={tone} />
@@ -80,7 +89,10 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
         </View>
       ) : null}
       {state.kind === "queued" ? (
-        <View style={[styles.queueBadge, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}>
+        <View
+          style={[styles.queueBadge, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}
+        >
+          <Ionicons name="list" size={12} color={colors.brand} />
           <Text style={[styles.queueText, { color: colors.brand }]}>
             {state.position > 0 ? `#${state.position}` : "#"}
           </Text>
@@ -91,6 +103,25 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
 });
 
 const styles = StyleSheet.create({
+  hit: {
+    minWidth: MEDIA_ACTION_HIT,
+    minHeight: MEDIA_ACTION_HIT,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  downloadChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    minWidth: 88,
+    maxWidth: 100,
+    height: 36,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  downloadText: { fontSize: 12, fontFamily: Type.fontSemi },
   checkWrap: {
     width: 28,
     height: 28,
@@ -107,7 +138,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 6,
+    paddingHorizontal: 5,
+    flexDirection: "row",
+    gap: 2,
   },
-  queueText: { fontSize: 12, fontFamily: Type.fontSemi },
+  queueText: { fontSize: 11, fontFamily: Type.fontSemi },
 });
