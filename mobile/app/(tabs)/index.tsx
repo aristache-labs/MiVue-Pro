@@ -1,303 +1,647 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useMemo } from "react";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { router, useNavigation } from "expo-router";
+import { useCallback, useLayoutEffect, useMemo, useState } from "react";
 import {
+  Modal,
+  Platform,
   Pressable,
   ScrollView,
   SectionList,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
 
-import { Badge, Card, PrimaryButton } from "@/components/ui";
+import { CameraConnectionStrip } from "@/components/camera/CameraConnectionStrip";
+import { CameraFilterSheet } from "@/components/camera/CameraFilterSheet";
+import {
+  buildCameraFilterChips,
+  buildCameraLibrarySections,
+  CAMERA_SORT_OPTIONS,
+  clearCameraFilterGroup,
+  countCameraFilterGroups,
+  countCategories,
+  EMPTY_CAMERA_FILTERS,
+  filterAndSortRemoteFiles,
+  formatMediaSizeMbGb,
+  formatRemoteDateTime,
+  isCameraFiltersEmpty,
+  librarySubtitle,
+  sumRemoteBytes,
+  type CameraLibraryFilters,
+  type CameraLibrarySort,
+  type CategoryFilter,
+} from "@/components/camera/cameraLibraryModel";
+import { RemoteRecordingCard } from "@/components/camera/RemoteRecordingCard";
+import {
+  resolveRemoteDownloadState,
+  shouldEnqueueOnDownloadPress,
+} from "@/components/camera/remoteDownloadState";
+import { formatDuration } from "@/components/mediaMeta";
+import {
+  LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
+  LOCAL_LIBRARY_STICKY_HEADERS,
+} from "@/components/local/localLibrarySections";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { CATEGORY_ICON, CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
-import { Type, useAppTheme } from "@/constants/Theme";
+import { CATEGORY_LABEL } from "@/constants/CategoryStyle";
+import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
-import { useLibraryFilters, type CategoryFilter, type LibrarySort } from "@/hooks/useLibraryFilters";
+import type { RemoteFile } from "@/packages/parsers/src/index";
 
-const SORT_OPTIONS: readonly { id: LibrarySort; label: string }[] = [
-  { id: "newest", label: "Newest" },
-  { id: "oldest", label: "Oldest" },
-  { id: "name", label: "Name" },
+const CATEGORY_CHIPS: readonly { id: CategoryFilter; label: string }[] = [
+  { id: "all", label: "All" },
+  { id: "normal", label: "Normal" },
+  { id: "parking", label: "Parking" },
+  { id: "event", label: "Event" },
+  { id: "photo", label: "Photos" },
 ];
 
-const STAT_CHIPS: readonly { id: CategoryFilter; label: string }[] = [
-  { id: "all", label: "TOTAL" },
-  { id: "normal", label: "NORMAL" },
-  { id: "parking", label: "PARKING" },
-  { id: "event", label: "EVENT" },
-  { id: "photo", label: "PHOTO" },
-];
-
-function formatKiB(bytes: number): string {
-  return `${Math.round(bytes / 1024)} KiB`;
+function SkeletonRow() {
+  const { colors, radius } = useAppTheme();
+  return (
+    <View
+      style={[
+        styles.skeleton,
+        { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md },
+      ]}
+    >
+      <View style={[styles.skelThumb, { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm }]} />
+      <View style={{ flex: 1, gap: 8 }}>
+        <View style={[styles.skelLine, { backgroundColor: colors.surfaceMuted, width: "70%" }]} />
+        <View style={[styles.skelLine, { backgroundColor: colors.surfaceMuted, width: "45%" }]} />
+      </View>
+    </View>
+  );
 }
 
 export default function LibraryScreen() {
-  const { colors, spacing, radius, scheme } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
+  const navigation = useNavigation();
+  const tabBarHeight = useBottomTabBarHeight();
   const {
-    demoMode,
-    setDemoMode,
-    cameraHost,
-    setCameraHost,
     files,
+    queueItems,
+    localFiles,
     enqueueDownload,
-    lastError,
     refreshFiles,
-    connectionNote,
-    isExpoGo,
-    nativeTcpReady,
+    lastError,
+    cameraLinkState,
+    isRefreshingCamera,
+    cameraModel,
+    queuePosition,
   } = useDemoMode();
 
-  const { category, setCategory, sort, setSort, sections, counts, filtered } = useLibraryFilters(files);
+  const [category, setCategory] = useState<CategoryFilter>("all");
+  const [sort, setSort] = useState<CameraLibrarySort>("newest");
+  const [search, setSearch] = useState("");
+  const [filters, setFilters] = useState<CameraLibraryFilters>(EMPTY_CAMERA_FILTERS);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
+  const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
+  const [banner, setBanner] = useState<string | undefined>();
 
-  const emptyMessage = useMemo(() => {
-    if (files.length === 0) {
-      return demoMode
-        ? "No demo files yet. Tap Refresh to load the demo library."
-        : "No files yet. Connect to the camera Wi‑Fi, then refresh.";
+  const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
+  const counts = useMemo(() => countCategories(files), [files]);
+  const hasAdvanced = !isCameraFiltersEmpty(filters);
+  const hasActiveFilters = hasAdvanced || category !== "all" || search.trim().length > 0;
+  const activeGroups = countCameraFilterGroups(filters);
+
+  const filtered = useMemo(
+    () =>
+      filterAndSortRemoteFiles({
+        files,
+        category,
+        search,
+        filters,
+        sort,
+        downloadedNames: localNames,
+      }),
+    [files, category, search, filters, sort, localNames],
+  );
+
+  const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
+  const filteredBytes = useMemo(() => sumRemoteBytes(filtered), [filtered]);
+  const filterChips = useMemo(() => buildCameraFilterChips(filters), [filters]);
+
+  const subtitle = librarySubtitle({
+    linkState: cameraLinkState,
+    totalCount: files.length,
+    filteredCount: filtered.length,
+    hasActiveFilters,
+  });
+
+  const openSettings = useCallback(() => {
+    router.push("/(tabs)/settings" as Parameters<typeof router.push>[0]);
+  }, []);
+
+  const runRefresh = useCallback(async () => {
+    setBanner(undefined);
+    await refreshFiles();
+  }, [refreshFiles]);
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerTitle: () => (
+        <View style={styles.navTitleWrap}>
+          <Text style={[styles.navTitle, { color: colors.text }]}>Library</Text>
+          <Text style={[styles.navSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
+            {subtitle}
+          </Text>
+        </View>
+      ),
+      headerTitleAlign: "center",
+      headerRight: () => (
+        <Pressable
+          onPress={openSettings}
+          accessibilityRole="button"
+          accessibilityLabel="Open settings"
+          hitSlop={HitSlop44}
+          style={({ pressed }) => [styles.headerIconBtn, { opacity: pressed ? 0.65 : 1 }]}
+        >
+          <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
+        </Pressable>
+      ),
+      headerRightContainerStyle: {
+        paddingRight: Platform.OS === "ios" ? 4 : 8,
+      },
+    });
+  }, [navigation, colors, subtitle, openSettings]);
+
+  // Surface refresh errors as non-blocking banner without clearing list.
+  useLayoutEffect(() => {
+    if (lastError && (cameraLinkState === "connection_lost" || cameraLinkState === "disconnected")) {
+      setBanner(lastError);
     }
-    return `Nothing in ${CATEGORY_LABEL[category]}. Try another filter.`;
-  }, [files.length, demoMode, category]);
+  }, [lastError, cameraLinkState]);
+
+  const onDownload = useCallback(
+    (file: RemoteFile) => {
+      const state = resolveRemoteDownloadState({
+        file,
+        queueItems,
+        localNames,
+        queuePosition,
+      });
+      if (!shouldEnqueueOnDownloadPress(state)) return;
+      void enqueueDownload(file);
+      setDetailFile(null);
+    },
+    [enqueueDownload, queueItems, localNames, queuePosition],
+  );
+
+  const openDownloaded = useCallback(
+    (file: RemoteFile) => {
+      const local = localFiles.find((f) => f.name === file.name);
+      if (!local) return;
+      const href =
+        `/player?uri=${encodeURIComponent(local.uri)}&name=${encodeURIComponent(local.name)}&kind=${local.kind}` as const;
+      router.push(href as Parameters<typeof router.push>[0]);
+    },
+    [localFiles],
+  );
+
+  const showSkeleton =
+    isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
+
+  const listEmpty =
+    files.length === 0 && !showSkeleton ? (
+      <EmptyState
+        icon="cloud-offline-outline"
+        title={
+          cameraLinkState === "connected"
+            ? "No recordings found on this camera."
+            : "Camera not connected"
+        }
+        subtitle={
+          cameraLinkState === "connected"
+            ? undefined
+            : "Connect to the camera Wi‑Fi, then tap Connect."
+        }
+      />
+    ) : filtered.length === 0 && files.length > 0 ? (
+      <EmptyState
+        icon="filter-outline"
+        title="No recordings match these filters."
+        subtitle="Try clearing search or filters."
+      />
+    ) : null;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
-      <View style={styles.headerRow}>
-        {demoMode ? (
-          <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
-        ) : (
-          <Badge
-            label={nativeTcpReady ? "Live · native" : isExpoGo ? "Live · Expo Go" : "Live · fallback"}
-            tone="live"
-            icon="wifi"
-          />
-        )}
-        <View style={styles.demoToggle}>
-          <Text style={[styles.demoToggleLabel, { color: colors.textMuted }]}>Demo</Text>
-          <Switch value={demoMode} onValueChange={setDemoMode} accessibilityLabel="Toggle Demo Mode" />
-        </View>
-      </View>
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
+        <CameraConnectionStrip
+          linkState={cameraLinkState}
+          modelName={cameraModel}
+          refreshing={isRefreshingCamera}
+          onConnect={() => void runRefresh()}
+          onRetry={() => void runRefresh()}
+          onRefresh={() => void runRefresh()}
+          onOpenCameraSettings={openSettings}
+        />
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={{ marginTop: spacing.md, maxHeight: 44 }}
-        contentContainerStyle={{ gap: 8 }}
-      >
-        {STAT_CHIPS.map((chip) => {
-          const selected = category === chip.id;
-          const value = counts[chip.id];
-          return (
-            <Pressable
-              key={chip.id}
-              onPress={() => setCategory(chip.id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`${chip.label} ${value}`}
-              hitSlop={6}
-              style={[
-                styles.statChip,
-                {
-                  borderColor: selected ? colors.brand : colors.border,
-                  backgroundColor: selected ? colors.brandSoft : colors.surface,
-                  borderRadius: radius.sm,
-                },
-              ]}
-            >
-              <Text style={[styles.statLabel, { color: selected ? colors.brandStrong : colors.textFaint }]}>
-                {chip.label}
-              </Text>
-              <Text style={[styles.statValue, { color: selected ? colors.brandStrong : colors.text }]}>
-                {value}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <Card style={{ marginTop: spacing.md, marginBottom: spacing.md }}>
-        {!demoMode ? (
-          <View style={{ marginBottom: spacing.md }}>
-            <Text style={[styles.label, { color: colors.text }]}>Camera IP</Text>
-            <View style={[styles.inputRow, { borderColor: colors.border, borderRadius: radius.sm }]}>
-              <Ionicons name="wifi-outline" size={16} color={colors.textFaint} style={{ marginRight: 8 }} />
-              <TextInput
-                style={[styles.input, { color: colors.text }]}
-                value={cameraHost}
-                onChangeText={setCameraHost}
-                autoCapitalize="none"
-                autoCorrect={false}
-                keyboardType="numbers-and-punctuation"
-                placeholder="192.72.1.1"
-                placeholderTextColor={colors.textFaint}
-                accessibilityLabel="Camera IP address"
-              />
-            </View>
-            <Text style={[styles.hint, { color: colors.textFaint }]}>
-              Connect the iPhone to the camera Wi‑Fi first. Default gateway is often 192.72.1.1.
+        {banner ? (
+          <Pressable
+            onPress={() => setBanner(undefined)}
+            style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
+            accessibilityRole="button"
+            accessibilityLabel={`Error: ${banner}. Dismiss.`}
+          >
+            <Text style={[styles.bannerText, { color: colors.danger }]} numberOfLines={2}>
+              {banner}
             </Text>
-          </View>
+          </Pressable>
         ) : null}
 
-        {connectionNote ? <Text style={[styles.note, { color: colors.textMuted }]}>{connectionNote}</Text> : null}
-        {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
-
-        <PrimaryButton
-          label={demoMode ? "Refresh demo library" : "Connect / refresh camera"}
-          icon="refresh"
-          onPress={() => void refreshFiles()}
-        />
-      </Card>
-
-      <View style={[styles.sortRow, { marginBottom: spacing.sm }]}>
-        {SORT_OPTIONS.map((option) => {
-          const selected = sort === option.id;
-          return (
-            <Pressable
-              key={option.id}
-              onPress={() => setSort(option.id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`Sort by ${option.label}`}
-              hitSlop={6}
-              style={[
-                styles.sortChip,
-                {
-                  borderRadius: radius.pill,
-                  borderColor: selected ? colors.brand : colors.border,
-                  backgroundColor: selected ? colors.brandSoft : "transparent",
-                },
-              ]}
-            >
-              <Text style={[styles.sortChipText, { color: selected ? colors.brand : colors.textMuted }]}>
-                {option.label}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
-
-      <SectionList
-        style={styles.list}
-        sections={[...sections]}
-        keyExtractor={(item) => item.path}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingBottom: spacing.xxl }}
-        ListEmptyComponent={
-          <EmptyState
-            icon={demoMode ? "flask-outline" : "cloud-offline-outline"}
-            title="Nothing here"
-            subtitle={emptyMessage}
-          />
-        }
-        renderSectionHeader={({ section }) => (
-          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{section.title}</Text>
-        )}
-        ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        SectionSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
-        renderItem={({ item }) => (
-          <Card style={styles.fileCard}>
-            <View
-              style={[
-                styles.iconSquare,
-                { backgroundColor: categoryColor(item.category, scheme) + "22", borderRadius: radius.sm },
-              ]}
-              accessibilityElementsHidden
-            >
-              <Ionicons
-                name={CATEGORY_ICON[item.category] as keyof typeof Ionicons.glyphMap}
-                size={18}
-                color={categoryColor(item.category, scheme)}
-              />
-            </View>
-            <View style={styles.fileBody}>
-              <Text style={[styles.fileName, { color: colors.text }]} numberOfLines={1}>
-                {item.name}
-              </Text>
-              <View style={styles.metaRow}>
-                <View
-                  style={[
-                    styles.catPill,
-                    {
-                      backgroundColor: colors.successSoft,
-                      borderRadius: 4,
-                    },
-                  ]}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={{ maxHeight: 40 }}
+          contentContainerStyle={{ gap: 8 }}
+        >
+          {CATEGORY_CHIPS.map((chip) => {
+            const selected = category === chip.id;
+            const value = counts[chip.id];
+            return (
+              <Pressable
+                key={chip.id}
+                onPress={() => setCategory(chip.id)}
+                accessibilityRole="button"
+                accessibilityState={{ selected }}
+                accessibilityLabel={`${chip.label} ${value}`}
+                style={[
+                  styles.catChip,
+                  {
+                    borderColor: selected ? colors.brand : colors.border,
+                    backgroundColor: selected ? colors.brandSoft : colors.surface,
+                    borderRadius: radius.sm,
+                  },
+                ]}
+              >
+                <Text style={[styles.catChipLabel, { color: selected ? colors.brand : colors.text }]}>
+                  {chip.label}
+                </Text>
+                <Text
+                  style={[styles.catChipCount, { color: selected ? colors.brandStrong : colors.textMuted }]}
                 >
-                  <Text style={[styles.catPillText, { color: colors.success }]}>
-                    {CATEGORY_LABEL[item.category].toUpperCase()}
-                  </Text>
-                </View>
-                <Text style={[styles.fileMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                  {item.recordedAt.slice(11, 16)} · {formatKiB(item.sizeBytes)}
+                  {value}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+
+        <View style={styles.toolbar}>
+          <View
+            style={[
+              styles.searchWrap,
+              { borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radius.sm },
+            ]}
+          >
+            <Ionicons name="search" size={16} color={colors.textFaint} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search recordings"
+              placeholderTextColor={colors.textFaint}
+              style={[styles.searchInput, { color: colors.text }]}
+              accessibilityLabel="Search recordings"
+              autoCorrect={false}
+              autoCapitalize="none"
+            />
+          </View>
+          <Pressable
+            onPress={() => setFilterOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel={
+              activeGroups > 0 ? `Filter library, ${activeGroups} filters active` : "Filter library"
+            }
+            hitSlop={HitSlop44}
+            style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          >
+            <Ionicons name="options-outline" size={20} color={colors.textMuted} />
+            {activeGroups > 0 ? (
+              <View style={[styles.filterDot, { backgroundColor: colors.brand }]}>
+                <Text style={{ color: colors.onBrand, fontSize: 9, fontFamily: Type.fontSemi }}>
+                  {activeGroups}
                 </Text>
               </View>
+            ) : null}
+          </Pressable>
+          <Pressable
+            onPress={() => setSortOpen(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Sort recordings"
+            hitSlop={HitSlop44}
+            style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
+          >
+            <Ionicons name="swap-vertical-outline" size={20} color={colors.textMuted} />
+          </Pressable>
+        </View>
+
+        {filterChips.length > 0 || hasActiveFilters ? (
+          <View style={styles.summaryRow}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+              {filterChips.map((chip) => (
+                <Pressable
+                  key={chip.id}
+                  onPress={() => setFilters(clearCameraFilterGroup(filters, chip.id))}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove filter ${chip.label}`}
+                  style={[styles.remChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
+                >
+                  <Text style={{ color: colors.text, fontSize: 12, fontFamily: Type.fontSemi }}>
+                    {chip.label}
+                  </Text>
+                  <Ionicons name="close" size={12} color={colors.textMuted} />
+                </Pressable>
+              ))}
+            </ScrollView>
+            <Text style={[styles.summaryText, { color: colors.textMuted }]}>
+              {filtered.length} · {formatMediaSizeMbGb(filteredBytes)}
+            </Text>
+            {hasActiveFilters ? (
+              <Pressable
+                onPress={() => {
+                  setFilters(EMPTY_CAMERA_FILTERS);
+                  setCategory("all");
+                  setSearch("");
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Clear all filters"
+                hitSlop={HitSlop44}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 12 }}>Clear all</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+
+      {showSkeleton ? (
+        <View style={{ padding: spacing.lg, gap: spacing.sm }}>
+          <SkeletonRow />
+          <SkeletonRow />
+          <SkeletonRow />
+        </View>
+      ) : (
+        <SectionList
+          style={styles.list}
+          sections={sections.map((s) => ({ ...s, data: [...s.data] }))}
+          keyExtractor={(item) => item.path}
+          stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            paddingBottom: Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING),
+            paddingTop: spacing.sm,
+          }}
+          ListEmptyComponent={listEmpty}
+          renderSectionHeader={({ section }) => (
+            <View
+              style={[
+                styles.sectionHeader,
+                { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
+                {section.title}
+              </Text>
+              <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+                {section.countLabel}
+              </Text>
             </View>
-            <PrimaryButton
-              label="Descarcă"
-              icon="download-outline"
-              compact
-              onPress={() => void enqueueDownload(item)}
-              accessibilityLabel={`Descarcă ${item.name}`}
-            />
-          </Card>
-        )}
+          )}
+          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          renderItem={({ item }) => {
+            const downloadState = resolveRemoteDownloadState({
+              file: item,
+              queueItems,
+              localNames,
+              queuePosition,
+            });
+            return (
+              <RemoteRecordingCard
+                file={item}
+                downloadState={downloadState}
+                onDownload={onDownload}
+                onOpenDownloaded={openDownloaded}
+                onOpenDetail={setDetailFile}
+              />
+            );
+          }}
+        />
+      )}
+
+      <CameraFilterSheet
+        visible={filterOpen}
+        initial={filters}
+        onClose={() => setFilterOpen(false)}
+        onApply={setFilters}
       />
-      {filtered.length === 0 ? null : null}
+
+      <Modal visible={sortOpen} animationType="fade" transparent onRequestClose={() => setSortOpen(false)}>
+        <Pressable style={styles.sortBackdrop} onPress={() => setSortOpen(false)}>
+          <View
+            style={[
+              styles.sortSheet,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
+          >
+            <Text style={[styles.sortTitle, { color: colors.text }]}>Sort</Text>
+            {CAMERA_SORT_OPTIONS.map((opt) => (
+              <Pressable
+                key={opt.id}
+                onPress={() => {
+                  setSort(opt.id);
+                  setSortOpen(false);
+                }}
+                accessibilityRole="button"
+                accessibilityState={{ selected: sort === opt.id }}
+                style={styles.sortRow}
+              >
+                <Text
+                  style={{
+                    color: sort === opt.id ? colors.brand : colors.text,
+                    fontFamily: Type.fontSemi,
+                    fontSize: 15,
+                  }}
+                >
+                  {opt.label}
+                </Text>
+                {sort === opt.id ? <Ionicons name="checkmark" size={18} color={colors.brand} /> : null}
+              </Pressable>
+            ))}
+          </View>
+        </Pressable>
+      </Modal>
+
+      <Modal
+        visible={detailFile !== null}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setDetailFile(null)}
+      >
+        <Pressable style={styles.sortBackdrop} onPress={() => setDetailFile(null)}>
+          <View
+            style={[
+              styles.detailSheet,
+              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
+            ]}
+            onStartShouldSetResponder={() => true}
+          >
+            {detailFile ? (
+              <>
+                <Text style={[styles.sortTitle, { color: colors.text }]} numberOfLines={2}>
+                  {detailFile.name}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontFamily: Type.font, marginBottom: 4 }}>
+                  {CATEGORY_LABEL[detailFile.category]} · {formatRemoteDateTime(detailFile.recordedAt)}
+                </Text>
+                <Text style={{ color: colors.textMuted, fontFamily: Type.font, marginBottom: 16 }}>
+                  {formatMediaSizeMbGb(detailFile.sizeBytes)}
+                  {detailFile.durationSeconds
+                    ? ` · ${formatDuration(detailFile.durationSeconds)}`
+                    : ""}
+                </Text>
+                <Pressable
+                  onPress={() => onDownload(detailFile)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Download ${detailFile.name}`}
+                  style={[styles.downloadCta, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}
+                >
+                  <Ionicons name="download-outline" size={18} color={colors.brand} />
+                  <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Download</Text>
+                </Pressable>
+              </>
+            ) : null}
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  demoToggle: { flexDirection: "row", alignItems: "center", gap: 8 },
-  demoToggleLabel: { fontSize: 12, fontFamily: Type.fontSemi },
-  statChip: {
+  navTitleWrap: {
+    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
+    marginTop: Platform.OS === "ios" ? -2 : 0,
+    paddingBottom: 6,
+  },
+  navTitle: { fontSize: 17, fontFamily: Type.fontBold },
+  navSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 0 },
+  headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
+  banner: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
+  catChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
     paddingVertical: 6,
-    minWidth: 64,
   },
-  statLabel: { fontSize: 9, fontFamily: Type.fontSemi, letterSpacing: 0.6 },
-  statValue: { fontSize: 14, fontFamily: Type.monoMed, marginTop: 2 },
-  label: { fontSize: 13, fontFamily: Type.fontSemi, marginBottom: 8 },
-  inputRow: {
+  catChipLabel: { fontSize: 13, fontFamily: Type.fontSemi },
+  catChipCount: { fontSize: 12, fontFamily: Type.monoMed },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: 8 },
+  searchWrap: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
+    gap: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
+    paddingHorizontal: 10,
+    minHeight: 40,
   },
-  input: { flex: 1, fontSize: 15, fontFamily: Type.mono },
-  hint: { fontSize: 11, marginTop: 6, lineHeight: 15, fontFamily: Type.font },
-  note: { fontSize: 12, marginBottom: 8, fontFamily: Type.font },
-  error: { fontSize: 12, marginBottom: 8, fontFamily: Type.fontSemi },
-  sortRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
-  sortChip: {
+  searchInput: { flex: 1, fontSize: 14, fontFamily: Type.font, paddingVertical: 8 },
+  toolBtn: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    borderRadius: 8,
   },
-  sortChipText: { fontSize: 12, fontFamily: Type.fontSemi },
+  filterDot: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  summaryRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
+  remChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  summaryText: { fontSize: 11, fontFamily: Type.font, flexShrink: 0 },
   list: { flex: 1 },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: Type.fontSemi,
-    marginTop: 8,
-    marginBottom: 6,
-    textTransform: "uppercase",
-    letterSpacing: 0.4,
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  fileCard: { flexDirection: "row", alignItems: "center", padding: 12 },
-  iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  fileBody: { flex: 1, marginRight: 8 },
-  fileName: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 4 },
-  metaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
-  catPill: { paddingHorizontal: 6, paddingVertical: 2 },
-  catPillText: { fontSize: 9, fontFamily: Type.fontSemi, letterSpacing: 0.6 },
-  fileMeta: { fontSize: 11, fontFamily: Type.mono, flexShrink: 1 },
+  sectionTitle: { flex: 1, fontSize: 11, fontFamily: Type.fontSemi, letterSpacing: 0.5 },
+  sectionCount: { fontSize: 11, fontFamily: Type.font },
+  skeleton: {
+    flexDirection: "row",
+    gap: 12,
+    padding: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  skelThumb: { width: 84, height: 63 },
+  skelLine: { height: 10, borderRadius: 4 },
+  sortBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "flex-end",
+  },
+  sortSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 16,
+    paddingBottom: 28,
+  },
+  sortTitle: { fontSize: 17, fontFamily: Type.fontBold, marginBottom: 8 },
+  sortRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
+  },
+  detailSheet: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+    paddingBottom: 32,
+  },
+  downloadCta: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
 });

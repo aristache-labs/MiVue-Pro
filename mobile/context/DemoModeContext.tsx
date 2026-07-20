@@ -22,11 +22,14 @@ import {
 import { DEMO_FILES, DemoTransport } from "../packages/demo/src/index";
 import { DownloadQueue, ExpoFileSink, MemoryFileSink } from "../packages/download-queue/src/index";
 import { AsyncStorageQueueStore, MemoryQueueStore, type QueueItem } from "../packages/local-db/src/index";
+import type { CameraLinkState } from "../components/camera/cameraLibraryModel";
 import type { RemoteFile } from "../packages/parsers/src/index";
 import { CameraClient } from "../packages/protocol/src/index";
 
 const DEFAULT_HOST = "192.72.1.1";
 const HOST_KEY = "@laneory/camera_host_v1";
+const MAP_PREF_KEY = "@laneory/map_preference_v1";
+const COMPAT_MODEL = "MiVue 866";
 /**
  * Soft cap for Expo Go live downloads (FileSystem streaming to disk).
  * Very large clips can still fail on slow camera Wi‑Fi; progress is visible in Queue.
@@ -40,7 +43,10 @@ export interface LocalMediaFile {
   readonly kind: "video" | "image" | "other";
 }
 
+export type MapPreference = "online" | "schematic";
+
 interface DemoModeContextValue {
+  /** Dev/test only — not exposed in production Camera Library UI. */
   readonly demoMode: boolean;
   readonly setDemoMode: (value: boolean) => void;
   readonly cameraHost: string;
@@ -65,9 +71,18 @@ interface DemoModeContextValue {
   readonly queuePosition: (id: string) => number | undefined;
   readonly downloadDir: string;
   readonly lastError: string | undefined;
+  /** Sanitized diagnostics note — not for Library chrome. */
   readonly connectionNote: string | undefined;
   readonly nativeTcpReady: boolean;
   readonly isExpoGo: boolean;
+  readonly cameraLinkState: CameraLinkState;
+  readonly isRefreshingCamera: boolean;
+  readonly lastConnectedAt: string | undefined;
+  readonly cameraModel: string | undefined;
+  readonly cameraProperties: Readonly<Record<string, string>>;
+  readonly mapPreference: MapPreference;
+  readonly setMapPreference: (value: MapPreference) => void;
+  readonly clearThumbCache: () => Promise<void>;
   /** Fetch camera SD thumbnail (GET /thumb…); cached on disk. Failures return undefined. */
   readonly resolveCameraThumbUri: (remotePath: string) => Promise<string | undefined>;
 }
@@ -107,13 +122,22 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const isExpoGo = Constants.appOwnership === "expo";
   const nativeTcpReady = isNativeTcpAvailable();
 
-  const [demoMode, setDemoModeState] = useState(true);
+  const [demoMode, setDemoModeState] = useState(false);
   const [cameraHost, setCameraHostState] = useState(DEFAULT_HOST);
-  const [files, setFiles] = useState<readonly RemoteFile[]>(DEMO_FILES);
+  const [files, setFiles] = useState<readonly RemoteFile[]>([]);
   const [queueItems, setQueueItems] = useState<readonly QueueItem[]>([]);
   const [localFiles, setLocalFiles] = useState<readonly LocalMediaFile[]>([]);
   const [lastError, setLastError] = useState<string | undefined>();
   const [connectionNote, setConnectionNote] = useState<string | undefined>();
+  const [cameraLinkState, setCameraLinkState] = useState<CameraLinkState>("idle");
+  const [isRefreshingCamera, setIsRefreshingCamera] = useState(false);
+  const [lastConnectedAt, setLastConnectedAt] = useState<string | undefined>();
+  const [cameraModel, setCameraModel] = useState<string | undefined>();
+  const [cameraProperties, setCameraProperties] = useState<Readonly<Record<string, string>>>({});
+  const [mapPreference, setMapPreferenceState] = useState<MapPreference>("online");
+  const refreshInflightRef = useRef(false);
+  const filesLenRef = useRef(0);
+  filesLenRef.current = files.length;
 
   const downloadDir =
     FileSystem.documentDirectory !== null && FileSystem.documentDirectory !== undefined
@@ -251,6 +275,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     void (async () => {
       const saved = await AsyncStorage.getItem(HOST_KEY);
       if (saved && isPrivateIpv4(saved)) setCameraHostState(saved);
+      const mapPref = await AsyncStorage.getItem(MAP_PREF_KEY);
+      if (mapPref === "online" || mapPref === "schematic") setMapPreferenceState(mapPref);
       await queue.init();
       try {
         await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
@@ -267,28 +293,48 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     void AsyncStorage.setItem(HOST_KEY, trimmed);
   }, []);
 
-  const setDemoMode = useCallback((value: boolean) => {
-    setDemoModeState(value);
-    setLastError(undefined);
-    setConnectionNote(undefined);
-    if (value) {
-      queue.setTransport(new DemoTransport());
-      setFiles(DEMO_FILES);
-    } else {
-      setFiles([]);
-      if (isExpoGo) {
-        setConnectionNote(
-          "Expo Go: Demo Mode works fully. Live uses Fetch probe only (HTTP/1.0 cameras may fail).",
-        );
-      } else if (!nativeTcpReady) {
-        setConnectionNote("Native Http10Tcp module missing. Rebuild the development client.");
+  const setMapPreference = useCallback((value: MapPreference) => {
+    setMapPreferenceState(value);
+    void AsyncStorage.setItem(MAP_PREF_KEY, value);
+  }, []);
+
+  const setDemoMode = useCallback(
+    (value: boolean) => {
+      setDemoModeState(value);
+      setLastError(undefined);
+      setConnectionNote(undefined);
+      if (value) {
+        queue.setTransport(new DemoTransport());
+        setFiles(DEMO_FILES);
+        setCameraLinkState("connected");
+        setCameraModel(COMPAT_MODEL);
+        setLastConnectedAt(new Date().toISOString());
       } else {
-        setConnectionNote("Live mode: HTTP/1.0 TCP via native module.");
+        setFiles([]);
+        setCameraLinkState("idle");
+        setCameraModel(undefined);
+        setCameraProperties({});
+        setConnectionNote(undefined);
       }
+    },
+    [queue],
+  );
+
+  const clearThumbCache = useCallback(async () => {
+    try {
+      await FileSystem.deleteAsync(thumbDir, { idempotent: true });
+      await FileSystem.makeDirectoryAsync(thumbDir, { intermediates: true });
+    } catch {
+      // ignore
     }
-  }, [queue, isExpoGo, nativeTcpReady]);
+  }, [thumbDir]);
 
   const refreshFiles = useCallback(async () => {
+    if (refreshInflightRef.current) return;
+    refreshInflightRef.current = true;
+    setIsRefreshingCamera(true);
+    setCameraLinkState("connecting");
+    setLastError(undefined);
     try {
       if (demoMode) {
         const client = new CameraClient(
@@ -297,13 +343,16 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         );
         const page = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
         setFiles(page.files);
-        setLastError(undefined);
+        setCameraLinkState("connected");
+        setCameraModel(COMPAT_MODEL);
+        setLastConnectedAt(new Date().toISOString());
+        setConnectionNote(undefined);
         return;
       }
 
       if (!isPrivateIpv4(cameraHost)) {
         setLastError("Host must be a private IPv4 address (e.g. 192.72.1.1).");
-        setFiles([]);
+        setCameraLinkState(filesLenRef.current > 0 ? "connection_lost" : "disconnected");
         return;
       }
 
@@ -313,20 +362,24 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         { host: cameraHost, httpPort: 80, rtspPort: 554 },
         transport,
       );
-      await client.getStatus();
+      const status = await client.getStatus();
+      setCameraProperties(status.properties);
       const page = await client.listAllFiles({ pageSize: 32, maxFiles: 500 });
       setFiles(page.files);
-      setLastError(undefined);
-      setConnectionNote(
-        nativeTcpReady
-          ? `Connected via native HTTP/1.0 to ${cameraHost}`
-          : `Fetch probe OK on ${cameraHost} (not native HTTP/1.0)`,
-      );
+      setCameraLinkState("connected");
+      setCameraModel(COMPAT_MODEL);
+      setLastConnectedAt(new Date().toISOString());
+      setConnectionNote(undefined);
     } catch (error) {
-      setFiles([]);
-      setLastError(error instanceof Error ? error.message : String(error));
+      const message = error instanceof Error ? error.message : String(error);
+      setLastError(message);
+      setCameraLinkState(filesLenRef.current > 0 ? "connection_lost" : "disconnected");
+      // Preserve previously loaded list — never replace with demo data.
+    } finally {
+      refreshInflightRef.current = false;
+      setIsRefreshingCamera(false);
     }
-  }, [demoMode, cameraHost, queue, nativeTcpReady]);
+  }, [demoMode, cameraHost, queue]);
 
   const enqueueNmeaSidecar = useCallback(
     async (remotePath: string, localName: string) => {
@@ -570,6 +623,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       connectionNote,
       nativeTcpReady,
       isExpoGo,
+      cameraLinkState,
+      isRefreshingCamera,
+      lastConnectedAt,
+      cameraModel,
+      cameraProperties,
+      mapPreference,
+      setMapPreference,
+      clearThumbCache,
       resolveCameraThumbUri,
     }),
     [
@@ -597,6 +658,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       connectionNote,
       nativeTcpReady,
       isExpoGo,
+      cameraLinkState,
+      isRefreshingCamera,
+      lastConnectedAt,
+      cameraModel,
+      cameraProperties,
+      mapPreference,
+      setMapPreference,
+      clearThumbCache,
       resolveCameraThumbUri,
     ],
   );
