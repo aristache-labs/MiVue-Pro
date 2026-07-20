@@ -1,8 +1,13 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { useNavigation } from "expo-router";
+import { useLayoutEffect, useState } from "react";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryModel";
 import { Type, useAppTheme } from "@/constants/Theme";
+
+export { CONNECTION_HELP_BACK_TITLE };
 
 function HelpBlock({
   icon,
@@ -30,9 +35,54 @@ function HelpBlock({
   );
 }
 
+function TroubleItem({
+  title,
+  body,
+}: {
+  readonly title: string;
+  readonly body: string;
+}) {
+  const { colors, radius } = useAppTheme();
+  const [open, setOpen] = useState(false);
+  return (
+    <View
+      style={[
+        styles.block,
+        { backgroundColor: colors.surface, borderColor: colors.border, borderRadius: radius.md },
+      ]}
+    >
+      <Pressable
+        onPress={() => setOpen((v) => !v)}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        accessibilityLabel={title}
+        style={styles.troubleHeadBtn}
+      >
+        <Text style={[styles.blockTitle, { color: colors.text, flex: 1 }]}>{title}</Text>
+        <Ionicons
+          name={open ? "chevron-up" : "chevron-down"}
+          size={18}
+          color={colors.textMuted}
+        />
+      </Pressable>
+      {open ? (
+        <Text style={[styles.blockBody, { color: colors.textMuted, marginTop: 6 }]}>{body}</Text>
+      ) : null}
+    </View>
+  );
+}
+
 export default function ConnectionHelpScreen() {
   const { colors, spacing } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      title: "Connection help",
+      headerBackTitle: CONNECTION_HELP_BACK_TITLE,
+    });
+  }, [navigation]);
 
   return (
     <ScrollView
@@ -40,82 +90,83 @@ export default function ConnectionHelpScreen() {
       contentContainerStyle={{
         padding: spacing.lg,
         paddingBottom: Math.max(insets.bottom, 24) + 24,
-        gap: 12,
+        gap: 10,
       }}
     >
       <Text style={[styles.intro, { color: colors.textMuted }]}>
-        Laneory talks to your dashcam only over the camera’s Wi‑Fi network, using read-only requests.
+        Laneory uses read-only requests to list and download files you choose. It does not change
+        camera settings.
       </Text>
 
       <HelpBlock
         icon="list-outline"
         title="Before you start"
-        body="Park safely. Keep the camera powered. You will leave your usual Wi‑Fi briefly while connected to the camera hotspot."
+        body="Park safely and keep the camera powered. You will leave your usual Wi‑Fi briefly while joined to the camera hotspot."
       />
       <HelpBlock
         icon="wifi-outline"
         title="Enable camera Wi‑Fi"
-        body="On the camera, open its menu and turn on the app / Wi‑Fi connection mode. Wait until the camera shows that Wi‑Fi is ready."
+        body="On the camera, open its menu and turn on Wi‑Fi / app connection mode. Wait until the camera shows that Wi‑Fi is ready."
       />
       <HelpBlock
         icon="phone-portrait-outline"
         title="Connect your phone"
-        body="In your phone’s Wi‑Fi settings, join the camera’s network. Use the SSID and password shown on the camera screen. Laneory does not collect that password."
+        body="In phone Wi‑Fi settings, join the camera network using the SSID and password shown on the camera. Laneory does not ask for that password."
       />
       <HelpBlock
         icon="return-down-back-outline"
         title="Return to Laneory"
-        body="Open Laneory again, then use Connect or Try connection on the Library tab. Recordings appear after a successful read-only refresh."
+        body="Open Laneory, then use Connect or Try connection. Recordings appear after a successful refresh."
       />
 
       <Text style={[styles.troubleHead, { color: colors.text }]}>Troubleshooting</Text>
 
-      <HelpBlock
-        icon="search-outline"
+      <TroubleItem
         title="Camera Wi‑Fi is not visible"
-        body="Confirm Wi‑Fi mode is enabled on the camera and that you are close enough. Restart camera Wi‑Fi mode, then rescan networks on the phone."
+        body="Confirm Wi‑Fi mode is enabled on the camera and that you are close enough. Restart camera Wi‑Fi mode, then rescan on the phone."
       />
-      <HelpBlock
-        icon="cloud-offline-outline"
+      <TroubleItem
         title="Phone says the network has no internet"
-        body="That is normal for many dashcam hotspots. Stay connected anyway — Laneory only needs local access to the camera."
+        body="That is normal for many dashcam hotspots. Stay connected — Laneory only needs local access to the camera."
       />
-      <HelpBlock
-        icon="shield-outline"
+      <TroubleItem
         title="Local network permission was denied"
         body="On iOS, allow Laneory to find devices on local networks in system Settings. Without it, the app cannot reach the camera."
       />
-      <HelpBlock
-        icon="alert-circle-outline"
+      <TroubleItem
         title="Laneory cannot reach the camera"
-        body="Confirm you are on the camera Wi‑Fi, check the camera IP in Laneory Settings if you changed it, then try Connect again."
+        body="Confirm you are on the camera Wi‑Fi, check the camera IP in Settings if you changed it, then try Connect again."
       />
-      <HelpBlock
-        icon="flash-outline"
+      <TroubleItem
         title="Connection was interrupted"
         body="The phone may have switched back to cellular or home Wi‑Fi. Rejoin the camera network and refresh the Library."
       />
-      <HelpBlock
-        icon="cellular-outline"
+      <TroubleItem
         title="Cellular while on camera Wi‑Fi"
-        body="Some phones keep cellular data available; others do not. Either way, browsing and downloads from the camera only work while linked to the camera network."
+        body="Some phones keep cellular data available; others do not. Camera browsing only works while linked to the camera network."
       />
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  intro: { fontSize: 14, fontFamily: Type.font, lineHeight: 20, marginBottom: 4 },
-  block: { borderWidth: StyleSheet.hairlineWidth, padding: 14 },
-  blockHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 6 },
+  intro: { fontSize: 14, fontFamily: Type.font, lineHeight: 20, marginBottom: 2 },
+  block: { borderWidth: StyleSheet.hairlineWidth, paddingHorizontal: 12, paddingVertical: 10 },
+  blockHead: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 },
   blockTitle: { fontSize: 15, fontFamily: Type.fontSemi },
   blockBody: { fontSize: 13, fontFamily: Type.font, lineHeight: 18 },
   troubleHead: {
-    fontSize: 13,
+    fontSize: 12,
     fontFamily: Type.fontSemi,
     letterSpacing: 0.4,
     textTransform: "uppercase",
-    marginTop: 8,
-    marginBottom: 4,
+    marginTop: 6,
+    marginBottom: 2,
+  },
+  troubleHeadBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
 });

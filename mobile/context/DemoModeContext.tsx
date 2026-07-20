@@ -23,6 +23,10 @@ import { DEMO_FILES, DemoTransport } from "../packages/demo/src/index";
 import { DownloadQueue, ExpoFileSink, MemoryFileSink } from "../packages/download-queue/src/index";
 import { AsyncStorageQueueStore, MemoryQueueStore, type QueueItem } from "../packages/local-db/src/index";
 import type { CameraLinkState } from "../components/camera/cameraLibraryModel";
+import {
+  CAMERA_REFRESH_IN_PROGRESS,
+  canStartCameraRefresh,
+} from "../components/camera/cameraLibraryModel";
 import type { RemoteFile } from "../packages/parsers/src/index";
 import { CameraClient } from "../packages/protocol/src/index";
 
@@ -332,7 +336,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [thumbDir]);
 
   const refreshFiles = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
-    if (refreshInflightRef.current) return { ok: false, error: "A refresh is already in progress." };
+    if (!canStartCameraRefresh(refreshInflightRef.current)) {
+      return { ok: false, error: CAMERA_REFRESH_IN_PROGRESS };
+    }
     refreshInflightRef.current = true;
     setIsRefreshingCamera(true);
     setCameraLinkState("connecting");

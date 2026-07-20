@@ -32,8 +32,10 @@ import {
   formatRemoteDateTime,
   friendlyConnectionError,
   isCameraFiltersEmpty,
+  isCameraLibraryInteractive,
   libraryEmptyInstruction,
   librarySubtitle,
+  shouldShowCameraUnavailableBanner,
   sumRemoteBytes,
   type CameraLibraryFilters,
   type CameraLibrarySort,
@@ -91,7 +93,6 @@ export default function LibraryScreen() {
     localFiles,
     enqueueDownload,
     refreshFiles,
-    disconnectSession,
     lastError,
     cameraLinkState,
     isRefreshingCamera,
@@ -110,7 +111,6 @@ export default function LibraryScreen() {
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
   const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
   const [errorBanner, setErrorBanner] = useState<string | undefined>();
-  const [successToast, setSuccessToast] = useState(false);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
   const counts = useMemo(() => countCategories(files), [files]);
@@ -142,10 +142,11 @@ export default function LibraryScreen() {
     hasActiveFilters,
   });
 
-  const showUnavailableBanner =
-    cameraLinkState === "idle" ||
-    cameraLinkState === "disconnected" ||
-    (cameraLinkState === "connection_lost" && files.length === 0);
+  const showUnavailableBanner = shouldShowCameraUnavailableBanner(
+    cameraLinkState,
+    files.length,
+  );
+  const libraryInteractive = isCameraLibraryInteractive(cameraLinkState, files.length);
 
   const openConnectionSheet = useCallback(() => {
     if (cameraLinkState === "connecting" || isRefreshingCamera) return;
@@ -162,10 +163,10 @@ export default function LibraryScreen() {
   }, [refreshFiles]);
 
   useEffect(() => {
-    if (!successToast) return;
-    const t = setTimeout(() => setSuccessToast(false), 2500);
-    return () => clearTimeout(t);
-  }, [successToast]);
+    if (lastError && cameraLinkState === "unstable") {
+      setErrorBanner(friendlyConnectionError(lastError));
+    }
+  }, [lastError, cameraLinkState]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -197,12 +198,6 @@ export default function LibraryScreen() {
     isRefreshingCamera,
     openConnectionSheet,
   ]);
-
-  useEffect(() => {
-    if (lastError && cameraLinkState === "unstable") {
-      setErrorBanner(friendlyConnectionError(lastError));
-    }
-  }, [lastError, cameraLinkState]);
 
   const onDownload = useCallback(
     (file: RemoteFile) => {
@@ -265,15 +260,6 @@ export default function LibraryScreen() {
           />
         ) : null}
 
-        {successToast ? (
-          <View
-            style={[styles.banner, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}
-            accessibilityLiveRegion="polite"
-          >
-            <Text style={[styles.bannerText, { color: colors.brand }]}>Camera connected</Text>
-          </View>
-        ) : null}
-
         {errorBanner && !showUnavailableBanner ? (
           <Pressable
             onPress={() => setErrorBanner(undefined)}
@@ -290,8 +276,9 @@ export default function LibraryScreen() {
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          style={{ maxHeight: 40 }}
+          style={{ maxHeight: 40, opacity: libraryInteractive ? 1 : 0.55 }}
           contentContainerStyle={{ gap: 8 }}
+          pointerEvents={libraryInteractive ? "auto" : "none"}
         >
           {CATEGORY_CHIPS.map((chip) => {
             const selected = category === chip.id;
@@ -300,8 +287,9 @@ export default function LibraryScreen() {
               <Pressable
                 key={chip.id}
                 onPress={() => setCategory(chip.id)}
+                disabled={!libraryInteractive}
                 accessibilityRole="button"
-                accessibilityState={{ selected }}
+                accessibilityState={{ selected, disabled: !libraryInteractive }}
                 accessibilityLabel={`${chip.label} ${value}`}
                 style={[
                   styles.catChip,
@@ -325,12 +313,13 @@ export default function LibraryScreen() {
           })}
         </ScrollView>
 
-        <View style={styles.toolbar}>
+        <View style={[styles.toolbar, { opacity: libraryInteractive ? 1 : 0.55 }]}>
           <View
             style={[
               styles.searchWrap,
               { borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radius.sm },
             ]}
+            pointerEvents={libraryInteractive ? "auto" : "none"}
           >
             <Ionicons name="search" size={16} color={colors.textFaint} />
             <TextInput
@@ -340,13 +329,17 @@ export default function LibraryScreen() {
               placeholderTextColor={colors.textFaint}
               style={[styles.searchInput, { color: colors.text }]}
               accessibilityLabel="Search recordings"
+              accessibilityState={{ disabled: !libraryInteractive }}
+              editable={libraryInteractive}
               autoCorrect={false}
               autoCapitalize="none"
             />
           </View>
           <Pressable
             onPress={() => setFilterOpen(true)}
+            disabled={!libraryInteractive}
             accessibilityRole="button"
+            accessibilityState={{ disabled: !libraryInteractive }}
             accessibilityLabel={
               activeGroups > 0 ? `Filter library, ${activeGroups} filters active` : "Filter library"
             }
@@ -364,7 +357,9 @@ export default function LibraryScreen() {
           </Pressable>
           <Pressable
             onPress={() => setSortOpen(true)}
+            disabled={!libraryInteractive}
             accessibilityRole="button"
+            accessibilityState={{ disabled: !libraryInteractive }}
             accessibilityLabel="Sort recordings"
             hitSlop={HitSlop44}
             style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -483,12 +478,9 @@ export default function LibraryScreen() {
         cameraHost={cameraHost}
         lastConnectedAt={lastConnectedAt}
         recordingCount={files.length}
-        lastError={lastError}
         onClose={() => setConnectionSheetOpen(false)}
         onTryConnect={runRefresh}
         onRefresh={runRefresh}
-        onDisconnect={disconnectSession}
-        onConnectedSuccess={() => setSuccessToast(true)}
       />
 
       <CameraFilterSheet

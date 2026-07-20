@@ -16,6 +16,7 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
+import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryModel";
 import { DemoModeProvider } from "@/context/DemoModeContext";
 import { Palette, Type } from "@/constants/Theme";
 
@@ -102,7 +103,10 @@ function RootLayoutNav() {
           <Stack.Screen name="modal" options={{ presentation: "modal", title: "About" }} />
           <Stack.Screen
             name="connection-help"
-            options={{ title: "Connection help", presentation: "card" }}
+            options={{
+              title: "Connection help",
+              headerBackTitle: CONNECTION_HELP_BACK_TITLE,
+            }}
           />
           <Stack.Screen
             name="player"

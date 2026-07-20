@@ -5,6 +5,7 @@ import {
   ActivityIndicator,
   Linking,
   Modal,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -13,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  formatCameraTimestamp,
   friendlyConnectionError,
   type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
@@ -26,12 +28,9 @@ interface CameraConnectionSheetProps {
   readonly cameraHost: string;
   readonly lastConnectedAt?: string;
   readonly recordingCount: number;
-  readonly lastError?: string;
   readonly onClose: () => void;
   readonly onTryConnect: () => Promise<{ ok: boolean; error?: string }>;
   readonly onRefresh: () => Promise<{ ok: boolean; error?: string }>;
-  readonly onDisconnect: () => void;
-  readonly onConnectedSuccess?: () => void;
 }
 
 function Row({
@@ -52,6 +51,9 @@ function Row({
   );
 }
 
+/** Linking.openSettings() is supported on iOS and Android — opens the app’s system settings page. */
+const CAN_OPEN_SYSTEM_SETTINGS = Platform.OS === "ios" || Platform.OS === "android";
+
 export function CameraConnectionSheet({
   visible,
   linkState,
@@ -60,12 +62,9 @@ export function CameraConnectionSheet({
   cameraHost,
   lastConnectedAt,
   recordingCount,
-  lastError,
   onClose,
   onTryConnect,
   onRefresh,
-  onDisconnect,
-  onConnectedSuccess,
 }: CameraConnectionSheetProps) {
   const { colors, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -80,14 +79,15 @@ export function CameraConnectionSheet({
     if (visible) setSheetError(undefined);
   }, [visible]);
 
+  const working = busy || refreshing;
+
   const runConnect = async () => {
-    if (busy || refreshing) return;
+    if (working) return;
     setBusy(true);
     setSheetError(undefined);
     try {
       const result = await onTryConnect();
       if (result.ok) {
-        onConnectedSuccess?.();
         onClose();
       } else {
         setSheetError(
@@ -100,7 +100,7 @@ export function CameraConnectionSheet({
   };
 
   const runRefresh = async () => {
-    if (busy || refreshing) return;
+    if (working) return;
     setBusy(true);
     setSheetError(undefined);
     try {
@@ -108,6 +108,7 @@ export function CameraConnectionSheet({
       if (!result.ok) {
         setSheetError(friendlyConnectionError(result.error) ?? "Refresh failed. Try again.");
       }
+      // Keep sheet open on success; Last refresh updates from parent props.
     } finally {
       setBusy(false);
     }
@@ -117,8 +118,6 @@ export function CameraConnectionSheet({
     onClose();
     router.push("/connection-help" as Parameters<typeof router.push>[0]);
   };
-
-  const working = busy || refreshing;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -143,10 +142,8 @@ export function CameraConnectionSheet({
             <>
               <Text style={[styles.title, { color: colors.text }]}>Camera connection</Text>
               <Text
-                style={[
-                  styles.status,
-                  { color: unstable ? colors.warn : colors.brand },
-                ]}
+                style={[styles.status, { color: unstable ? colors.warn : colors.brand }]}
+                accessibilityLiveRegion="polite"
               >
                 {unstable ? "Unstable" : "Connected"}
               </Text>
@@ -155,10 +152,7 @@ export function CameraConnectionSheet({
                 {cameraModel ? <Row label="Model" value={cameraModel} /> : null}
                 <Row label="Camera IP" value={cameraHost} />
                 {lastConnectedAt ? (
-                  <Row
-                    label="Last refresh"
-                    value={new Date(lastConnectedAt).toLocaleString()}
-                  />
+                  <Row label="Last refresh" value={formatCameraTimestamp(lastConnectedAt)} />
                 ) : null}
                 <Row label="Recordings" value={String(recordingCount)} />
               </View>
@@ -172,6 +166,7 @@ export function CameraConnectionSheet({
                 disabled={working}
                 accessibilityRole="button"
                 accessibilityLabel="Refresh connection"
+                accessibilityState={{ busy: working, disabled: working }}
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   {
@@ -186,7 +181,9 @@ export function CameraConnectionSheet({
                 ) : (
                   <Ionicons name="refresh" size={18} color={colors.brand} />
                 )}
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Refresh connection</Text>
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>
+                  Refresh connection
+                </Text>
               </Pressable>
 
               <Pressable
@@ -197,20 +194,6 @@ export function CameraConnectionSheet({
                 style={styles.secondaryBtn}
               >
                 <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>Connection help</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => {
-                  onDisconnect();
-                  onClose();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Disconnect camera session"
-                accessibilityHint="Clears Laneory connection only. Does not change the camera."
-                hitSlop={HitSlop44}
-                style={styles.secondaryBtn}
-              >
-                <Text style={{ color: colors.danger, fontFamily: Type.fontSemi }}>Disconnect</Text>
               </Pressable>
             </>
           ) : (
@@ -245,7 +228,8 @@ export function CameraConnectionSheet({
                 onPress={() => void runConnect()}
                 disabled={working}
                 accessibilityRole="button"
-                accessibilityLabel="Try connection"
+                accessibilityLabel={sheetError ? "Try again" : "Try connection"}
+                accessibilityState={{ busy: working, disabled: working }}
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   {
@@ -276,17 +260,27 @@ export function CameraConnectionSheet({
                 <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>Connection help</Text>
               </Pressable>
 
-              <Pressable
-                onPress={() => void Linking.openSettings()}
-                accessibilityRole="button"
-                accessibilityLabel="Open system settings"
-                hitSlop={HitSlop44}
-                style={styles.secondaryBtn}
-              >
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi }}>
-                  Open system settings
-                </Text>
-              </Pressable>
+              {CAN_OPEN_SYSTEM_SETTINGS ? (
+                <Pressable
+                  onPress={() => void Linking.openSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open phone settings"
+                  accessibilityHint="Opens this app’s page in system Settings. It does not select a Wi‑Fi network for you."
+                  hitSlop={HitSlop44}
+                  style={({ pressed }) => [
+                    styles.settingsBtn,
+                    {
+                      borderColor: colors.border,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <Ionicons name="settings-outline" size={16} color={colors.text} />
+                  <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
+                    Open phone settings
+                  </Text>
+                </Pressable>
+              ) : null}
             </>
           )}
         </View>
@@ -336,5 +330,16 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginTop: 4,
+  },
+  settingsBtn: {
+    minHeight: 44,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingHorizontal: 12,
   },
 });

@@ -1,7 +1,4 @@
-import {
-  formatSectionHeading,
-  formatCountLabel,
-} from "@/components/local/localLibrarySections";
+import type { FileCategory, RemoteFile } from "@/packages/parsers/src/index";
 import {
   isValidDayKey,
   minutesInTimeRange,
@@ -11,7 +8,27 @@ import {
   type RecordingCategory,
   type TimeFilterMode,
 } from "@/components/local/localLibraryFilters";
-import type { FileCategory, RemoteFile } from "@/packages/parsers/src/index";
+
+/** App UI copy is English — Camera Library uses this locale consistently. */
+export const CAMERA_UI_LOCALE = "en-GB";
+
+export function formatCameraSectionHeading(dayKey: string): string {
+  if (dayKey === "unknown" || dayKey === "all") return "UNKNOWN DATE";
+  const d = new Date(`${dayKey}T12:00:00`);
+  if (!Number.isFinite(d.getTime())) return "UNKNOWN DATE";
+  return d
+    .toLocaleDateString(CAMERA_UI_LOCALE, {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    })
+    .toUpperCase();
+}
+
+export function formatCameraCountLabel(count: number): string {
+  return count === 1 ? "1 file" : `${count} files`;
+}
 
 export type CategoryFilter = "all" | Exclude<FileCategory, "unknown">;
 
@@ -300,7 +317,7 @@ export function buildCameraLibrarySections(
         dayKey: "all",
         title: CAMERA_SORT_OPTIONS.find((o) => o.id === sort)?.label.toUpperCase() ?? "RESULTS",
         count: files.length,
-        countLabel: formatCountLabel(files.length),
+        countLabel: formatCameraCountLabel(files.length),
         data: files,
       },
     ];
@@ -325,9 +342,9 @@ export function buildCameraLibrarySections(
     return {
       key,
       dayKey: key,
-      title: key === "unknown" ? "UNKNOWN DATE" : formatSectionHeading(key),
+      title: key === "unknown" ? "UNKNOWN DATE" : formatCameraSectionHeading(key),
       count: data.length,
-      countLabel: formatCountLabel(data.length),
+      countLabel: formatCameraCountLabel(data.length),
       data,
     };
   });
@@ -336,7 +353,7 @@ export function buildCameraLibrarySections(
 function formatDayChip(day: string): string {
   const d = new Date(`${day}T12:00:00`);
   if (!Number.isFinite(d.getTime())) return day;
-  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
+  return d.toLocaleDateString(CAMERA_UI_LOCALE, { day: "numeric", month: "short" });
 }
 
 export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFilterChip[] {
@@ -467,13 +484,72 @@ export function formatRemoteDateTime(recordedAt: string): string {
     const time = recordedAt.slice(11, 16);
     return time ? `${date} · ${time}` : date;
   }
-  const date = d.toLocaleDateString("en-GB", {
+  const date = d.toLocaleDateString(CAMERA_UI_LOCALE, {
     day: "numeric",
     month: "short",
     year: "numeric",
   });
-  const time = d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = d.toLocaleTimeString(CAMERA_UI_LOCALE, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
   return `${date} · ${time}`;
+}
+
+export function formatCameraTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (!Number.isFinite(d.getTime())) return iso;
+  return d.toLocaleString(CAMERA_UI_LOCALE, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+/** Visible UI must never leak Expo Router group names. */
+export const FORBIDDEN_ROUTE_UI_STRINGS = Object.freeze(["(tabs)", "(stack)", "+not-found"] as const);
+
+/** Stack back label for Connection help — never a route group name. */
+export const CONNECTION_HELP_BACK_TITLE = "Back";
+
+/**
+ * Connected success toast/banner is intentionally never shown —
+ * status lives in the header icon, subtitle, and connection sheet.
+ */
+export const SHOW_CONNECTED_SUCCESS_BANNER = false;
+
+export const CAMERA_REFRESH_IN_PROGRESS = "A refresh is already in progress.";
+
+export function containsForbiddenRouteUi(text: string): boolean {
+  return FORBIDDEN_ROUTE_UI_STRINGS.some((s) => text.includes(s));
+}
+
+export function canStartCameraRefresh(inflight: boolean): boolean {
+  return !inflight;
+}
+
+/** Compact unavailable strip — never when connected/connecting/unstable. */
+export function shouldShowCameraUnavailableBanner(
+  linkState: CameraLinkState,
+  fileCount: number,
+): boolean {
+  if (linkState === "idle" || linkState === "disconnected") return true;
+  if (linkState === "connection_lost" && fileCount === 0) return true;
+  return false;
+}
+
+/** Filters/search enabled when a library list is available. */
+export function isCameraLibraryInteractive(
+  linkState: CameraLinkState,
+  fileCount: number,
+): boolean {
+  return (
+    linkState === "connected" || linkState === "unstable" || fileCount > 0
+  );
 }
 
 /** Sanitize diagnostics — never include secrets or full sensitive URLs. */

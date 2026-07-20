@@ -6,6 +6,7 @@ import {
   countCategories,
   filterAndSortRemoteFiles,
   isCameraFiltersEmpty,
+  isCameraLibraryInteractive,
   librarySubtitle,
   libraryEmptyInstruction,
   friendlyConnectionError,
@@ -13,6 +14,15 @@ import {
   PRODUCTION_LIBRARY_FORBIDDEN_UI,
   sanitizeDiagnosticLine,
   EMPTY_CAMERA_FILTERS,
+  SHOW_CONNECTED_SUCCESS_BANNER,
+  shouldShowCameraUnavailableBanner,
+  canStartCameraRefresh,
+  CAMERA_REFRESH_IN_PROGRESS,
+  CONNECTION_HELP_BACK_TITLE,
+  containsForbiddenRouteUi,
+  formatCameraSectionHeading,
+  formatRemoteDateTime,
+  CAMERA_UI_LOCALE,
   type CameraLibraryFilters,
 } from "./cameraLibraryModel";
 import {
@@ -174,6 +184,50 @@ describe("cameraLibraryModel", () => {
       "Connect to the camera Wi-Fi to view recordings.",
     );
     assert.equal(libraryEmptyInstruction("connected"), undefined);
+  });
+
+  it("never shows a connected success banner", () => {
+    assert.equal(SHOW_CONNECTED_SUCCESS_BANNER, false);
+  });
+
+  it("shows unavailable banner only when disconnected", () => {
+    assert.equal(shouldShowCameraUnavailableBanner("disconnected", 0), true);
+    assert.equal(shouldShowCameraUnavailableBanner("idle", 0), true);
+    assert.equal(shouldShowCameraUnavailableBanner("connected", 10), false);
+    assert.equal(shouldShowCameraUnavailableBanner("connecting", 0), false);
+    assert.equal(shouldShowCameraUnavailableBanner("unstable", 5), false);
+    assert.equal(shouldShowCameraUnavailableBanner("connection_lost", 0), true);
+    assert.equal(shouldShowCameraUnavailableBanner("connection_lost", 3), false);
+  });
+
+  it("keeps filters interactive when a list exists", () => {
+    assert.equal(isCameraLibraryInteractive("disconnected", 0), false);
+    assert.equal(isCameraLibraryInteractive("connected", 0), true);
+    assert.equal(isCameraLibraryInteractive("unstable", 2), true);
+    assert.equal(isCameraLibraryInteractive("connection_lost", 4), true);
+  });
+
+  it("prevents concurrent camera refresh", () => {
+    assert.equal(canStartCameraRefresh(false), true);
+    assert.equal(canStartCameraRefresh(true), false);
+    assert.match(CAMERA_REFRESH_IN_PROGRESS, /already in progress/i);
+  });
+
+  it("uses English camera locale for dates", () => {
+    assert.equal(CAMERA_UI_LOCALE, "en-GB");
+    const heading = formatCameraSectionHeading("2026-07-19");
+    assert.match(heading, /JULY/i);
+    assert.doesNotMatch(heading, /IULIE/i);
+    const card = formatRemoteDateTime("2026-07-19 14:02:22");
+    assert.match(card, /Jul/i);
+    assert.doesNotMatch(card, /iul/i);
+  });
+
+  it("never exposes internal route group names in chrome strings", () => {
+    assert.equal(containsForbiddenRouteUi("(tabs)"), true);
+    assert.equal(containsForbiddenRouteUi(CONNECTION_HELP_BACK_TITLE), false);
+    assert.equal(CONNECTION_HELP_BACK_TITLE, "Back");
+    assert.equal(containsForbiddenRouteUi("Camera connected"), false);
   });
 
   it("maps raw errors to friendly connection copy", () => {
