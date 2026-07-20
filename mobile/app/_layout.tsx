@@ -100,7 +100,10 @@ function RootLayoutNav() {
         >
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: "modal", title: "About" }} />
-          <Stack.Screen name="player" options={{ presentation: "modal", title: "Player" }} />
+          <Stack.Screen
+            name="player"
+            options={{ presentation: "fullScreenModal", headerShown: false, title: "Player" }}
+          />
         </Stack>
       </ThemeProvider>
     </DemoModeProvider>

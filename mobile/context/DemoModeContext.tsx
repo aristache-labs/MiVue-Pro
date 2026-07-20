@@ -115,6 +115,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       const media: LocalMediaFile[] = [];
       for (const name of names) {
         if (name.endsWith(".part")) continue;
+        // Sidecar GPS stays on disk but is not listed — loaded with the sibling MP4 in Player.
+        if (/\.nmea$/i.test(name)) continue;
+        const kind = kindForName(name);
+        if (kind === "other") continue;
         const uri = downloadDir.endsWith("/") ? `${downloadDir}${name}` : `${downloadDir}/${name}`;
         const info = await FileSystem.getInfoAsync(uri);
         if (!info.exists || info.isDirectory) continue;
@@ -122,7 +126,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           name,
           uri,
           sizeBytes: "size" in info && typeof info.size === "number" ? info.size : 0,
-          kind: kindForName(name),
+          kind,
         });
       }
       media.sort((a, b) => a.name.localeCompare(b.name));
@@ -307,7 +311,20 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const cancelDownload = useCallback(
     async (id: string) => {
       try {
+        const item = queue.list().find((entry) => entry.id === id);
         await queue.cancel(id);
+        // Cancel companion NMEA transfer when the user cancels the video.
+        if (item && /\.mp4$/i.test(item.localName)) {
+          const nmeaName = item.localName.replace(/\.[^.]+$/u, ".NMEA");
+          const sidecar = queue
+            .list()
+            .find(
+              (entry) =>
+                entry.localName === nmeaName &&
+                (entry.status === "queued" || entry.status === "active"),
+            );
+          if (sidecar) await queue.cancel(sidecar.id);
+        }
         setLastError(undefined);
       } catch (error) {
         setLastError(error instanceof Error ? error.message : String(error));
@@ -379,6 +396,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     async (file: LocalMediaFile) => {
       try {
         await FileSystem.deleteAsync(file.uri, { idempotent: true });
+        if (/\.mp4$/i.test(file.name)) {
+          const nmeaUri = file.uri.replace(/\.[^.]+$/u, ".NMEA");
+          await FileSystem.deleteAsync(nmeaUri, { idempotent: true });
+        }
         await refreshLocalFiles();
         setLastError(undefined);
       } catch (error) {

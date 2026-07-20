@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
+import { useMemo } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
 import { Badge, type BadgeTone, Card, IconButton, PrimaryButton } from "@/components/ui";
@@ -8,6 +9,10 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { QueueItem, QueueItemStatus } from "@/packages/local-db/src/index";
+
+function isSidecarNmea(name: string): boolean {
+  return /\.nmea$/i.test(name);
+}
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -52,6 +57,12 @@ export default function QueueScreen() {
     downloadDir,
   } = useDemoMode();
 
+  // NMEA sidecars download with the video but stay out of the visible queue.
+  const visibleItems = useMemo(
+    () => queueItems.filter((item) => !isSidecarNmea(item.localName)),
+    [queueItems],
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
       <View style={styles.headerRow}>
@@ -66,7 +77,7 @@ export default function QueueScreen() {
 
       <FlatList
         contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xxl }}
-        data={[...queueItems]}
+        data={visibleItems}
         keyExtractor={(item: QueueItem) => item.id}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         ListEmptyComponent={

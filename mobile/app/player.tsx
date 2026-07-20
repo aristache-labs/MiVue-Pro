@@ -1,9 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { BlurView } from "expo-blur";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useEffect, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
   OnlineMapWebView,
@@ -24,6 +24,7 @@ export default function PlayerScreen() {
   const kind = typeof params.kind === "string" ? params.kind : "other";
   const { shareLocalFile } = useDemoMode();
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
 
   const isVideo = kind === "video" || name.toLowerCase().endsWith(".mp4");
   const isImage =
@@ -32,33 +33,21 @@ export default function PlayerScreen() {
     name.toLowerCase().endsWith(".jpeg");
 
   return (
-    <View style={[styles.container, { backgroundColor: "#000" }]}>
-      <Stack.Screen options={{ headerShown: false, presentation: "modal" }} />
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      <Stack.Screen options={{ headerShown: false, presentation: "fullScreenModal" }} />
 
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        bounces={false}
+      <View
+        style={[
+          styles.topBar,
+          {
+            backgroundColor: colors.bg,
+            paddingTop: Math.max(insets.top, 8),
+            borderBottomColor: colors.border,
+          },
+        ]}
       >
-        {uri && isImage ? (
-          <Image source={{ uri }} style={styles.media} resizeMode="contain" accessibilityLabel={name} />
-        ) : null}
-
-        {uri && isVideo ? <VideoWithGps uri={uri} /> : null}
-
-        {!uri || (!isVideo && !isImage) ? (
-          <View style={styles.centerMessage}>
-            <Ionicons name="document-outline" size={40} color={colors.textFaint} />
-            <Text style={[styles.centerText, { color: colors.textMuted }]}>
-              {uri ? "This file type has no in-app preview. Use Share to open elsewhere." : "Missing media URI."}
-            </Text>
-          </View>
-        ) : null}
-      </ScrollView>
-
-      <BlurView intensity={60} tint="dark" style={styles.topBar}>
         <IconButton icon="close" tone="neutral" onPress={() => router.back()} accessibilityLabel="Close player" />
-        <Text style={styles.topBarTitle} numberOfLines={1}>
+        <Text style={[styles.topBarTitle, { color: colors.text }]} numberOfLines={1}>
           {name}
         </Text>
         <IconButton
@@ -74,7 +63,33 @@ export default function PlayerScreen() {
           }
           accessibilityLabel={`Share ${name}`}
         />
-      </BlurView>
+      </View>
+
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
+        bounces={false}
+      >
+        {uri && isImage ? (
+          <Image
+            source={{ uri }}
+            style={[styles.media, { backgroundColor: colors.surface }]}
+            resizeMode="contain"
+            accessibilityLabel={name}
+          />
+        ) : null}
+
+        {uri && isVideo ? <VideoWithGps uri={uri} /> : null}
+
+        {!uri || (!isVideo && !isImage) ? (
+          <View style={styles.centerMessage}>
+            <Ionicons name="document-outline" size={40} color={colors.textFaint} />
+            <Text style={[styles.centerText, { color: colors.textMuted }]}>
+              {uri ? "This file type has no in-app preview. Use Share to open elsewhere." : "Missing media URI."}
+            </Text>
+          </View>
+        ) : null}
+      </ScrollView>
     </View>
   );
 }
@@ -124,7 +139,7 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
 
   return (
     <View>
-      <View style={styles.media}>
+      <View style={[styles.media, { backgroundColor: colors.surface }]}>
         <VideoView
           style={styles.videoView}
           player={player}
@@ -134,17 +149,17 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
         />
       </View>
 
-      <View style={[styles.gpsBlock, { padding: spacing.lg, backgroundColor: colors.bg }]}>
+      <View style={[styles.gpsBlock, { padding: spacing.md, backgroundColor: colors.bg }]}>
         <Text style={[styles.gpsTitle, { color: colors.text }]}>GPS track</Text>
         <TelemetryPanel samples={samples} activeIndex={activeIndex} status={gpsStatus} />
 
-        <View style={{ height: spacing.md }} />
+        <View style={{ height: spacing.sm }} />
 
         {samples.length > 0 ? (
           mapEnabled ? (
             <OnlineMapWebView samples={samples} activeIndex={activeIndex} height={200} />
           ) : (
-            <SchematicRoute samples={samples} activeIndex={activeIndex} height={180} />
+            <SchematicRoute samples={samples} activeIndex={activeIndex} height={160} />
           )
         ) : (
           <View style={[styles.noGps, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
@@ -193,25 +208,20 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
-  scrollContent: { paddingTop: 96, paddingBottom: 32 },
-  media: { width: "100%", height: 240, backgroundColor: "#000" },
+  scrollContent: { paddingTop: 0 },
+  media: { width: "100%", height: 220 },
   videoView: { flex: 1 },
-  centerMessage: { alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 80 },
+  centerMessage: { alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 48 },
   centerText: { textAlign: "center", marginTop: 12, fontSize: 13, lineHeight: 18, fontFamily: Type.font },
   topBar: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 48,
-    paddingBottom: 10,
-    paddingHorizontal: 12,
+    paddingBottom: 6,
+    paddingHorizontal: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   topBarTitle: {
-    color: "#F2F4F7",
     fontSize: 14,
     fontFamily: Type.fontSemi,
     flex: 1,
@@ -219,9 +229,9 @@ const styles = StyleSheet.create({
     marginHorizontal: 8,
   },
   gpsBlock: { gap: 0 },
-  gpsTitle: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 10 },
+  gpsTitle: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 8 },
   noGps: {
-    height: 120,
+    height: 100,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
@@ -238,5 +248,5 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   mapToggleText: { fontSize: 14, fontFamily: Type.fontSemi },
-  privacy: { fontSize: 11, fontFamily: Type.font, lineHeight: 15, marginTop: 10 },
+  privacy: { fontSize: 11, fontFamily: Type.font, lineHeight: 15, marginTop: 8 },
 });
