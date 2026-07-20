@@ -2,7 +2,7 @@ import type { FileSink } from "./fileSink";
 
 type FileSystemLike = {
   getInfoAsync(path: string): Promise<{ exists: boolean }>;
-  writeAsStringAsync(path: string, data: string, options: { encoding: "base64" | string }): Promise<void>;
+  writeAsStringAsync(path: string, data: string, options?: { encoding?: string }): Promise<void>;
   moveAsync(options: { from: string; to: string }): Promise<void>;
   deleteAsync(path: string, options?: { idempotent?: boolean }): Promise<void>;
   EncodingType?: { Base64: string };

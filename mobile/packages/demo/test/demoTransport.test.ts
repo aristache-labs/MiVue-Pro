@@ -11,4 +11,8 @@ test("DemoTransport serves status and list without camera sockets", async () => 
   const page = await client.listFiles({ count: 10 });
   assert.ok(page.files.length >= 3);
   assert.ok(page.files.every((f) => f.name.startsWith("DEMO")));
+  const all = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
+  assert.ok(all.files.length >= 12);
+  assert.ok(all.files.some((f) => f.category === "parking"));
+  assert.ok(all.files.some((f) => f.category === "photo"));
 });

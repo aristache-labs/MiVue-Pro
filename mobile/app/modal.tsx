@@ -7,15 +7,25 @@ import { APP_NAME, APP_SHORT_DESCRIPTION, APP_SUBTITLE, DISCLAIMER_EN } from "@/
 export default function ModalScreen() {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{APP_NAME}</Text>
+      <Text style={styles.title} accessibilityRole="header">
+        {APP_NAME}
+      </Text>
       <Text style={styles.subtitle}>{APP_SUBTITLE}</Text>
       <Text style={styles.body}>{APP_SHORT_DESCRIPTION}</Text>
       <Text style={styles.body}>{DISCLAIMER_EN}</Text>
       <Text style={styles.body}>
-        Compatible (tested): Mio MiVue 866. Read-only list and download. Foundation build: Expo SDK 54;
-        full camera HTTP/1.0 requires a development build.
+        Compatible (tested): Mio MiVue 866. Read-only list and download. Does not change camera
+        settings or delete files on the camera.
       </Text>
-      <Text style={styles.body}>Licenses: see Third-Party Notices at release.</Text>
+      <Text style={styles.body}>
+        Current runtime: Expo Go uses Fetch for live camera probes. Native HTTP/1.0 (Http10Tcp)
+        requires an Apple Developer account and an EAS development build — deferred until the
+        membership is active again.
+      </Text>
+      <Text style={styles.body}>
+        Demo Mode uses synthetic fixtures only (no camera traffic). Licenses: see Third-Party
+        Notices at release.
+      </Text>
       <StatusBar style={Platform.OS === "ios" ? "light" : "auto"} />
     </View>
   );

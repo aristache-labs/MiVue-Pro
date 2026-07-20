@@ -1,10 +1,11 @@
+import { router } from "expo-router";
 import { FlatList, Pressable, StyleSheet } from "react-native";
 
 import { Text, View } from "@/components/Themed";
 import { useDemoMode } from "@/context/DemoModeContext";
 
 export default function QueueScreen() {
-  const { demoMode, queueItems, queuePosition, shareCompleted, lastError } = useDemoMode();
+  const { demoMode, queueItems, queuePosition, shareCompleted, lastError, downloadDir } = useDemoMode();
 
   return (
     <View style={styles.container}>
@@ -16,7 +17,7 @@ export default function QueueScreen() {
 
       <Text style={styles.title}>Download queue</Text>
       <Text style={styles.subtitle}>
-        One active transfer at a time. On completed items, use Share / Save to Files.
+        One active transfer at a time. Completed files appear in Local and can be shared to Files.
       </Text>
 
       {lastError ? <Text style={styles.error}>{lastError}</Text> : null}
@@ -27,6 +28,16 @@ export default function QueueScreen() {
         ListEmptyComponent={<Text style={styles.empty}>Queue is empty.</Text>}
         renderItem={({ item }) => {
           const position = queuePosition(item.id);
+          const localUri = downloadDir.endsWith("/")
+            ? `${downloadDir}${item.localName}`
+            : `${downloadDir}/${item.localName}`;
+          const kind = item.localName.toLowerCase().endsWith(".mp4")
+            ? "video"
+            : item.localName.toLowerCase().endsWith(".jpg") ||
+                item.localName.toLowerCase().endsWith(".jpeg")
+              ? "image"
+              : "other";
+
           return (
             <View style={styles.card}>
               <Text style={styles.name}>{item.localName}</Text>
@@ -39,14 +50,28 @@ export default function QueueScreen() {
               </Text>
               {item.errorMessage ? <Text style={styles.error}>{item.errorMessage}</Text> : null}
               {item.status === "completed" ? (
-                <Pressable
-                  style={styles.shareBtn}
-                  onPress={() => void shareCompleted(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Share ${item.localName}`}
-                >
-                  <Text style={styles.shareBtnText}>Share / Save to Files</Text>
-                </Pressable>
+                <View style={styles.actions}>
+                  <Pressable
+                    style={styles.shareBtn}
+                    onPress={() => {
+                      const href =
+                        `/player?uri=${encodeURIComponent(localUri)}&name=${encodeURIComponent(item.localName)}&kind=${kind}` as const;
+                      router.push(href as Parameters<typeof router.push>[0]);
+                    }}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Open ${item.localName} in Local player`}
+                  >
+                    <Text style={styles.buttonText}>Open in Local / Play</Text>
+                  </Pressable>
+                  <Pressable
+                    style={[styles.shareBtn, styles.secondaryBtn]}
+                    onPress={() => void shareCompleted(item)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Share ${item.localName}`}
+                  >
+                    <Text style={styles.secondaryText}>Share / Save to Files</Text>
+                  </Pressable>
+                </View>
               ) : null}
             </View>
           );
@@ -72,12 +97,18 @@ const styles = StyleSheet.create({
   name: { fontWeight: "600" },
   meta: { fontSize: 12, opacity: 0.75, marginTop: 4 },
   error: { color: "#b00020", marginTop: 4, fontSize: 12, marginBottom: 8 },
+  actions: { marginTop: 10, gap: 8 },
   shareBtn: {
-    marginTop: 10,
     backgroundColor: "#1f4b3a",
     paddingVertical: 10,
     paddingHorizontal: 12,
     alignItems: "center",
   },
-  shareBtnText: { color: "#fff", fontWeight: "700" },
+  buttonText: { color: "#fff", fontWeight: "700" },
+  secondaryBtn: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: "#1f4b3a",
+  },
+  secondaryText: { color: "#1f4b3a", fontWeight: "700" },
 });

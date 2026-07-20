@@ -21,22 +21,30 @@ export class DemoTransport implements Transport {
     }
 
     if (request.path.includes("action=dir")) {
-      return textResponse(200, buildDemoFileListXml(DEMO_FILES));
+      const propertyMatch = /(?:^|[?&])property=([^&]+)/.exec(request.path);
+      const property = propertyMatch ? decodeURIComponent(propertyMatch[1] ?? "") : "DCIM";
+      const files =
+        property === "DCIM" || property === ""
+          ? DEMO_FILES
+          : DEMO_FILES.filter((file) => categoryProperty(file.category) === property);
+      return textResponse(200, buildDemoFileListXml(files));
     }
 
     const file = DEMO_FILES.find((entry) => entry.path === request.path);
     if (file) {
+      // Catalogue shows realistic sizes; download body is capped for Expo Go memory.
+      const downloadBytes = Math.min(file.sizeBytes, 256_000);
       if (request.method === "HEAD") {
         return {
           statusCode: 200,
-          headers: { "content-length": String(file.sizeBytes), "content-type": "application/octet-stream" },
+          headers: { "content-length": String(downloadBytes), "content-type": "application/octet-stream" },
           body: new Uint8Array(),
         };
       }
       return {
         statusCode: 200,
-        headers: { "content-length": String(file.sizeBytes), "content-type": "application/octet-stream" },
-        body: demoFileBytes(file.sizeBytes),
+        headers: { "content-length": String(downloadBytes), "content-type": "application/octet-stream" },
+        body: demoFileBytes(downloadBytes),
       };
     }
 
@@ -50,4 +58,19 @@ function textResponse(statusCode: number, text: string): TransportResponse {
     headers: { "content-type": "text/plain" },
     body: new TextEncoder().encode(text),
   };
+}
+
+function categoryProperty(category: (typeof DEMO_FILES)[number]["category"]): string {
+  switch (category) {
+    case "normal":
+      return "Normal";
+    case "event":
+      return "Event";
+    case "parking":
+      return "Parking";
+    case "photo":
+      return "Photo";
+    default:
+      return "DCIM";
+  }
 }

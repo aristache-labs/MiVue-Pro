@@ -46,6 +46,13 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="local"
+        options={{
+          title: "Local",
+          tabBarIcon: ({ color }) => <TabBarIcon name="folder-open" color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="two"
         options={{
           title: "Queue",

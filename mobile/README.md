@@ -25,8 +25,10 @@ npm start
 3. Scanează QR din terminal → se deschide în Expo Go.
 
 În app:
-- **Demo Mode ON** — fixtures locale, fără cameră.
-- **Demo Mode OFF** — IP (default `192.72.1.1`) + probe Fetch. Poate eșua pe HTTP/1.0 strict; atunci rămâi pe Demo până la un development build.
+- **Library** — filtre categorie + sortare; Demo ON = fixtures; Demo OFF = Fetch live.
+- **Local** — fișiere descărcate; Play/View + Share.
+- **Queue** — transferuri; Open/Play + Share to Files.
+- Native Http10Tcp amânat (Apple Developer).
 
 Agentul **nu** pornește Metro.
 
