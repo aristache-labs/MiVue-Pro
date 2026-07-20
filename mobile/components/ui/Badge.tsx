@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { Type, useAppTheme } from "@/constants/Theme";
 
-export type BadgeTone = "brand" | "live" | "demo" | "success" | "danger" | "neutral";
+export type BadgeTone = "brand" | "live" | "demo" | "success" | "danger" | "warn" | "neutral";
 
 interface BadgeProps {
   readonly label: string;
@@ -20,6 +20,7 @@ export function Badge({ label, tone = "neutral", icon }: BadgeProps) {
     demo: { fg: colors.demo, bg: colors.demoSoft },
     success: { fg: colors.success, bg: colors.successSoft },
     danger: { fg: colors.danger, bg: colors.dangerSoft },
+    warn: { fg: colors.warn, bg: colors.warnSoft },
     neutral: { fg: colors.textMuted, bg: colors.surfaceMuted },
   };
   const { fg, bg } = toneColors[tone];

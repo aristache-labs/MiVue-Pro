@@ -102,7 +102,7 @@ export default function PlayerScreen() {
         </View>
         {metaChips.length > 0 ? (
           <View style={styles.metaWrap}>
-            <MediaMetaRow chips={metaChips} compact singleLine />
+            <MediaMetaRow chips={metaChips} singleLine size="lg" />
           </View>
         ) : null}
       </View>

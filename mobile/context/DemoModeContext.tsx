@@ -45,6 +45,8 @@ interface DemoModeContextValue {
   readonly refreshLocalFiles: () => Promise<void>;
   readonly enqueueDownload: (file: RemoteFile) => Promise<void>;
   readonly cancelDownload: (id: string) => Promise<void>;
+  readonly pauseDownload: (id: string) => Promise<void>;
+  readonly resumeDownload: (id: string) => Promise<void>;
   readonly removeFromQueue: (id: string) => Promise<void>;
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly shareLocalFile: (file: LocalMediaFile) => Promise<void>;
@@ -321,10 +323,36 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             .find(
               (entry) =>
                 entry.localName === nmeaName &&
-                (entry.status === "queued" || entry.status === "active"),
+                (entry.status === "queued" ||
+                  entry.status === "active" ||
+                  entry.status === "paused"),
             );
           if (sidecar) await queue.cancel(sidecar.id);
         }
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [queue],
+  );
+
+  const pauseDownload = useCallback(
+    async (id: string) => {
+      try {
+        await queue.pause(id);
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [queue],
+  );
+
+  const resumeDownload = useCallback(
+    async (id: string) => {
+      try {
+        await queue.resume(id);
         setLastError(undefined);
       } catch (error) {
         setLastError(error instanceof Error ? error.message : String(error));
@@ -422,6 +450,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       refreshLocalFiles,
       enqueueDownload,
       cancelDownload,
+      pauseDownload,
+      resumeDownload,
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
@@ -445,6 +475,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       refreshLocalFiles,
       enqueueDownload,
       cancelDownload,
+      pauseDownload,
+      resumeDownload,
       removeFromQueue,
       shareCompleted,
       shareLocalFile,

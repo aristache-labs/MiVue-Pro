@@ -18,6 +18,8 @@ export class DownloadQueue {
   private transport: Transport;
   private activeId: string | undefined;
   private activeController: AbortController | undefined;
+  /** Distinguishes user cancel vs pause when the active transfer aborts. */
+  private abortIntent: "cancel" | "pause" = "cancel";
 
   constructor(private readonly options: DownloadQueueOptions) {
     this.transport = options.transport;
@@ -92,20 +94,47 @@ export class DownloadQueue {
     return index < 0 ? undefined : index + 1;
   }
 
-  /** Cancel a queued item immediately, or request abort of the active transfer. */
+  /** Cancel a queued/paused item immediately, or request abort of the active transfer. */
   async cancel(id: string): Promise<void> {
     const item = this.items.find((i) => i.id === id);
     if (item === undefined) return;
 
-    if (item.status === "queued") {
+    if (item.status === "queued" || item.status === "paused") {
       this.patch(id, { status: "cancelled", errorMessage: "Cancelled by user" });
       await this.persist();
       return;
     }
 
     if (item.status === "active" && id === this.activeId) {
+      this.abortIntent = "cancel";
       this.activeController?.abort();
     }
+  }
+
+  /** Pause a queued item, or abort the active transfer and mark it paused. */
+  async pause(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined) return;
+
+    if (item.status === "queued") {
+      this.patch(id, { status: "paused", errorMessage: undefined });
+      await this.persist();
+      return;
+    }
+
+    if (item.status === "active" && id === this.activeId) {
+      this.abortIntent = "pause";
+      this.activeController?.abort();
+    }
+  }
+
+  /** Resume a paused item (restarts the transfer from the beginning). */
+  async resume(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined || item.status !== "paused") return;
+    this.patch(id, { status: "queued", errorMessage: undefined, bytesReceived: 0 });
+    await this.persist();
+    void this.pump();
   }
 
   /** Remove a finished (failed/cancelled/completed) item from the visible queue. */
@@ -191,18 +220,22 @@ export class DownloadQueue {
         this.patch(item.id, { status: "completed", bytesReceived: get.body.byteLength });
       }
     } catch (error) {
-      const cancelled = controller.signal.aborted || isAbortError(error);
-      const message = cancelled
-        ? "Cancelled by user"
-        : error instanceof Error
-          ? error.message
-          : String(error);
+      const aborted = controller.signal.aborted || isAbortError(error);
+      const intent = this.abortIntent;
+      this.abortIntent = "cancel";
       try {
         await this.options.sink.remove(part);
       } catch {
         // keep partial for diagnostics if remove fails
       }
-      this.patch(item.id, { status: cancelled ? "cancelled" : "failed", errorMessage: message });
+      if (aborted && intent === "pause") {
+        this.patch(item.id, { status: "paused", errorMessage: undefined });
+      } else if (aborted) {
+        this.patch(item.id, { status: "cancelled", errorMessage: "Cancelled by user" });
+      } else {
+        const message = error instanceof Error ? error.message : String(error);
+        this.patch(item.id, { status: "failed", errorMessage: message });
+      }
     } finally {
       if (this.activeId === item.id) {
         this.activeId = undefined;

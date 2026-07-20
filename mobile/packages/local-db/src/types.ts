@@ -1,4 +1,10 @@
-export type QueueItemStatus = "queued" | "active" | "completed" | "failed" | "cancelled";
+export type QueueItemStatus =
+  | "queued"
+  | "active"
+  | "paused"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface QueueItem {
   readonly id: string;

@@ -13,12 +13,25 @@ interface MediaMetaRowProps {
   readonly compact?: boolean;
   /** Keep chips on one row (no wrap). */
   readonly singleLine?: boolean;
+  readonly size?: "sm" | "md" | "lg";
 }
 
 /** Professional meta chips: icon + value, separated by vertical rules. */
-export function MediaMetaRow({ chips, compact = false, singleLine = false }: MediaMetaRowProps) {
+export function MediaMetaRow({
+  chips,
+  compact = false,
+  singleLine = false,
+  size,
+}: MediaMetaRowProps) {
   const { colors, radius } = useAppTheme();
   if (chips.length === 0) return null;
+
+  const scale = size ?? (compact ? "sm" : "md");
+  const padV = scale === "lg" ? 12 : scale === "md" ? 8 : 6;
+  const padH = scale === "lg" ? 12 : scale === "md" ? 10 : 6;
+  const iconSize = scale === "lg" ? 16 : scale === "md" ? 13 : 11;
+  const fontSize = scale === "lg" ? 13 : scale === "md" ? 12 : 10;
+  const sepH = scale === "lg" ? 16 : 12;
 
   return (
     <View
@@ -27,8 +40,8 @@ export function MediaMetaRow({ chips, compact = false, singleLine = false }: Med
         {
           backgroundColor: colors.surfaceMuted,
           borderRadius: radius.sm,
-          paddingVertical: compact ? 6 : 8,
-          paddingHorizontal: compact ? 6 : 10,
+          paddingVertical: padV,
+          paddingHorizontal: padH,
           flexWrap: singleLine ? "nowrap" : "wrap",
         },
       ]}
@@ -38,16 +51,13 @@ export function MediaMetaRow({ chips, compact = false, singleLine = false }: Med
           key={`${chip.icon}-${chip.label}-${index}`}
           style={[styles.chipWrap, singleLine ? styles.chipWrapFlex : null]}
         >
-          {index > 0 ? <View style={[styles.sep, { backgroundColor: colors.border }]} /> : null}
+          {index > 0 ? (
+            <View style={[styles.sep, { backgroundColor: colors.border, height: sepH }]} />
+          ) : null}
           <View style={[styles.chip, singleLine ? styles.chipFlex : null]}>
-            <Ionicons
-              name={chip.icon}
-              size={compact ? 11 : 13}
-              color={colors.brand}
-              style={styles.icon}
-            />
+            <Ionicons name={chip.icon} size={iconSize} color={colors.brand} style={styles.icon} />
             <Text
-              style={[styles.label, { color: colors.textMuted, fontSize: compact ? 10 : 12 }]}
+              style={[styles.label, { color: colors.text, fontSize }]}
               numberOfLines={1}
             >
               {chip.label}
@@ -63,9 +73,9 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", alignItems: "center" },
   chipWrap: { flexDirection: "row", alignItems: "center" },
   chipWrapFlex: { flex: 1, minWidth: 0 },
-  sep: { width: StyleSheet.hairlineWidth, height: 12, marginRight: 6 },
+  sep: { width: StyleSheet.hairlineWidth, marginRight: 6 },
   chip: { flexDirection: "row", alignItems: "center" },
   chipFlex: { flex: 1, minWidth: 0, justifyContent: "center" },
-  icon: { marginRight: 3 },
+  icon: { marginRight: 4 },
   label: { fontFamily: Type.monoMed, flexShrink: 1 },
 });

@@ -6,14 +6,9 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native
 import { recordingMetaChips } from "@/components/mediaMeta";
 import { Badge, Card, MediaMetaRow } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { VideoThumbnail } from "@/components/VideoThumbnail";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
-
-function kindIcon(kind: LocalMediaFile["kind"]): keyof typeof Ionicons.glyphMap {
-  if (kind === "video") return "videocam";
-  if (kind === "image") return "image";
-  return "document";
-}
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
@@ -82,21 +77,20 @@ export default function LocalLibraryScreen() {
           return (
             <Card style={styles.card}>
               <View style={styles.row}>
-                <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
-                  <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
+                <VideoThumbnail uri={item.uri} kind={item.kind} size={52} />
+                <View style={styles.body}>
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {chips.length > 0 ? (
+                    <View style={styles.metaRow}>
+                      <MediaMetaRow chips={chips} compact singleLine />
+                    </View>
+                  ) : (
+                    <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
+                  )}
                 </View>
-                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                  {item.name}
-                </Text>
               </View>
-
-              {chips.length > 0 ? (
-                <View style={styles.metaRow}>
-                  <MediaMetaRow chips={chips} compact singleLine />
-                </View>
-              ) : (
-                <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
-              )}
 
               <View
                 style={[
@@ -116,11 +110,15 @@ export default function LocalLibraryScreen() {
                   accessibilityLabel={`Share ${item.name}`}
                   style={({ pressed }) => [
                     styles.sideBtn,
-                    { borderRadius: radius.sm, opacity: pressed ? 0.75 : 1 },
+                    {
+                      borderColor: colors.border,
+                      backgroundColor: colors.surface,
+                      borderRadius: radius.sm,
+                      opacity: pressed ? 0.75 : 1,
+                    },
                   ]}
                 >
-                  <Ionicons name="share-outline" size={18} color={colors.textMuted} />
-                  <Text style={[styles.sideLabel, { color: colors.textMuted }]}>Share</Text>
+                  <Ionicons name="share-outline" size={16} color={colors.textMuted} />
                 </Pressable>
 
                 <Pressable
@@ -140,7 +138,7 @@ export default function LocalLibraryScreen() {
                     },
                   ]}
                 >
-                  <Ionicons name={playIcon} size={16} color={colors.onBrand} style={{ marginRight: 6 }} />
+                  <Ionicons name={playIcon} size={15} color={colors.onBrand} style={{ marginRight: 5 }} />
                   <Text style={[styles.playLabel, { color: colors.onBrand }]}>{playLabel}</Text>
                 </Pressable>
 
@@ -150,11 +148,15 @@ export default function LocalLibraryScreen() {
                   accessibilityLabel={`Delete ${item.name}`}
                   style={({ pressed }) => [
                     styles.sideBtn,
-                    { borderRadius: radius.sm, opacity: pressed ? 0.75 : 1 },
+                    {
+                      borderColor: colors.dangerSoft,
+                      backgroundColor: colors.dangerSoft,
+                      borderRadius: radius.sm,
+                      opacity: pressed ? 0.75 : 1,
+                    },
                   ]}
                 >
-                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
-                  <Text style={[styles.sideLabel, { color: colors.danger }]}>Delete</Text>
+                  <Ionicons name="trash-outline" size={16} color={colors.danger} />
                 </Pressable>
               </View>
             </Card>
@@ -180,34 +182,32 @@ const styles = StyleSheet.create({
   refreshText: { fontSize: 13, fontFamily: Type.fontSemi },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
   card: { overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center" },
-  iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  name: { flex: 1, fontFamily: Type.fontSemi, fontSize: 14, minWidth: 0 },
-  metaRow: { marginTop: 10 },
-  metaFallback: { fontSize: 12, fontFamily: Type.mono, marginTop: 10 },
+  row: { flexDirection: "row", alignItems: "center", gap: 12 },
+  body: { flex: 1, minWidth: 0 },
+  name: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 6 },
+  metaRow: { marginTop: 0 },
+  metaFallback: { fontSize: 12, fontFamily: Type.mono },
   actionBar: {
     flexDirection: "row",
     alignItems: "center",
     borderTopWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 10,
-    paddingVertical: 10,
+    paddingVertical: 8,
     gap: 8,
   },
   sideBtn: {
-    width: 64,
+    width: 40,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 6,
-    gap: 2,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  sideLabel: { fontSize: 10, fontFamily: Type.fontSemi },
   playBtn: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 11,
-    minHeight: 40,
+    height: 36,
   },
-  playLabel: { fontSize: 14, fontFamily: Type.fontSemi },
+  playLabel: { fontSize: 13, fontFamily: Type.fontSemi },
 });

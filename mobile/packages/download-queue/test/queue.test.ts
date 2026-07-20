@@ -201,6 +201,53 @@ test("cancel the active item aborts the transport and marks cancelled", async ()
   assert.equal(queue.list().find((i) => i.localName === "A.MP4")?.status, "cancelled");
 });
 
+test("pause active item then resume requeues it", async () => {
+  class AbortAwareTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      return new Promise((resolve, reject) => {
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const abort = () => {
+          if (timer !== undefined) clearTimeout(timer);
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (request.signal?.aborted) {
+          abort();
+          return;
+        }
+        timer = setTimeout(() => {
+          resolve({ statusCode: 200, headers: { "content-length": "100" }, body: demoFileBytes(100) });
+        }, 500);
+        request.signal?.addEventListener("abort", abort);
+      });
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new AbortAwareTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "active");
+
+  const active = queue.list().find((i) => i.localName === "A.MP4");
+  assert.ok(active);
+  await queue.pause(active!.id);
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "paused");
+
+  await queue.resume(active!.id);
+  const after = queue.list().find((i) => i.localName === "A.MP4")?.status;
+  assert.ok(after === "queued" || after === "active");
+});
+
 async function waitUntil(
   predicate: (() => boolean) | (() => Promise<boolean>),
   timeoutMs = 2_000,

@@ -44,13 +44,27 @@ export function formatLiveClipTime(fileName: string, offsetSec: number): string 
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-/** Remaining download time from average rate since start. */
-export function formatEta(receivedBytes: number, totalBytes: number, startedAtMs: number): string | undefined {
-  if (totalBytes <= 0 || receivedBytes <= 0) return undefined;
+/** Bytes/sec from average rate since start. */
+export function transferRateBps(receivedBytes: number, startedAtMs: number): number | undefined {
+  if (receivedBytes <= 0) return undefined;
   const elapsedSec = (Date.now() - startedAtMs) / 1000;
   if (elapsedSec < 0.5) return undefined;
   const rate = receivedBytes / elapsedSec;
-  if (rate < 1) return undefined;
+  if (!Number.isFinite(rate) || rate < 1) return undefined;
+  return rate;
+}
+
+export function formatTransferRate(bytesPerSec: number): string {
+  const mib = bytesPerSec / (1024 * 1024);
+  if (mib >= 0.1) return `${mib.toFixed(1)} MiB/s`;
+  const kib = bytesPerSec / 1024;
+  return `${kib.toFixed(0)} KiB/s`;
+}
+
+/** Remaining download time from average rate since start. */
+export function formatEta(receivedBytes: number, totalBytes: number, startedAtMs: number): string | undefined {
+  const rate = transferRateBps(receivedBytes, startedAtMs);
+  if (rate === undefined || totalBytes <= 0) return undefined;
   const remainingSec = Math.ceil((totalBytes - receivedBytes) / rate);
   if (!Number.isFinite(remainingSec) || remainingSec < 0) return undefined;
   const h = Math.floor(remainingSec / 3600);
