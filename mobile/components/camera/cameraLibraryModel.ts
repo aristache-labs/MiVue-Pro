@@ -179,8 +179,28 @@ export function showCategorySectionInFilters(category: CategoryFilter): boolean 
   return category === "all";
 }
 
-export function showDurationSectionInFilters(category: CategoryFilter): boolean {
-  return category !== "photo";
+/** Why Show X results should stay disabled — undefined means draft is valid. */
+export function cameraFilterDraftIssue(filters: CameraLibraryFilters): string | undefined {
+  if (filters.dateMode === "single" && !isValidDayKey(filters.singleDay)) {
+    return "Choose a day.";
+  }
+  if (filters.dateMode === "range") {
+    if (!isValidDayKey(filters.rangeStart) || !isValidDayKey(filters.rangeEnd)) {
+      return "Choose a start and end date.";
+    }
+  }
+  if (filters.timeMode === "single" && parseMinutesOfDay(filters.singleTime) === undefined) {
+    return "Choose a time.";
+  }
+  if (filters.timeMode === "range") {
+    if (
+      parseMinutesOfDay(filters.timeFrom) === undefined ||
+      parseMinutesOfDay(filters.timeTo) === undefined
+    ) {
+      return "Choose From and To times.";
+    }
+  }
+  return undefined;
 }
 
 export function dayKeyFromRemote(file: RemoteFile): string {

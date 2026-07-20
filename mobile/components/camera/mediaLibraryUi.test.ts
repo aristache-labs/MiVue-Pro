@@ -73,13 +73,14 @@ test("detail sheet primary labels and queue CTA", () => {
 
 test("detail sheet uses static scrim without Modal slide", () => {
   const sheet = readFileSync(join(__dirname, "RemoteDetailSheet.tsx"), "utf8");
-  assert.match(sheet, /animationType="none"/);
-  assert.match(sheet, /MEDIA_SCRIM_COLOR/);
+  assert.match(sheet, /StaticBackdropSheet/);
   assert.equal(sheet.includes('animationType="slide"'), false);
-  assert.equal(sheet.includes("animatedIndex"), false);
-  assert.match(sheet, /translateY/);
-  assert.match(sheet, /isReduceMotionEnabled/);
-  assert.match(sheet, /testID="remote-detail-scrim"/);
+  const shell = readFileSync(join(__dirname, "../media/StaticBackdropSheet.tsx"), "utf8");
+  assert.match(shell, /animationType="none"/);
+  assert.match(shell, /MEDIA_SCRIM_COLOR/);
+  assert.equal(shell.includes("animatedIndex"), false);
+  assert.match(shell, /translateY/);
+  assert.match(shell, /isReduceMotionEnabled/);
 });
 
 test("library index wires RemoteDetailSheet and does not slide-detail Modal", () => {

@@ -11,7 +11,6 @@ import {
   matchesSearch,
   sanitizeFiltersForCategoryScope,
   showCategorySectionInFilters,
-  showDurationSectionInFilters,
   type CameraLibraryFilters,
 } from "./cameraLibraryModel";
 import type { RemoteFile } from "@/packages/parsers/src/index";
@@ -74,10 +73,8 @@ test("Category filter section only for All scope", () => {
   assert.equal(showCategorySectionInFilters("photo"), false);
 });
 
-test("Duration filter section hidden for Photos", () => {
-  assert.equal(showDurationSectionInFilters("photo"), false);
-  assert.equal(showDurationSectionInFilters("normal"), true);
-  assert.equal(showDurationSectionInFilters("all"), true);
+test("Duration filter section is gone from Filters", () => {
+  assert.equal(showCategorySectionInFilters("all"), true);
 });
 
 test("sanitize clears conflicting category filters when scope is not All", () => {
@@ -155,12 +152,11 @@ test("photo sort options hide duration sorts", () => {
   assert.equal(opts.some((o) => o.id === "newest"), true);
 });
 
-test("detail sheet has no Status row; download CTA is compact text button", () => {
+test("detail sheet has no Status row; uses StaticBackdropSheet", () => {
   const sheet = readFileSync(join(__dirname, "RemoteDetailSheet.tsx"), "utf8");
   assert.equal(sheet.includes('label="Status"'), false);
-  assert.equal(sheet.includes("MetaRow label=\"Status\""), false);
   assert.match(sheet, /metaCols/);
-  assert.match(sheet, /animationType="none"/);
+  assert.match(sheet, /StaticBackdropSheet/);
 
   const action = readFileSync(join(__dirname, "CompactDownloadAction.tsx"), "utf8");
   assert.match(action, /Download/);
@@ -168,14 +164,15 @@ test("detail sheet has no Status row; download CTA is compact text button", () =
   assert.match(action, /stopPropagation/);
 });
 
-test("filter sheet uses Show X results and scope-aware sections", () => {
+test("filter sheet uses Show X results and StaticBackdropSheet", () => {
   const src = readFileSync(join(__dirname, "CameraFilterSheet.tsx"), "utf8");
   assert.match(src, /Show \{draftCount\} results/);
-  assert.equal(src.includes('accessibilityLabel="Cancel"') && src.includes("footerBtn"), false);
+  assert.match(src, /StaticBackdropSheet/);
   assert.match(src, /showCategorySectionInFilters/);
-  assert.match(src, /showDurationSectionInFilters/);
+  assert.equal(src.includes("showDurationSectionInFilters"), false);
   assert.match(src, /In queue/);
   assert.match(src, /DateTimePicker/);
+  assert.equal(src.includes("TIME_PRESETS"), false);
 });
 
 test("library clear-all does not reset main category", () => {

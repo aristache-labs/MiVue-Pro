@@ -1,6 +1,7 @@
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -14,10 +15,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import {
+  cameraFilterDraftIssue,
   countFilteredRemoteFiles,
   EMPTY_CAMERA_FILTERS,
+  isCameraFiltersEmpty,
   showCategorySectionInFilters,
-  showDurationSectionInFilters,
   type CameraFilterCategory,
   type CameraLibraryFilters,
   type CategoryFilter,
@@ -35,17 +37,12 @@ import {
   pickerA11yLabel,
   type PickerField,
 } from "@/components/local/localDateTime";
-import {
-  datePreset,
-  localTodayKey,
-  TIME_PRESETS,
-} from "@/components/local/localLibraryFilters";
+import { datePreset, localTodayKey } from "@/components/local/localLibraryFilters";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
-import { Type, useAppTheme } from "@/constants/Theme";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
+import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
-
-const MB100 = 100 * 1024 * 1024;
-const MB300 = 300 * 1024 * 1024;
 
 interface CameraFilterSheetProps {
   readonly visible: boolean;
@@ -157,12 +154,10 @@ function applyPickerDate(
 ): CameraLibraryFilters {
   if (field === "singleDay") return { ...draft, singleDay: dateToDayKey(date) };
   if (field === "rangeStart") {
-    const clamped = clampRangeAfterStart(dateToDayKey(date), draft.rangeEnd);
-    return { ...draft, ...clamped };
+    return { ...draft, ...clampRangeAfterStart(dateToDayKey(date), draft.rangeEnd) };
   }
   if (field === "rangeEnd") {
-    const clamped = clampRangeAfterEnd(draft.rangeStart, dateToDayKey(date));
-    return { ...draft, ...clamped };
+    return { ...draft, ...clampRangeAfterEnd(draft.rangeStart, dateToDayKey(date)) };
   }
   if (field === "singleTime") return { ...draft, singleTime: dateToHhmm(date) };
   if (field === "timeFrom") return { ...draft, timeFrom: dateToHhmm(date) };
@@ -170,8 +165,8 @@ function applyPickerDate(
 }
 
 /**
- * Camera Library filters — same draft/apply UX as Local Library.
- * Category section only when main scope is All; Duration hidden for Photos.
+ * Camera Library filters — Date / Time / Category(All) / Download state.
+ * Uses StaticBackdropSheet (same scrim as media details).
  */
 export function CameraFilterSheet({
   visible,
@@ -184,14 +179,15 @@ export function CameraFilterSheet({
   onClose,
   onApply,
 }: CameraFilterSheetProps) {
-  const { colors, spacing, radius } = useAppTheme();
+  const { colors, spacing } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(initial);
   const [activePicker, setActivePicker] = useState<PickerField | null>(null);
   const [iosTemp, setIosTemp] = useState<Date | null>(null);
   const today = localTodayKey();
   const showCategory = showCategorySectionInFilters(categoryScope);
-  const showDuration = showDurationSectionInFilters(categoryScope);
+  const resetDisabled = isCameraFiltersEmpty(draft);
+  const draftIssue = cameraFilterDraftIssue(draft);
 
   useEffect(() => {
     if (visible) {
@@ -203,15 +199,17 @@ export function CameraFilterSheet({
 
   const draftCount = useMemo(
     () =>
-      countFilteredRemoteFiles({
-        files,
-        category: categoryScope,
-        search,
-        filters: draft,
-        downloadedNames,
-        queuedNames,
-      }),
-    [files, categoryScope, search, draft, downloadedNames, queuedNames],
+      draftIssue
+        ? 0
+        : countFilteredRemoteFiles({
+            files,
+            category: categoryScope,
+            search,
+            filters: draft,
+            downloadedNames,
+            queuedNames,
+          }),
+    [files, categoryScope, search, draft, downloadedNames, queuedNames, draftIssue],
   );
 
   const pickerMode: "date" | "time" =
@@ -246,362 +244,311 @@ export function CameraFilterSheet({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.avoid}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss filters" />
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.surfaceElevated,
-              paddingBottom: Math.max(insets.bottom, 12),
-              borderTopLeftRadius: radius.xl,
-              borderTopRightRadius: radius.xl,
-            },
-          ]}
-        >
-          <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Filters</Text>
-            <View style={styles.headerActions}>
-              <Pressable
-                onPress={() => setDraft(EMPTY_CAMERA_FILTERS)}
-                accessibilityRole="button"
-                accessibilityLabel="Reset filters"
-                hitSlop={8}
-                style={styles.headerBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
-                  Reset
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={onClose}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={8}
-                style={styles.headerBtn}
-              >
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 15 }}>
-                  Close
-                </Text>
-              </Pressable>
+    <>
+      <StaticBackdropSheet
+        visible={visible}
+        onClose={onClose}
+        scrimAccessibilityLabel="Close filters"
+        scrimTestID="camera-filter-scrim"
+        sheetTestID="camera-filter-sheet"
+        sheetStyle={{
+          backgroundColor: colors.surfaceElevated,
+          borderColor: colors.border,
+          borderTopLeftRadius: MEDIA_SHEET_RADIUS,
+          borderTopRightRadius: MEDIA_SHEET_RADIUS,
+          paddingBottom: Math.max(insets.bottom, 12),
+          maxHeight: "88%",
+        }}
+      >
+        {({ requestClose }) => (
+          <>
+            <View style={styles.handleRow}>
+              <View style={[styles.handle, { backgroundColor: colors.border }]} />
             </View>
-          </View>
 
-          <ScrollView
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 16 }}
-          >
-            <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
-            <View style={styles.rowWrap}>
-              <Chip
-                label="Any"
-                selected={draft.dateMode === "any"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    dateMode: "any",
-                    singleDay: undefined,
-                    rangeStart: undefined,
-                    rangeEnd: undefined,
-                  })
-                }
-              />
-              <Chip
-                label="Single day"
-                selected={draft.dateMode === "single"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    dateMode: "single",
-                    singleDay: draft.singleDay ?? today,
-                  })
-                }
-              />
-              <Chip
-                label="Date range"
-                selected={draft.dateMode === "range"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    dateMode: "range",
-                    rangeStart: draft.rangeStart ?? today,
-                    rangeEnd: draft.rangeEnd ?? today,
-                  })
-                }
-              />
-              <Chip
-                label="Today"
-                selected={draft.dateMode === "single" && draft.singleDay === today}
-                onPress={() => setDraft({ ...draft, ...datePreset("today", today) })}
-              />
-              <Chip
-                label="Yesterday"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("yesterday", today) })}
-              />
-              <Chip
-                label="Last 7 days"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("last7", today) })}
-              />
-              <Chip
-                label="This month"
-                selected={false}
-                onPress={() => setDraft({ ...draft, ...datePreset("thisMonth", today) })}
-              />
+            <View style={styles.sheetHeader}>
+              <View style={styles.headerSide}>
+                <Pressable
+                  onPress={() => setDraft(EMPTY_CAMERA_FILTERS)}
+                  disabled={resetDisabled}
+                  accessibilityRole="button"
+                  accessibilityLabel="Reset filters"
+                  accessibilityState={{ disabled: resetDisabled }}
+                  hitSlop={HitSlop44}
+                  style={[styles.headerHit, { opacity: resetDisabled ? 0.4 : 1 }]}
+                >
+                  <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                    Reset
+                  </Text>
+                </Pressable>
+              </View>
+              <Text
+                style={[styles.sheetTitle, { color: colors.text }]}
+                accessibilityRole="header"
+              >
+                Filters
+              </Text>
+              <View style={[styles.headerSide, styles.headerSideRight]}>
+                <Pressable
+                  onPress={requestClose}
+                  accessibilityRole="button"
+                  accessibilityLabel="Close filters"
+                  hitSlop={HitSlop44}
+                  style={styles.headerHit}
+                >
+                  <Ionicons name="close" size={22} color={colors.textMuted} />
+                </Pressable>
+              </View>
             </View>
-            {draft.dateMode === "single" ? (
-              <FieldButton
-                value={formatDayDisplay(draft.singleDay)}
-                a11yLabel={pickerA11yLabel("singleDay")}
-                onPress={() => openPicker("singleDay")}
-              />
-            ) : null}
-            {draft.dateMode === "range" ? (
-              <View style={styles.rangeRow}>
-                <FieldButton
-                  label="From"
-                  value={formatDayDisplay(draft.rangeStart)}
-                  a11yLabel={pickerA11yLabel("rangeStart")}
-                  onPress={() => openPicker("rangeStart")}
+
+            <ScrollView
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingHorizontal: MEDIA_SHEET_PAD_H, paddingBottom: 12 }}
+            >
+              <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
+              <View style={styles.rowWrap}>
+                <Chip
+                  label="Any"
+                  selected={draft.dateMode === "any"}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      dateMode: "any",
+                      singleDay: undefined,
+                      rangeStart: undefined,
+                      rangeEnd: undefined,
+                    })
+                  }
                 />
-                <FieldButton
-                  label="To"
-                  value={formatDayDisplay(draft.rangeEnd)}
-                  a11yLabel={pickerA11yLabel("rangeEnd")}
-                  onPress={() => openPicker("rangeEnd")}
+                <Chip
+                  label="Single day"
+                  selected={draft.dateMode === "single"}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      dateMode: "single",
+                      singleDay: draft.singleDay ?? today,
+                    })
+                  }
+                />
+                <Chip
+                  label="Date range"
+                  selected={draft.dateMode === "range"}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      dateMode: "range",
+                      rangeStart: draft.rangeStart ?? today,
+                      rangeEnd: draft.rangeEnd ?? today,
+                    })
+                  }
+                />
+                <Chip
+                  label="Today"
+                  selected={draft.dateMode === "single" && draft.singleDay === today}
+                  onPress={() => setDraft({ ...draft, ...datePreset("today", today) })}
+                />
+                <Chip
+                  label="Yesterday"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("yesterday", today) })}
+                />
+                <Chip
+                  label="Last 7 days"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("last7", today) })}
+                />
+                <Chip
+                  label="This month"
+                  selected={false}
+                  onPress={() => setDraft({ ...draft, ...datePreset("thisMonth", today) })}
                 />
               </View>
-            ) : null}
+              {draft.dateMode === "single" ? (
+                <FieldButton
+                  value={formatDayDisplay(draft.singleDay)}
+                  a11yLabel={pickerA11yLabel("singleDay")}
+                  onPress={() => openPicker("singleDay")}
+                />
+              ) : null}
+              {draft.dateMode === "range" ? (
+                <View style={styles.rangeRow}>
+                  <FieldButton
+                    label="From"
+                    value={formatDayDisplay(draft.rangeStart)}
+                    a11yLabel={pickerA11yLabel("rangeStart")}
+                    onPress={() => openPicker("rangeStart")}
+                  />
+                  <FieldButton
+                    label="To"
+                    value={formatDayDisplay(draft.rangeEnd)}
+                    a11yLabel={pickerA11yLabel("rangeEnd")}
+                    onPress={() => openPicker("rangeEnd")}
+                  />
+                </View>
+              ) : null}
 
-            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>Time</Text>
-            <View style={styles.rowWrap}>
-              <Chip
-                label="Any"
-                selected={draft.timeMode === "any"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    timeMode: "any",
-                    singleTime: undefined,
-                    timeFrom: undefined,
-                    timeTo: undefined,
-                  })
-                }
-              />
-              <Chip
-                label="Single time"
-                selected={draft.timeMode === "single"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    timeMode: "single",
-                    singleTime: draft.singleTime ?? "12:00",
-                  })
-                }
-              />
-              <Chip
-                label="Time range"
-                selected={draft.timeMode === "range"}
-                onPress={() =>
-                  setDraft({
-                    ...draft,
-                    timeMode: "range",
-                    timeFrom: draft.timeFrom ?? "06:00",
-                    timeTo: draft.timeTo ?? "18:00",
-                  })
-                }
-              />
-              {(Object.keys(TIME_PRESETS) as (keyof typeof TIME_PRESETS)[]).map((key) => (
+              <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+                Time
+              </Text>
+              <View style={styles.rowWrap}>
                 <Chip
-                  key={key}
-                  label={key[0]!.toUpperCase() + key.slice(1)}
-                  selected={
-                    draft.timeMode === "range" &&
-                    draft.timeFrom === TIME_PRESETS[key].timeFrom &&
-                    draft.timeTo === TIME_PRESETS[key].timeTo
+                  label="Any"
+                  selected={draft.timeMode === "any"}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      timeMode: "any",
+                      singleTime: undefined,
+                      timeFrom: undefined,
+                      timeTo: undefined,
+                    })
                   }
+                />
+                <Chip
+                  label="Single time"
+                  selected={draft.timeMode === "single"}
+                  onPress={() =>
+                    setDraft({
+                      ...draft,
+                      timeMode: "single",
+                      singleTime: draft.singleTime ?? "12:00",
+                    })
+                  }
+                />
+                <Chip
+                  label="Time range"
+                  selected={draft.timeMode === "range"}
                   onPress={() =>
                     setDraft({
                       ...draft,
                       timeMode: "range",
-                      ...TIME_PRESETS[key],
+                      timeFrom: draft.timeFrom ?? "22:00",
+                      timeTo: draft.timeTo ?? "03:00",
                     })
                   }
                 />
-              ))}
-            </View>
-            {draft.timeMode === "single" ? (
-              <FieldButton
-                value={formatTimeDisplay(draft.singleTime)}
-                a11yLabel={pickerA11yLabel("singleTime")}
-                onPress={() => openPicker("singleTime")}
-              />
-            ) : null}
-            {draft.timeMode === "range" ? (
-              <View style={styles.rangeRow}>
-                <FieldButton
-                  label="From"
-                  value={formatTimeDisplay(draft.timeFrom)}
-                  a11yLabel={pickerA11yLabel("timeFrom")}
-                  onPress={() => openPicker("timeFrom")}
-                />
-                <FieldButton
-                  label="To"
-                  value={formatTimeDisplay(draft.timeTo)}
-                  a11yLabel={pickerA11yLabel("timeTo")}
-                  onPress={() => openPicker("timeTo")}
-                />
               </View>
-            ) : null}
-
-            {showCategory ? (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
-                  Category
-                </Text>
-                <View style={styles.rowWrap}>
-                  {(["normal", "parking", "event", "photo"] as CameraFilterCategory[]).map((cat) => (
-                    <Chip
-                      key={cat}
-                      label={
-                        cat === "normal"
-                          ? "Normal"
-                          : cat === "parking"
-                            ? "Parking"
-                            : cat === "event"
-                              ? "Event"
-                              : "Photos"
-                      }
-                      selected={draft.categories.includes(cat)}
-                      onPress={() =>
-                        setDraft({ ...draft, categories: toggleIn(draft.categories, cat) })
-                      }
-                    />
-                  ))}
-                </View>
-              </>
-            ) : null}
-
-            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
-              Download state
-            </Text>
-            <View style={styles.rowWrap}>
-              {(
-                [
-                  ["any", "Any"],
-                  ["downloaded", "Downloaded"],
-                  ["not_downloaded", "Not downloaded"],
-                  ["in_queue", "In queue"],
-                ] as const
-              ).map(([id, label]) => (
-                <Chip
-                  key={id}
-                  label={label}
-                  selected={draft.downloaded === id}
-                  onPress={() => setDraft({ ...draft, downloaded: id as DownloadedFilter })}
+              {draft.timeMode === "single" ? (
+                <FieldButton
+                  value={formatTimeDisplay(draft.singleTime)}
+                  a11yLabel={pickerA11yLabel("singleTime")}
+                  onPress={() => openPicker("singleTime")}
                 />
-              ))}
-            </View>
-
-            {showDuration ? (
-              <>
-                <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
-                  Duration
-                </Text>
-                <View style={styles.rowWrap}>
-                  <Chip
-                    label="Any"
-                    selected={
-                      draft.durationMinSec === undefined && draft.durationMaxSec === undefined
-                    }
-                    onPress={() =>
-                      setDraft({
-                        ...draft,
-                        durationMinSec: undefined,
-                        durationMaxSec: undefined,
-                      })
-                    }
+              ) : null}
+              {draft.timeMode === "range" ? (
+                <View style={styles.rangeRow}>
+                  <FieldButton
+                    label="From"
+                    value={formatTimeDisplay(draft.timeFrom)}
+                    a11yLabel={pickerA11yLabel("timeFrom")}
+                    onPress={() => openPicker("timeFrom")}
                   />
-                  <Chip
-                    label="Under 1 min"
-                    selected={draft.durationMaxSec === 60 && draft.durationMinSec === undefined}
-                    onPress={() =>
-                      setDraft({ ...draft, durationMinSec: undefined, durationMaxSec: 60 })
-                    }
-                  />
-                  <Chip
-                    label="1–5 min"
-                    selected={draft.durationMinSec === 60 && draft.durationMaxSec === 300}
-                    onPress={() => setDraft({ ...draft, durationMinSec: 60, durationMaxSec: 300 })}
-                  />
-                  <Chip
-                    label="Over 5 min"
-                    selected={draft.durationMinSec === 300 && draft.durationMaxSec === undefined}
-                    onPress={() =>
-                      setDraft({ ...draft, durationMinSec: 300, durationMaxSec: undefined })
-                    }
+                  <FieldButton
+                    label="To"
+                    value={formatTimeDisplay(draft.timeTo)}
+                    a11yLabel={pickerA11yLabel("timeTo")}
+                    onPress={() => openPicker("timeTo")}
                   />
                 </View>
-              </>
+              ) : null}
+
+              {showCategory ? (
+                <>
+                  <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+                    Category
+                  </Text>
+                  <View style={styles.rowWrap}>
+                    {(["normal", "parking", "event", "photo"] as CameraFilterCategory[]).map(
+                      (cat) => (
+                        <Chip
+                          key={cat}
+                          label={
+                            cat === "normal"
+                              ? "Normal"
+                              : cat === "parking"
+                                ? "Parking"
+                                : cat === "event"
+                                  ? "Event"
+                                  : "Photos"
+                          }
+                          selected={draft.categories.includes(cat)}
+                          onPress={() =>
+                            setDraft({
+                              ...draft,
+                              categories: toggleIn(draft.categories, cat),
+                            })
+                          }
+                        />
+                      ),
+                    )}
+                  </View>
+                </>
+              ) : null}
+
+              <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>
+                Download state
+              </Text>
+              <View style={styles.rowWrap}>
+                {(
+                  [
+                    ["any", "Any"],
+                    ["downloaded", "Downloaded"],
+                    ["not_downloaded", "Not downloaded"],
+                    ["in_queue", "In queue"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <Chip
+                    key={id}
+                    label={label}
+                    selected={draft.downloaded === id}
+                    onPress={() => setDraft({ ...draft, downloaded: id as DownloadedFilter })}
+                  />
+                ))}
+              </View>
+            </ScrollView>
+
+            {draftIssue ? (
+              <Text
+                style={[styles.issue, { color: colors.warn, paddingHorizontal: MEDIA_SHEET_PAD_H }]}
+              >
+                {draftIssue}
+              </Text>
             ) : null}
 
-            <Text style={[styles.sectionLabel, { color: colors.textMuted, marginTop: 16 }]}>Size</Text>
-            <View style={styles.rowWrap}>
-              <Chip
-                label="Any"
-                selected={draft.sizeMinBytes === undefined && draft.sizeMaxBytes === undefined}
-                onPress={() =>
-                  setDraft({ ...draft, sizeMinBytes: undefined, sizeMaxBytes: undefined })
-                }
-              />
-              <Chip
-                label="Under 100 MB"
-                selected={draft.sizeMaxBytes === MB100 && draft.sizeMinBytes === undefined}
-                onPress={() =>
-                  setDraft({ ...draft, sizeMinBytes: undefined, sizeMaxBytes: MB100 })
-                }
-              />
-              <Chip
-                label="100–300 MB"
-                selected={draft.sizeMinBytes === MB100 && draft.sizeMaxBytes === MB300}
-                onPress={() => setDraft({ ...draft, sizeMinBytes: MB100, sizeMaxBytes: MB300 })}
-              />
-              <Chip
-                label="Over 300 MB"
-                selected={draft.sizeMinBytes === MB300 && draft.sizeMaxBytes === undefined}
-                onPress={() =>
-                  setDraft({ ...draft, sizeMinBytes: MB300, sizeMaxBytes: undefined })
-                }
-              />
-            </View>
-          </ScrollView>
-
-          <Pressable
-            onPress={() => {
-              onApply(draft);
-              onClose();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={`Show ${draftCount} results`}
-            style={({ pressed }) => [
-              styles.applyBtn,
-              {
-                backgroundColor: colors.brand,
-                borderRadius: radius.md,
-                marginHorizontal: spacing.lg,
-                opacity: pressed ? 0.85 : 1,
-                minHeight: LOCAL_ACTION_HIT,
-              },
-            ]}
-          >
-            <Text style={[styles.applyText, { color: colors.onBrand }]}>
-              Show {draftCount} results
-            </Text>
-          </Pressable>
-        </View>
-      </View>
+            <Pressable
+              onPress={() => {
+                if (draftIssue) return;
+                onApply({
+                  ...draft,
+                  durationMinSec: undefined,
+                  durationMaxSec: undefined,
+                  sizeMinBytes: undefined,
+                  sizeMaxBytes: undefined,
+                });
+                requestClose();
+              }}
+              disabled={Boolean(draftIssue)}
+              accessibilityRole="button"
+              accessibilityLabel={`Show ${draftCount} results`}
+              accessibilityState={{ disabled: Boolean(draftIssue) }}
+              style={({ pressed }) => [
+                styles.applyBtn,
+                {
+                  backgroundColor: colors.brand,
+                  marginHorizontal: spacing.lg,
+                  opacity: draftIssue ? 0.45 : pressed ? 0.85 : 1,
+                  minHeight: LOCAL_ACTION_HIT,
+                },
+              ]}
+            >
+              <Text style={[styles.applyText, { color: colors.onBrand }]}>
+                Show {draftCount} results
+              </Text>
+            </Pressable>
+          </>
+        )}
+      </StaticBackdropSheet>
 
       {activePicker && Platform.OS === "android" ? (
         <DateTimePicker
@@ -612,17 +559,23 @@ export function CameraFilterSheet({
         />
       ) : null}
       {activePicker && Platform.OS === "ios" ? (
-        <Modal transparent animationType="fade" visible onRequestClose={dismissPicker}>
+        <Modal transparent animationType="none" visible onRequestClose={dismissPicker}>
           <Pressable style={styles.pickerBackdrop} onPress={dismissPicker} />
           <View style={[styles.pickerSheet, { backgroundColor: colors.surfaceElevated }]}>
             <View style={styles.pickerHeader}>
-              <Pressable onPress={dismissPicker} accessibilityRole="button" accessibilityLabel="Cancel">
+              <Pressable
+                onPress={dismissPicker}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                style={styles.headerHit}
+              >
                 <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi }}>Cancel</Text>
               </Pressable>
               <Pressable
                 onPress={() => iosTemp && commitPicker(iosTemp)}
                 accessibilityRole="button"
                 accessibilityLabel="Done"
+                style={styles.headerHit}
               >
                 <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Done</Text>
               </Pressable>
@@ -636,25 +589,40 @@ export function CameraFilterSheet({
           </View>
         </Modal>
       ) : null}
-    </Modal>
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  avoid: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
-  sheet: { maxHeight: "88%", borderTopWidth: StyleSheet.hairlineWidth },
+  handleRow: { alignItems: "center", paddingTop: 8 },
+  handle: { width: 36, height: 4, borderRadius: 2 },
   sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    minHeight: LOCAL_ACTION_HIT,
+    height: LOCAL_ACTION_HIT + 8,
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  sheetTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 12 },
-  headerBtn: { minHeight: LOCAL_ACTION_HIT, justifyContent: "center", paddingHorizontal: 4 },
+  headerSide: {
+    position: "absolute",
+    left: 8,
+    top: 0,
+    bottom: 0,
+    width: 88,
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  headerSideRight: { left: undefined, right: 8, alignItems: "flex-end" },
+  headerHit: {
+    minWidth: LOCAL_ACTION_HIT,
+    minHeight: LOCAL_ACTION_HIT,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  sheetTitle: {
+    textAlign: "center",
+    fontSize: 17,
+    fontFamily: Type.fontBold,
+  },
   sectionLabel: { fontSize: 12, fontFamily: Type.fontSemi, marginBottom: 8, letterSpacing: 0.3 },
   rowWrap: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
@@ -675,14 +643,15 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontFamily: Type.font, marginBottom: 2 },
   fieldValue: { fontSize: 14, fontFamily: Type.fontSemi },
   rangeRow: { flexDirection: "row", gap: 8 },
-  applyBtn: { alignItems: "center", justifyContent: "center", marginTop: 8, marginBottom: 4 },
+  issue: { fontSize: 12, fontFamily: Type.font, marginBottom: 6 },
+  applyBtn: { alignItems: "center", justifyContent: "center", marginTop: 4, borderRadius: 12 },
   applyText: { fontSize: 15, fontFamily: Type.fontSemi },
-  pickerBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.35)" },
-  pickerSheet: { paddingBottom: 24 },
+  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
+  pickerSheet: { marginTop: "auto", paddingBottom: 24 },
   pickerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 8,
   },
 });
