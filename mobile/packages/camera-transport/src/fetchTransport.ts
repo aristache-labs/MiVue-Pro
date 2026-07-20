@@ -27,8 +27,13 @@ export class FetchTransport implements Transport {
 
     const port = this.options.port ?? 80;
     const url = `http://${this.options.host}:${port}${request.path}`;
+    const timeoutMs = this.options.timeoutMs ?? 5_000;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.options.timeoutMs ?? 5_000);
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
     const onAbort = () => controller.abort();
     request.signal?.addEventListener("abort", onAbort, { once: true });
 
@@ -49,6 +54,15 @@ export class FetchTransport implements Transport {
       });
       return { statusCode: response.status, headers, body };
     } catch (error) {
+      if (timedOut || isAbortError(error)) {
+        throw new TransportError(
+          timedOut
+            ? `FetchTransport timed out after ${timeoutMs}ms — camera unreachable or HTTP/1.0 not compatible with Expo Go Fetch. Use Demo Mode, or a native build.`
+            : "FetchTransport aborted before completion.",
+          timedOut ? "ETIMEDOUT" : "FETCH",
+          { cause: error },
+        );
+      }
       const message = error instanceof Error ? error.message : String(error);
       throw new TransportError(`FetchTransport failed: ${message}`, "FETCH", { cause: error });
     } finally {
@@ -56,4 +70,11 @@ export class FetchTransport implements Transport {
       request.signal?.removeEventListener("abort", onAbort);
     }
   }
+}
+
+function isAbortError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const name = error.name.toLowerCase();
+  const message = error.message.toLowerCase();
+  return name === "aborterror" || message.includes("aborted") || message.includes("abort");
 }

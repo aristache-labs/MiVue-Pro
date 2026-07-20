@@ -42,7 +42,8 @@ function createLiveTransport(host: string): Transport {
   if (isNativeTcpAvailable()) {
     return new NativeTcpTransport({ host, port: 80, timeoutMs: 5_000, userAgent: APP_USER_AGENT });
   }
-  return new FetchTransport({ host, port: 80, timeoutMs: 5_000, userAgent: APP_USER_AGENT });
+  // Expo Go: buffer whole file in JS — OK for short clips; prefer native streaming later.
+  return new FetchTransport({ host, port: 80, timeoutMs: 120_000, userAgent: APP_USER_AGENT });
 }
 
 export function DemoModeProvider({ children }: { readonly children: React.ReactNode }) {
@@ -168,13 +169,12 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             setLastError("Host must be a private IPv4 address.");
             return;
           }
-          if (!nativeTcpReady && file.sizeBytes > 2 * 1024 * 1024) {
-            setLastError(
-              "Large live downloads need the development build (native streaming). Use Demo Mode or a small file for Fetch probe.",
-            );
-            return;
-          }
           queue.setTransport(createLiveTransport(cameraHost));
+          if (!nativeTcpReady) {
+            setConnectionNote(
+              "Expo Go Fetch download (buffered). Large clips may be slow or fail; native streaming is more reliable.",
+            );
+          }
         } else {
           queue.setTransport(new DemoTransport());
         }

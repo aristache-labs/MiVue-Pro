@@ -25,7 +25,7 @@ Consemnează rezultatele probei live pe Wi‑Fi cameră. Nu include parole, SSID
 
 | Dată | Device | Host | Transport | Status | List | Note |
 |---|---|---|---|---|---|---|
-| `[TBD]` | iPhone 14 | `192.72.1.1` | Fetch (Expo Go) | `[TBD]` | `[TBD]` | |
+| 20 iul 2026 | iPhone + Expo Go (EAS Update) | `192.72.1.1` | Fetch | fail | — | `Aborted` / timeout — Fetch vs HTTP/1.0 cameră |
 | `[TBD]` | iPhone 14 | `192.72.1.1` | Native HTTP/1.0 | `[TBD]` | `[TBD]` | după EAS build |
 
 ## Concluzie provizorie

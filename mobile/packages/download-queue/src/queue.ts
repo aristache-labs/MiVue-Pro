@@ -116,16 +116,18 @@ export class DownloadQueue {
       if (head.statusCode !== 200) {
         throw new Error(`HEAD HTTP ${head.statusCode}`);
       }
+      // Camera file lists often report FAT-rounded sizes; HEAD/GET Content-Length is authoritative.
       const headLength = parseContentLength(head.headers);
+      const expectedBytes = headLength ?? item.expectedBytes;
       if (headLength !== undefined && headLength !== item.expectedBytes) {
-        throw new Error(`Content-Length mismatch: expected ${item.expectedBytes}, HEAD ${headLength}`);
+        this.patch(item.id, { expectedBytes: headLength });
       }
 
       if (isStreamingTransport(this.transport)) {
         const result = await this.transport.downloadToFile({
           remotePath: item.remotePath,
           destinationPath: dest,
-          expectedBytes: item.expectedBytes,
+          expectedBytes,
           onProgress: (progress) => {
             this.patch(item.id, { bytesReceived: progress.bytesReceived });
           },
@@ -137,11 +139,11 @@ export class DownloadQueue {
           throw new Error(`GET HTTP ${get.statusCode}`);
         }
         const getLength = parseContentLength(get.headers);
-        if (getLength !== undefined && getLength !== item.expectedBytes) {
-          throw new Error(`Content-Length mismatch: HEAD/expected vs GET`);
+        if (getLength !== undefined && getLength !== expectedBytes) {
+          throw new Error(`Content-Length mismatch: HEAD ${expectedBytes}, GET ${getLength}`);
         }
-        if (get.body.byteLength !== item.expectedBytes) {
-          throw new Error(`Size invalid: expected ${item.expectedBytes}, got ${get.body.byteLength}`);
+        if (get.body.byteLength !== expectedBytes) {
+          throw new Error(`Size invalid: expected ${expectedBytes}, got ${get.body.byteLength}`);
         }
 
         await this.options.sink.writeExclusive(part, get.body);

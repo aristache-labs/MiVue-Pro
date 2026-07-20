@@ -95,6 +95,42 @@ test("queue rejects path traversal", async () => {
   );
 });
 
+test("queue prefers HEAD size over list expectedBytes", async () => {
+  class MismatchTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "80" }, body: new Uint8Array() };
+      }
+      if (request.method === "GET") {
+        return {
+          statusCode: 200,
+          headers: { "content-length": "80" },
+          body: demoFileBytes(80),
+        };
+      }
+      return { statusCode: 404, headers: {}, body: new Uint8Array() };
+    }
+  }
+
+  const sink = new MemoryFileSink();
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new MismatchTransport(),
+    sink,
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  await queue.enqueue({
+    remotePath: "/SD/Normal/F/C.MP4",
+    localName: "C.MP4",
+    expectedBytes: 196608,
+  });
+  await waitUntil(() => queue.list().every((i) => i.status === "completed" || i.status === "failed"));
+  assert.equal(queue.list()[0]?.status, "completed");
+  assert.equal(queue.list()[0]?.expectedBytes, 80);
+  assert.ok(await sink.exists("/downloads/C.MP4"));
+});
+
 async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
   const started = Date.now();
   while (!predicate()) {

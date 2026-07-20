@@ -30,6 +30,25 @@ npm start
 
 Agentul **nu** pornește Metro.
 
+## Expo Go via expo.dev (fără Metro pe LAN)
+
+Când iPhone-ul nu poate ajunge la PC (izolare Wi‑Fi / Ethernet), publică JS pe EAS Update și încarcă din cloud.
+
+```powershell
+cd mobile
+npm install
+npx eas-cli login
+npx eas-cli update --branch preview --message "Laneory preview"
+```
+
+Rulează **doar din `mobile/`**. Nu din rădăcina repo-ului.
+
+1. iPhone pe Wi‑Fi **cu internet** → scanează QR-ul din terminal (sau deschide update-ul din [expo.dev](https://expo.dev) în Expo Go).
+2. După ce Laneory e încărcat → treci iPhone pe Wi‑Fi-ul **camerei**.
+3. Demo OFF → Camera IP `192.72.1.1` → Connect.
+
+Note: pe Wi‑Fi cameră nu reîncarcă de pe expo.dev (de obicei fără internet). Hot reload nu merge. Fetch HTTP/1.0 poate tot eșua în Expo Go.
+
 ## Development build iOS (HTTP/1.0 nativ) — Windows + iPhone
 
 PC-ul e Windows: **nu** folosi `expo run:ios` local. Folosește **EAS**.

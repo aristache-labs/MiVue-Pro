@@ -1,12 +1,21 @@
 {
   "expo": {
     "name": "Laneory",
-    "slug": "laneory",
+    "slug": "mivue-866-cli",
     "version": "0.1.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "laneory",
     "userInterfaceStyle": "automatic",
+    "owner": "pateutz",
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/70081a2a-e7ee-42f5-a599-900b9995a1c2",
+      "fallbackToCacheTimeout": 0,
+      "checkAutomatically": "ON_LOAD"
+    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "app.laneory.mobile",
@@ -45,7 +54,10 @@
     },
     "extra": {
       "subtitle": "For Mio MiVue 866",
-      "shortDescription": "Independent local dashcam library for compatible Mio MiVue cameras."
+      "shortDescription": "Independent local dashcam library for compatible Mio MiVue cameras.",
+      "eas": {
+        "projectId": "70081a2a-e7ee-42f5-a599-900b9995a1c2"
+      }
     }
   }
 }
