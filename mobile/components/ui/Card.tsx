@@ -12,7 +12,7 @@ export function Card({ style, children, ...rest }: PropsWithChildren<ViewProps>)
         {
           backgroundColor: colors.surface,
           borderColor: colors.border,
-          borderRadius: radius.lg,
+          borderRadius: radius.md,
           padding: spacing.lg,
         },
         style,

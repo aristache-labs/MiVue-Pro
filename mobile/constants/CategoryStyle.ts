@@ -24,7 +24,7 @@ export const CATEGORY_ICON: Record<FileCategory | "all", string> = {
   unknown: "help-circle-outline",
 };
 
-/** Backwards-compatible static map (light scheme) for call sites not yet theme-aware. */
+/** Backwards-compatible static map (light scheme). */
 export const CATEGORY_COLOR: Record<FileCategory, string> = {
   normal: CATEGORY_COLORS.normal.light,
   event: CATEGORY_COLORS.event.light,

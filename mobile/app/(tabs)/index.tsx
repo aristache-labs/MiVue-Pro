@@ -1,19 +1,40 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useMemo } from "react";
-import { FlatList, Pressable, ScrollView, StyleSheet, Switch, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  SectionList,
+  StyleSheet,
+  Switch,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
-import { Badge, Card, IconButton } from "@/components/ui";
+import { Badge, Card, PrimaryButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { CATEGORY_ICON, CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
-import { useLibraryFilters, type LibrarySort } from "@/hooks/useLibraryFilters";
+import { useLibraryFilters, type CategoryFilter, type LibrarySort } from "@/hooks/useLibraryFilters";
 
 const SORT_OPTIONS: readonly { id: LibrarySort; label: string }[] = [
   { id: "newest", label: "Newest" },
   { id: "oldest", label: "Oldest" },
   { id: "name", label: "Name" },
 ];
+
+const STAT_CHIPS: readonly { id: CategoryFilter; label: string }[] = [
+  { id: "all", label: "TOTAL" },
+  { id: "normal", label: "NORMAL" },
+  { id: "parking", label: "PARKING" },
+  { id: "event", label: "EVENT" },
+  { id: "photo", label: "PHOTO" },
+];
+
+function formatKiB(bytes: number): string {
+  return `${Math.round(bytes / 1024)} KiB`;
+}
 
 export default function LibraryScreen() {
   const { colors, spacing, radius, scheme } = useAppTheme();
@@ -31,7 +52,7 @@ export default function LibraryScreen() {
     nativeTcpReady,
   } = useDemoMode();
 
-  const { category, setCategory, sort, setSort, filtered, categoryFilters } = useLibraryFilters(files);
+  const { category, setCategory, sort, setSort, sections, counts, filtered } = useLibraryFilters(files);
 
   const emptyMessage = useMemo(() => {
     if (files.length === 0) {
@@ -60,11 +81,48 @@ export default function LibraryScreen() {
         </View>
       </View>
 
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={{ marginTop: spacing.md, maxHeight: 44 }}
+        contentContainerStyle={{ gap: 8 }}
+      >
+        {STAT_CHIPS.map((chip) => {
+          const selected = category === chip.id;
+          const value = counts[chip.id];
+          return (
+            <Pressable
+              key={chip.id}
+              onPress={() => setCategory(chip.id)}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${chip.label} ${value}`}
+              hitSlop={6}
+              style={[
+                styles.statChip,
+                {
+                  borderColor: selected ? colors.brand : colors.border,
+                  backgroundColor: selected ? colors.brandSoft : colors.surface,
+                  borderRadius: radius.sm,
+                },
+              ]}
+            >
+              <Text style={[styles.statLabel, { color: selected ? colors.brandStrong : colors.textFaint }]}>
+                {chip.label}
+              </Text>
+              <Text style={[styles.statValue, { color: selected ? colors.brandStrong : colors.text }]}>
+                {value}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </ScrollView>
+
       <Card style={{ marginTop: spacing.md, marginBottom: spacing.md }}>
         {!demoMode ? (
           <View style={{ marginBottom: spacing.md }}>
             <Text style={[styles.label, { color: colors.text }]}>Camera IP</Text>
-            <View style={[styles.inputRow, { borderColor: colors.border, borderRadius: radius.md }]}>
+            <View style={[styles.inputRow, { borderColor: colors.border, borderRadius: radius.sm }]}>
               <Ionicons name="wifi-outline" size={16} color={colors.textFaint} style={{ marginRight: 8 }} />
               <TextInput
                 style={[styles.input, { color: colors.text }]}
@@ -87,56 +145,14 @@ export default function LibraryScreen() {
         {connectionNote ? <Text style={[styles.note, { color: colors.textMuted }]}>{connectionNote}</Text> : null}
         {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
 
-        <Pressable
+        <PrimaryButton
+          label={demoMode ? "Refresh demo library" : "Connect / refresh camera"}
+          icon="refresh"
           onPress={() => void refreshFiles()}
-          accessibilityRole="button"
-          style={({ pressed }) => [
-            styles.connectBtn,
-            { backgroundColor: colors.brand, borderRadius: radius.md, opacity: pressed ? 0.85 : 1 },
-          ]}
-        >
-          <Ionicons name="refresh" size={16} color={colors.onBrand} style={{ marginRight: 8 }} />
-          <Text style={[styles.connectBtnText, { color: colors.onBrand }]}>
-            {demoMode ? "Refresh demo library" : "Connect / refresh camera"}
-          </Text>
-        </Pressable>
+        />
       </Card>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipRow}>
-        {categoryFilters.map((id) => {
-          const selected = category === id;
-          return (
-            <Pressable
-              key={id}
-              onPress={() => setCategory(id)}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              accessibilityLabel={`Filter ${CATEGORY_LABEL[id]}`}
-              hitSlop={6}
-              style={[
-                styles.chip,
-                {
-                  borderRadius: radius.pill,
-                  backgroundColor: selected ? colors.brand : colors.surfaceMuted,
-                  borderColor: selected ? colors.brand : colors.border,
-                },
-              ]}
-            >
-              <Ionicons
-                name={CATEGORY_ICON[id] as keyof typeof Ionicons.glyphMap}
-                size={13}
-                color={selected ? colors.onBrand : colors.textMuted}
-                style={{ marginRight: 6 }}
-              />
-              <Text style={[styles.chipText, { color: selected ? colors.onBrand : colors.textMuted }]}>
-                {CATEGORY_LABEL[id]}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
-
-      <View style={[styles.sortRow, { marginTop: spacing.sm }]}>
+      <View style={[styles.sortRow, { marginBottom: spacing.sm }]}>
         {SORT_OPTIONS.map((option) => {
           const selected = sort === option.id;
           return (
@@ -164,11 +180,12 @@ export default function LibraryScreen() {
         })}
       </View>
 
-      <FlatList
+      <SectionList
         style={styles.list}
-        contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xxl }}
-        data={filtered}
+        sections={[...sections]}
         keyExtractor={(item) => item.path}
+        stickySectionHeadersEnabled={false}
+        contentContainerStyle={{ paddingBottom: spacing.xxl }}
         ListEmptyComponent={
           <EmptyState
             icon={demoMode ? "flask-outline" : "cloud-offline-outline"}
@@ -176,13 +193,17 @@ export default function LibraryScreen() {
             subtitle={emptyMessage}
           />
         }
+        renderSectionHeader={({ section }) => (
+          <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{section.title}</Text>
+        )}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+        SectionSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
         renderItem={({ item }) => (
           <Card style={styles.fileCard}>
             <View
               style={[
                 styles.iconSquare,
-                { backgroundColor: categoryColor(item.category, scheme) + "22", borderRadius: radius.md },
+                { backgroundColor: categoryColor(item.category, scheme) + "22", borderRadius: radius.sm },
               ]}
               accessibilityElementsHidden
             >
@@ -196,19 +217,36 @@ export default function LibraryScreen() {
               <Text style={[styles.fileName, { color: colors.text }]} numberOfLines={1}>
                 {item.name}
               </Text>
-              <Text style={[styles.fileMeta, { color: colors.textMuted }]} numberOfLines={1}>
-                {CATEGORY_LABEL[item.category]} · {item.recordedAt} · {Math.round(item.sizeBytes / 1024)} KiB
-              </Text>
+              <View style={styles.metaRow}>
+                <View
+                  style={[
+                    styles.catPill,
+                    {
+                      backgroundColor: colors.successSoft,
+                      borderRadius: 4,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.catPillText, { color: colors.success }]}>
+                    {CATEGORY_LABEL[item.category].toUpperCase()}
+                  </Text>
+                </View>
+                <Text style={[styles.fileMeta, { color: colors.textMuted }]} numberOfLines={1}>
+                  {item.recordedAt.slice(11, 16)} · {formatKiB(item.sizeBytes)}
+                </Text>
+              </View>
             </View>
-            <IconButton
+            <PrimaryButton
+              label="Descarcă"
               icon="download-outline"
-              tone="brand"
+              compact
               onPress={() => void enqueueDownload(item)}
-              accessibilityLabel={`Download ${item.name}`}
+              accessibilityLabel={`Descarcă ${item.name}`}
             />
           </Card>
         )}
       />
+      {filtered.length === 0 ? null : null}
     </View>
   );
 }
@@ -217,8 +255,16 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   demoToggle: { flexDirection: "row", alignItems: "center", gap: 8 },
-  demoToggleLabel: { fontSize: 12, fontWeight: "600" },
-  label: { fontSize: 13, fontWeight: "700", marginBottom: 8 },
+  demoToggleLabel: { fontSize: 12, fontFamily: Type.fontSemi },
+  statChip: {
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    minWidth: 64,
+  },
+  statLabel: { fontSize: 9, fontFamily: Type.fontSemi, letterSpacing: 0.6 },
+  statValue: { fontSize: 14, fontFamily: Type.monoMed, marginTop: 2 },
+  label: { fontSize: 13, fontFamily: Type.fontSemi, marginBottom: 8 },
   inputRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -226,38 +272,32 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  input: { flex: 1, fontSize: 15 },
-  hint: { fontSize: 11, marginTop: 6, lineHeight: 15 },
-  note: { fontSize: 12, marginBottom: 8 },
-  error: { fontSize: 12, marginBottom: 8, fontWeight: "600" },
-  connectBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-  },
-  connectBtnText: { fontWeight: "700", fontSize: 14 },
-  chipRow: { maxHeight: 40 },
-  chip: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginRight: 8,
-  },
-  chipText: { fontSize: 12, fontWeight: "700" },
+  input: { flex: 1, fontSize: 15, fontFamily: Type.mono },
+  hint: { fontSize: 11, marginTop: 6, lineHeight: 15, fontFamily: Type.font },
+  note: { fontSize: 12, marginBottom: 8, fontFamily: Type.font },
+  error: { fontSize: 12, marginBottom: 8, fontFamily: Type.fontSemi },
   sortRow: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   sortChip: {
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 12,
     paddingVertical: 6,
   },
-  sortChipText: { fontSize: 12, fontWeight: "700" },
+  sortChipText: { fontSize: 12, fontFamily: Type.fontSemi },
   list: { flex: 1 },
+  sectionTitle: {
+    fontSize: 12,
+    fontFamily: Type.fontSemi,
+    marginTop: 8,
+    marginBottom: 6,
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
+  },
   fileCard: { flexDirection: "row", alignItems: "center", padding: 12 },
   iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
   fileBody: { flex: 1, marginRight: 8 },
-  fileName: { fontSize: 14, fontWeight: "700", marginBottom: 3 },
-  fileMeta: { fontSize: 12 },
+  fileName: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 4 },
+  metaRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  catPill: { paddingHorizontal: 6, paddingVertical: 2 },
+  catPillText: { fontSize: 9, fontFamily: Type.fontSemi, letterSpacing: 0.6 },
+  fileMeta: { fontSize: 11, fontFamily: Type.mono, flexShrink: 1 },
 });

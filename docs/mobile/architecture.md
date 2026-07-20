@@ -1,6 +1,6 @@
 # Arhitectura aplicației mobile
 
-**Statut:** Faza 3 — UI pe Expo Go (filtre, Local, player); native Http10Tcp amânat (Apple Developer)  
+**Statut:** Faza 3.5 — UI parity web (teal/navy, fonts) + player GPS schematic/opt-in map; native Http10Tcp amânat (Apple Developer)  
 **Framework:** React Native + Expo prebuild / development builds ([adr-001-framework.md](adr-001-framework.md))  
 **Locație:** subfolder `mobile/` în acest monorepo  
 **Produs:** `Laneory`  

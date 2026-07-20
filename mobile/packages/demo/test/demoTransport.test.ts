@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { parseNmeaTelemetry } from "../../parsers/src/index";
 import { CameraClient } from "../../protocol/src/index";
-import { DemoTransport } from "../src/index";
+import { DEMO_NMEA_PATH, DemoTransport } from "../src/index";
 
 test("DemoTransport serves status and list without camera sockets", async () => {
   const transport = new DemoTransport();
@@ -16,3 +17,15 @@ test("DemoTransport serves status and list without camera sockets", async () => 
   assert.ok(all.files.some((f) => f.category === "parking"));
   assert.ok(all.files.some((f) => f.category === "photo"));
 });
+
+test("DemoTransport serves synthetic NMEA sidecar for GPS demo clip", async () => {
+  const transport = new DemoTransport();
+  const head = await transport.request({ method: "HEAD", path: DEMO_NMEA_PATH });
+  assert.equal(head.statusCode, 200);
+  const get = await transport.request({ method: "GET", path: DEMO_NMEA_PATH });
+  assert.equal(get.statusCode, 200);
+  const raw = new TextDecoder().decode(get.body);
+  const samples = parseNmeaTelemetry(raw);
+  assert.ok(samples.length >= 20);
+});
+

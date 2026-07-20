@@ -1,5 +1,6 @@
 import type { Transport, TransportRequest, TransportResponse } from "../../camera-transport/src/index";
 import { TransportError } from "../../camera-transport/src/index";
+import { DEMO_NMEA_BODY, DEMO_NMEA_PATH } from "./demoNmea";
 import {
   DEMO_FILES,
   DEMO_STATUS_BODY,
@@ -28,6 +29,22 @@ export class DemoTransport implements Transport {
           ? DEMO_FILES
           : DEMO_FILES.filter((file) => categoryProperty(file.category) === property);
       return textResponse(200, buildDemoFileListXml(files));
+    }
+
+    if (request.path === DEMO_NMEA_PATH) {
+      const body = new TextEncoder().encode(DEMO_NMEA_BODY);
+      if (request.method === "HEAD") {
+        return {
+          statusCode: 200,
+          headers: { "content-length": String(body.byteLength), "content-type": "text/plain" },
+          body: new Uint8Array(),
+        };
+      }
+      return {
+        statusCode: 200,
+        headers: { "content-length": String(body.byteLength), "content-type": "text/plain" },
+        body,
+      };
     }
 
     const file = DEMO_FILES.find((entry) => entry.path === request.path);

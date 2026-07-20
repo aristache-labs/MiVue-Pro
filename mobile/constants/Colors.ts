@@ -2,7 +2,7 @@ import { Palette } from "./Theme";
 
 /**
  * Consumed by components/Themed.tsx and the tab navigator.
- * Sourced from constants/Theme.ts so there is a single palette definition.
+ * Sourced from constants/Theme.ts (web CSS parity).
  */
 export default {
   light: {

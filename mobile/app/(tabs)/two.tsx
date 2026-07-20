@@ -5,7 +5,7 @@ import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-nativ
 import { Badge, type BadgeTone, Card, IconButton, PrimaryButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { QueueItem, QueueItemStatus } from "@/packages/local-db/src/index";
 
@@ -182,13 +182,13 @@ export default function QueueScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  title: { fontSize: 20, fontWeight: "800", marginBottom: 2 },
-  subtitle: { fontSize: 12 },
+  title: { fontSize: 20, fontFamily: Type.fontBold, marginBottom: 2 },
+  subtitle: { fontSize: 12, fontFamily: Type.font },
   rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 },
-  name: { fontWeight: "700", fontSize: 14, flex: 1 },
-  meta: { fontSize: 12 },
+  name: { fontFamily: Type.fontSemi, fontSize: 14, flex: 1 },
+  meta: { fontSize: 12, fontFamily: Type.mono },
   waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  waitingText: { fontSize: 12 },
-  error: { fontSize: 12, fontWeight: "600", marginTop: 8 },
+  waitingText: { fontSize: 12, fontFamily: Type.font },
+  error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 8 },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
 });

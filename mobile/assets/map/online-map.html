@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <style>
+    html, body, #map { margin: 0; height: 100%; background: #0b1220; }
+    .leaflet-control-attribution { font-size: 9px !important; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+    let map, route, progress, marker;
+    const TILE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+    function init() {
+      map = L.map("map", { zoomControl: false, attributionControl: true });
+      L.tileLayer(TILE, {
+        maxZoom: 19,
+        attribution: "&copy; OpenStreetMap"
+      }).addTo(map);
+      window.ReactNativeWebView && window.ReactNativeWebView.postMessage(JSON.stringify({ type: "ready" }));
+    }
+
+    function setRoute(points, activeIndex) {
+      if (!map || !points || !points.length) return;
+      const latlngs = points.map(function (p) { return [p.lat, p.lon]; });
+      if (route) route.remove();
+      if (progress) progress.remove();
+      if (marker) marker.remove();
+      route = L.polyline(latlngs, { color: "#64748b", weight: 4 }).addTo(map);
+      const slice = latlngs.slice(0, Math.min(activeIndex + 1, latlngs.length));
+      progress = L.polyline(slice, { color: "#14b8a6", weight: 5 }).addTo(map);
+      const cur = latlngs[Math.min(activeIndex, latlngs.length - 1)];
+      marker = L.circleMarker(cur, { radius: 7, color: "#042f2e", fillColor: "#14b8a6", fillOpacity: 1, weight: 2 }).addTo(map);
+      if (!map._laneoryFit) {
+        map.fitBounds(route.getBounds(), { padding: [24, 24] });
+        map._laneoryFit = true;
+      } else {
+        map.panTo(cur);
+      }
+    }
+
+    document.addEventListener("message", onMsg);
+    window.addEventListener("message", onMsg);
+    function onMsg(event) {
+      try {
+        var data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
+        if (data && data.type === "setRoute") setRoute(data.points, data.activeIndex || 0);
+      } catch (e) {}
+    }
+
+    init();
+  </script>
+</body>
+</html>

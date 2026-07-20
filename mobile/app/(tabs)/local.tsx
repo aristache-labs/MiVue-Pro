@@ -4,7 +4,7 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native
 
 import { Badge, Card, IconButton, PrimaryButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
 
 function kindIcon(kind: LocalMediaFile["kind"]): keyof typeof Ionicons.glyphMap {
@@ -40,7 +40,7 @@ export default function LocalLibraryScreen() {
         accessibilityLabel="Refresh local library"
         style={({ pressed }) => [
           styles.refreshBtn,
-          { borderColor: colors.border, borderRadius: radius.md, opacity: pressed ? 0.7 : 1 },
+          { borderColor: colors.border, borderRadius: radius.sm, opacity: pressed ? 0.7 : 1 },
         ]}
       >
         <Ionicons name="refresh" size={15} color={colors.textMuted} style={{ marginRight: 6 }} />
@@ -64,7 +64,7 @@ export default function LocalLibraryScreen() {
         renderItem={({ item }) => (
           <Card>
             <View style={styles.row}>
-              <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.md }]}>
+              <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
                 <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
               </View>
               <View style={styles.body}>
@@ -112,8 +112,8 @@ export default function LocalLibraryScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  title: { fontSize: 20, fontWeight: "800", marginBottom: 2 },
-  subtitle: { fontSize: 12 },
+  title: { fontSize: 20, fontFamily: Type.fontBold, marginBottom: 2 },
+  subtitle: { fontSize: 12, fontFamily: Type.font },
   refreshBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -123,12 +123,12 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 6,
   },
-  refreshText: { fontSize: 13, fontWeight: "700" },
-  error: { fontSize: 12, fontWeight: "600", marginTop: 4 },
+  refreshText: { fontSize: 13, fontFamily: Type.fontSemi },
+  error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center" },
   iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
   body: { flex: 1 },
-  name: { fontWeight: "700", fontSize: 14, marginBottom: 3 },
-  meta: { fontSize: 12 },
+  name: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 3 },
+  meta: { fontSize: 12, fontFamily: Type.mono },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
 });

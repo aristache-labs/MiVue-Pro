@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { StyleSheet, Text, View } from "react-native";
 
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 interface EmptyStateProps {
   readonly icon: keyof typeof Ionicons.glyphMap;
@@ -32,6 +32,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
-  title: { fontSize: 15, fontWeight: "700", textAlign: "center", marginBottom: 4 },
-  subtitle: { fontSize: 13, textAlign: "center", lineHeight: 18 },
+  title: { fontSize: 15, fontFamily: Type.fontSemi, textAlign: "center", marginBottom: 4 },
+  subtitle: { fontSize: 13, fontFamily: Type.font, textAlign: "center", lineHeight: 18 },
 });

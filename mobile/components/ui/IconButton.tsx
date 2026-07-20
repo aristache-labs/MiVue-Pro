@@ -14,7 +14,7 @@ interface IconButtonProps {
   readonly disabled?: boolean;
 }
 
-/** Always renders a >=44x44pt hit area per Apple HIG, even if the visual glyph is smaller. */
+/** Always renders a >=44x44pt hit area per Apple HIG. */
 export function IconButton({
   icon,
   onPress,

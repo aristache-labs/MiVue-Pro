@@ -238,6 +238,32 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     }
   }, [demoMode, cameraHost, queue, nativeTcpReady]);
 
+  const enqueueNmeaSidecar = useCallback(
+    async (remotePath: string, localName: string) => {
+      const nmeaPath = remotePath.replace(/\.[^.]+$/u, ".NMEA");
+      const nmeaName = localName.replace(/\.[^.]+$/u, ".NMEA");
+      try {
+        // Probe with a separate transport so we do not steal the queue mid-download.
+        const probe = demoMode ? new DemoTransport() : createLiveTransport(cameraHost, 30_000);
+        const head = await probe.request({ method: "HEAD", path: nmeaPath });
+        if (head.statusCode !== 200) return;
+        const lengthHeader = head.headers["content-length"];
+        const expectedBytes =
+          lengthHeader !== undefined && /^\d+$/.test(lengthHeader)
+            ? Number.parseInt(lengthHeader, 10)
+            : 8_192;
+        await queue.enqueue({
+          remotePath: nmeaPath,
+          localName: nmeaName,
+          expectedBytes,
+        });
+      } catch {
+        // Video download already queued; missing NMEA is non-fatal.
+      }
+    },
+    [demoMode, cameraHost, queue],
+  );
+
   const enqueueDownload = useCallback(
     async (file: RemoteFile) => {
       try {
@@ -267,12 +293,15 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           localName: file.name,
           expectedBytes: file.sizeBytes,
         });
+        if (/\.mp4$/i.test(file.name)) {
+          void enqueueNmeaSidecar(file.path, file.name);
+        }
         setLastError(undefined);
       } catch (error) {
         setLastError(error instanceof Error ? error.message : String(error));
       }
     },
-    [demoMode, cameraHost, queue, nativeTcpReady],
+    [demoMode, cameraHost, queue, nativeTcpReady, enqueueNmeaSidecar],
   );
 
   const cancelDownload = useCallback(

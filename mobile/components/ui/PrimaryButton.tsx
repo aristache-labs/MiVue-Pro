@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Pressable, StyleSheet, Text } from "react-native";
 
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 interface PrimaryButtonProps {
   readonly label: string;
@@ -11,6 +11,7 @@ interface PrimaryButtonProps {
   readonly accessibilityLabel?: string;
   readonly loading?: boolean;
   readonly disabled?: boolean;
+  readonly compact?: boolean;
 }
 
 export function PrimaryButton({
@@ -21,6 +22,7 @@ export function PrimaryButton({
   accessibilityLabel,
   loading = false,
   disabled = false,
+  compact = false,
 }: PrimaryButtonProps) {
   const { colors, radius, spacing } = useAppTheme();
 
@@ -41,10 +43,11 @@ export function PrimaryButton({
         {
           backgroundColor: bg,
           borderColor,
-          borderRadius: radius.md,
-          paddingVertical: spacing.md,
-          paddingHorizontal: spacing.lg,
+          borderRadius: radius.sm,
+          paddingVertical: compact ? spacing.sm : spacing.md,
+          paddingHorizontal: compact ? spacing.md : spacing.lg,
           opacity: disabled ? 0.5 : pressed ? 0.85 : 1,
+          minHeight: compact ? 36 : 44,
         },
       ]}
     >
@@ -52,8 +55,8 @@ export function PrimaryButton({
         <ActivityIndicator size="small" color={fg} />
       ) : (
         <>
-          {icon ? <Ionicons name={icon} size={17} color={fg} style={styles.icon} /> : null}
-          <Text style={[styles.label, { color: fg }]}>{label}</Text>
+          {icon ? <Ionicons name={icon} size={compact ? 15 : 17} color={fg} style={styles.icon} /> : null}
+          <Text style={[styles.label, { color: fg, fontSize: compact ? 13 : 15 }]}>{label}</Text>
         </>
       )}
     </Pressable>
@@ -66,8 +69,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
-    minHeight: 44,
   },
   icon: { marginRight: 8 },
-  label: { fontSize: 15, fontWeight: "700" },
+  label: { fontFamily: Type.fontSemi },
 });

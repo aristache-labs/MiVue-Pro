@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 interface ProgressBarProps {
   readonly percent: number;
@@ -16,7 +16,12 @@ export function ProgressBar({ percent, label, tone = "brand" }: ProgressBarProps
   return (
     <View style={{ marginTop: spacing.sm }}>
       <View style={[styles.track, { backgroundColor: colors.surfaceMuted }]}>
-        <View style={[styles.fill, { width: `${Math.max(clamped, clamped > 0 ? clamped : 3)}%`, backgroundColor: fillColor }]} />
+        <View
+          style={[
+            styles.fill,
+            { width: `${Math.max(clamped, clamped > 0 ? clamped : 3)}%`, backgroundColor: fillColor },
+          ]}
+        />
       </View>
       {label ? (
         <Text style={[styles.label, { color: colors.textMuted }]} accessibilityLiveRegion="polite">
@@ -30,5 +35,5 @@ export function ProgressBar({ percent, label, tone = "brand" }: ProgressBarProps
 const styles = StyleSheet.create({
   track: { height: 6, borderRadius: 3, overflow: "hidden" },
   fill: { height: 6, borderRadius: 3 },
-  label: { fontSize: 12, fontWeight: "600", marginTop: 6 },
+  label: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 6 },
 });

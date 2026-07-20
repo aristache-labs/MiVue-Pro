@@ -5,14 +5,13 @@ import { Link, Tabs } from "expo-router";
 import { Platform, Pressable, StyleSheet } from "react-native";
 
 import Colors from "@/constants/Colors";
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useColorScheme } from "@/components/useColorScheme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 
 function TabBarIcon(props: {
   readonly name: React.ComponentProps<typeof Ionicons>["name"];
   readonly color: string;
-  readonly focused: boolean;
 }) {
   return <Ionicons size={23} name={props.name} color={props.color} />;
 }
@@ -26,9 +25,10 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
         tabBarInactiveTintColor: colors.textFaint,
+        tabBarLabelStyle: { fontFamily: Type.fontSemi, fontSize: 11 },
         headerShown: useClientOnlyValue(false, true),
         headerStyle: { backgroundColor: colors.bg },
-        headerTitleStyle: { color: colors.text, fontWeight: "700" },
+        headerTitleStyle: { color: colors.text, fontFamily: Type.fontBold },
         tabBarStyle: {
           backgroundColor: Platform.OS === "ios" ? "transparent" : colors.surface,
           borderTopColor: colors.border,
@@ -50,7 +50,7 @@ export default function TabLayout() {
         options={{
           title: "Library",
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? "albums" : "albums-outline"} color={color} focused={focused} />
+            <TabBarIcon name={focused ? "albums" : "albums-outline"} color={color} />
           ),
           headerRight: () => (
             <Link href="/modal" asChild>
@@ -73,7 +73,7 @@ export default function TabLayout() {
         options={{
           title: "Local",
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? "folder-open" : "folder-open-outline"} color={color} focused={focused} />
+            <TabBarIcon name={focused ? "folder-open" : "folder-open-outline"} color={color} />
           ),
         }}
       />
@@ -82,7 +82,7 @@ export default function TabLayout() {
         options={{
           title: "Queue",
           tabBarIcon: ({ color, focused }) => (
-            <TabBarIcon name={focused ? "cloud-download" : "cloud-download-outline"} color={color} focused={focused} />
+            <TabBarIcon name={focused ? "cloud-download" : "cloud-download-outline"} color={color} />
           ),
         }}
       />

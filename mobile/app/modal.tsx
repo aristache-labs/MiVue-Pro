@@ -5,7 +5,7 @@ import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { Card } from "@/components/ui";
 import { APP_NAME, APP_SHORT_DESCRIPTION, APP_SUBTITLE, DISCLAIMER_EN } from "@/constants/Brand";
-import { useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 function Section({
   icon,
@@ -50,20 +50,20 @@ export default function ModalScreen() {
       <Section icon="shield-checkmark-outline" title="Compatibility & disclaimer">
         <Text style={[styles.body, { color: colors.textMuted, marginBottom: 10 }]}>{DISCLAIMER_EN}</Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Compatible (tested): Mio MiVue 866. Read-only list and download — Laneory never changes
-          camera settings or deletes files on the camera.
+          Compatible (tested): Mio MiVue 866. Read-only list and download — Laneory never changes camera
+          settings or deletes files on the camera.
         </Text>
       </Section>
 
       <Section icon="hardware-chip-outline" title="Runtime status">
         <Text style={[styles.body, { color: colors.textMuted, marginBottom: 10 }]}>
-          Expo Go uses Fetch for live camera probes and FileSystem streaming for downloads. Native
-          HTTP/1.0 (Http10Tcp) requires an Apple Developer account and an EAS development build —
-          deferred until the membership is active again.
+          Expo Go uses Fetch for live camera probes and FileSystem streaming for downloads. Native HTTP/1.0
+          (Http10Tcp) requires an Apple Developer account and an EAS development build — deferred until the
+          membership is active again.
         </Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Demo Mode uses synthetic fixtures only — no camera traffic. Licenses: see Third-Party
-          Notices at release.
+          Demo Mode uses synthetic fixtures only — no camera traffic. GPS uses local NMEA sidecars; online
+          map tiles load only after you opt in. Licenses: see Third-Party Notices at release.
         </Text>
       </Section>
 
@@ -75,9 +75,9 @@ export default function ModalScreen() {
 const styles = StyleSheet.create({
   brandRow: { flexDirection: "row", alignItems: "center", gap: 12 },
   logoDot: { width: 12, height: 12, borderRadius: 6 },
-  title: { fontSize: 22, fontWeight: "800" },
-  subtitle: { fontSize: 13, fontWeight: "600", marginTop: 2 },
+  title: { fontSize: 22, fontFamily: Type.fontBold },
+  subtitle: { fontSize: 13, fontFamily: Type.fontSemi, marginTop: 2 },
   sectionHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
-  sectionTitle: { fontSize: 14, fontWeight: "700" },
-  body: { fontSize: 13, lineHeight: 19 },
+  sectionTitle: { fontSize: 14, fontFamily: Type.fontSemi },
+  body: { fontSize: 13, lineHeight: 19, fontFamily: Type.font },
 });
