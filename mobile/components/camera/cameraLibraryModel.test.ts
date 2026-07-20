@@ -232,6 +232,7 @@ describe("cameraLibraryModel", () => {
 
   it("maps raw errors to friendly connection copy", () => {
     assert.match(friendlyConnectionError("timeout waiting") ?? "", /did not respond/i);
+    assert.match(friendlyConnectionError("Camera connection lost") ?? "", /disconnected/i);
     assert.equal(friendlyConnectionError("secret=abc123")?.includes("abc123"), false);
   });
 

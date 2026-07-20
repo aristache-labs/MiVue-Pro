@@ -4,12 +4,19 @@ import type { Transport } from "../../camera-transport/src/types";
 import type { QueueItem, QueueStore } from "../../local-db/src/index";
 import type { FileSink } from "./fileSink";
 
+/** Marked on items when progress stalls (Wi‑Fi drop / unreachable camera). */
+export const CAMERA_CONNECTION_LOST_MESSAGE = "Camera connection lost";
+
+const DEFAULT_PROGRESS_STALL_MS = 45_000;
+
 export interface DownloadQueueOptions {
   readonly store: QueueStore;
   readonly transport: Transport;
   readonly sink: FileSink;
   readonly downloadDir: string;
   readonly onChange?: (items: readonly QueueItem[]) => void;
+  /** Abort active transfer if no byte progress for this long (default 45s). */
+  readonly progressStallMs?: number;
 }
 
 export class DownloadQueue {
@@ -18,11 +25,13 @@ export class DownloadQueue {
   private transport: Transport;
   private activeId: string | undefined;
   private activeController: AbortController | undefined;
-  /** Distinguishes user cancel vs pause when the active transfer aborts. */
-  private abortIntent: "cancel" | "pause" = "cancel";
+  /** Distinguishes user cancel vs pause vs progress stall when the active transfer aborts. */
+  private abortIntent: "cancel" | "pause" | "stall" = "cancel";
+  private readonly progressStallMs: number;
 
   constructor(private readonly options: DownloadQueueOptions) {
     this.transport = options.transport;
+    this.progressStallMs = options.progressStallMs ?? DEFAULT_PROGRESS_STALL_MS;
   }
 
   setTransport(transport: Transport): void {
@@ -175,6 +184,22 @@ export class DownloadQueue {
     const controller = new AbortController();
     this.activeId = item.id;
     this.activeController = controller;
+    this.abortIntent = "cancel";
+
+    let lastProgressBytes = startBytes;
+    let lastProgressAt = Date.now();
+    const noteProgress = (bytes: number) => {
+      if (bytes > lastProgressBytes) {
+        lastProgressBytes = bytes;
+        lastProgressAt = Date.now();
+      }
+    };
+    const stallWatch = setInterval(() => {
+      if (Date.now() - lastProgressAt < this.progressStallMs) return;
+      if (this.activeId !== item.id || controller.signal.aborted) return;
+      this.abortIntent = "stall";
+      controller.abort();
+    }, Math.min(2_000, Math.max(250, Math.floor(this.progressStallMs / 4))));
 
     try {
       const head = await this.transport.request({
@@ -185,6 +210,8 @@ export class DownloadQueue {
       if (head.statusCode !== 200) {
         throw new Error(`HEAD HTTP ${head.statusCode}`);
       }
+      // HEAD succeeded — count as progress so a slow-but-alive body transfer gets a fresh stall window.
+      lastProgressAt = Date.now();
       // Camera file lists often report FAT-rounded sizes; HEAD/GET Content-Length is authoritative.
       const headLength = parseContentLength(head.headers);
       const expectedBytes = headLength ?? item.expectedBytes;
@@ -200,6 +227,7 @@ export class DownloadQueue {
           signal: controller.signal,
           keepPartialOnAbort: true,
           onProgress: (progress) => {
+            noteProgress(progress.bytesReceived);
             this.patch(item.id, { bytesReceived: progress.bytesReceived });
           },
         });
@@ -237,6 +265,12 @@ export class DownloadQueue {
           errorMessage: undefined,
           ...(kept !== undefined ? { bytesReceived: kept } : {}),
         });
+      } else if (aborted && intent === "stall") {
+        await this.cleanupPartial(item.localName);
+        this.patch(item.id, {
+          status: "failed",
+          errorMessage: CAMERA_CONNECTION_LOST_MESSAGE,
+        });
       } else {
         await this.cleanupPartial(item.localName);
         if (aborted) {
@@ -247,6 +281,7 @@ export class DownloadQueue {
         }
       }
     } finally {
+      clearInterval(stallWatch);
       if (this.activeId === item.id) {
         this.activeId = undefined;
         this.activeController = undefined;

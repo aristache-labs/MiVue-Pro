@@ -2,7 +2,16 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import { Alert } from "react-native";
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
@@ -20,12 +29,18 @@ import {
   type Transport,
 } from "../packages/camera-transport/src/index";
 import { DEMO_FILES, DemoTransport } from "../packages/demo/src/index";
-import { DownloadQueue, ExpoFileSink, MemoryFileSink } from "../packages/download-queue/src/index";
+import {
+  CAMERA_CONNECTION_LOST_MESSAGE,
+  DownloadQueue,
+  ExpoFileSink,
+  MemoryFileSink,
+} from "../packages/download-queue/src/index";
 import { AsyncStorageQueueStore, MemoryQueueStore, type QueueItem } from "../packages/local-db/src/index";
 import type { CameraLinkState } from "../components/camera/cameraLibraryModel";
 import {
   CAMERA_REFRESH_IN_PROGRESS,
   canStartCameraRefresh,
+  friendlyConnectionError,
 } from "../components/camera/cameraLibraryModel";
 import type { RemoteFile } from "../packages/parsers/src/index";
 import { CameraClient } from "../packages/protocol/src/index";
@@ -39,6 +54,8 @@ const COMPAT_MODEL = "MiVue 866";
  * Very large clips can still fail on slow camera Wi‑Fi; progress is visible in Queue.
  */
 const FETCH_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024;
+/** Short probe before enqueue so Download does not hang on a dead link. */
+const ENQUEUE_PROBE_TIMEOUT_MS = 8_000;
 
 export interface LocalMediaFile {
   readonly name: string;
@@ -124,6 +141,30 @@ function formatMiB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
+function isConnectionDropError(message: string | undefined): boolean {
+  if (!message) return false;
+  if (message === CAMERA_CONNECTION_LOST_MESSAGE) return true;
+  const s = message.toLowerCase();
+  return (
+    s.includes("timeout") ||
+    s.includes("timed out") ||
+    s.includes("network") ||
+    s.includes("econnrefused") ||
+    s.includes("econnreset") ||
+    s.includes("failed to fetch") ||
+    s.includes("unreachable") ||
+    s.includes("connection lost") ||
+    s.includes("network request failed")
+  );
+}
+
+function notifyCameraDisconnected(detail?: string): void {
+  const body =
+    friendlyConnectionError(detail) ??
+    "Rejoin the camera Wi‑Fi, then try again from Library or Queue.";
+  Alert.alert("Camera disconnected", body);
+}
+
 export function DemoModeProvider({ children }: { readonly children: React.ReactNode }) {
   const isExpoGo = Constants.appOwnership === "expo";
   const nativeTcpReady = isNativeTcpAvailable();
@@ -141,6 +182,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const [cameraModel, setCameraModel] = useState<string | undefined>();
   const [cameraProperties, setCameraProperties] = useState<Readonly<Record<string, string>>>({});
   const [mapPreference, setMapPreferenceState] = useState<MapPreference>("online");
+  const queueStatusRef = useRef<Map<string, QueueItem["status"]>>(new Map());
+  const disconnectAlertAtRef = useRef(0);
   const refreshInflightRef = useRef(false);
   const filesLenRef = useRef(0);
   filesLenRef.current = files.length;
@@ -293,6 +336,35 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     })();
   }, [queue, downloadDir, refreshLocalFiles]);
 
+  useEffect(() => {
+    let sawDrop = false;
+    let dropDetail: string | undefined;
+    for (const item of queueItems) {
+      const prev = queueStatusRef.current.get(item.id);
+      if (item.status === "failed" && prev !== "failed" && isConnectionDropError(item.errorMessage)) {
+        sawDrop = true;
+        dropDetail = item.errorMessage;
+      }
+    }
+    queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
+    if (!sawDrop) return;
+
+    setCameraLinkState((prev) =>
+      prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
+    );
+    setLastError(dropDetail ?? CAMERA_CONNECTION_LOST_MESSAGE);
+    const now = Date.now();
+    if (now - disconnectAlertAtRef.current > 4_000) {
+      disconnectAlertAtRef.current = now;
+      notifyCameraDisconnected(dropDetail);
+    }
+    for (const item of queue.list()) {
+      if (item.status === "queued") {
+        void queue.pause(item.id);
+      }
+    }
+  }, [queueItems, queue]);
+
   const setCameraHost = useCallback((host: string) => {
     const trimmed = host.trim();
     setCameraHostState(trimmed);
@@ -439,6 +511,20 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             setLastError(
               `${file.name} is ~${formatMiB(file.sizeBytes)}. Expo Go Fetch cannot download clips over ${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} (memory/timeout). Pick a smaller file, use Demo Mode, download via PC CLI, or wait for native Http10Tcp (Apple Developer).`,
             );
+            return;
+          }
+          // Fail fast when the link is already dead — avoid "Starting download…" hangs.
+          try {
+            const probe = createLiveTransport(cameraHost, ENQUEUE_PROBE_TIMEOUT_MS);
+            const head = await probe.request({ method: "HEAD", path: file.path });
+            if (head.statusCode !== 200) {
+              throw new Error(`HEAD HTTP ${head.statusCode}`);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setCameraLinkState("connection_lost");
+            setLastError(message);
+            notifyCameraDisconnected(message);
             return;
           }
           const timeoutMs = nativeTcpReady ? 5_000 : fetchTimeoutForBytes(file.sizeBytes);

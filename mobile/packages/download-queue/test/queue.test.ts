@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Transport, TransportRequest, TransportResponse } from "../../camera-transport/src/index";
 import { MemoryQueueStore } from "../../local-db/src/index";
 import { demoFileBytes } from "../../demo/src/index";
-import { DownloadQueue, MemoryFileSink } from "../src/index";
+import { DownloadQueue, MemoryFileSink, CAMERA_CONNECTION_LOST_MESSAGE } from "../src/index";
 
 class FakeTransport implements Transport {
   calls: TransportRequest[] = [];
@@ -246,6 +246,43 @@ test("pause active item then resume requeues it", async () => {
   await queue.resume(active!.id);
   const after = queue.list().find((i) => i.localName === "A.MP4")?.status;
   assert.ok(after === "queued" || after === "active");
+});
+
+test("progress stall aborts active transfer as connection lost", async () => {
+  class HungTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      return new Promise((_resolve, reject) => {
+        const abort = () => {
+          const error = new Error("Aborted");
+          error.name = "AbortError";
+          reject(error);
+        };
+        if (request.signal?.aborted) {
+          abort();
+          return;
+        }
+        request.signal?.addEventListener("abort", abort);
+      });
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new HungTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+    progressStallMs: 80,
+  });
+  await queue.init();
+
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await waitUntil(
+    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "failed",
+    2_000,
+  );
+  const failed = queue.list().find((i) => i.localName === "A.MP4");
+  assert.equal(failed?.status, "failed");
+  assert.equal(failed?.errorMessage, CAMERA_CONNECTION_LOST_MESSAGE);
 });
 
 async function waitUntil(

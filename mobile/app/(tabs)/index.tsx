@@ -163,7 +163,7 @@ export default function LibraryScreen() {
   }, [refreshFiles]);
 
   useEffect(() => {
-    if (lastError && cameraLinkState === "unstable") {
+    if (lastError && (cameraLinkState === "unstable" || cameraLinkState === "connection_lost")) {
       setErrorBanner(friendlyConnectionError(lastError));
     }
   }, [lastError, cameraLinkState]);

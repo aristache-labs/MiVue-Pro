@@ -566,6 +566,9 @@ export function friendlyConnectionError(raw: string | undefined): string | undef
   if (s.includes("timeout") || s.includes("timed out")) {
     return "The camera did not respond in time. Check Wi‑Fi and try again.";
   }
+  if (s.includes("connection lost")) {
+    return "Camera disconnected. Rejoin the camera Wi‑Fi, then try again.";
+  }
   if (s.includes("private ipv4") || s.includes("host must")) {
     return "Set a valid camera IP in Settings, then try again.";
   }
