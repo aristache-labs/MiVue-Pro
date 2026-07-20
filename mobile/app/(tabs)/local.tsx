@@ -7,6 +7,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Animated,
   Modal,
   Platform,
   Pressable,
@@ -52,6 +53,8 @@ import type { FileCategory } from "@/packages/parsers/src/index";
 
 const THUMB_W = 84;
 const THUMB_H = 63;
+/** Compact sticky delete strip under the nav header (wide, not tall). */
+const SELECTION_DELETE_BAR_H = 44;
 
 function displayMediaName(name: string): string {
   return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
@@ -266,8 +269,31 @@ export default function LocalLibraryScreen() {
 
   const refreshBusyRef = useRef(false);
   const actionGateRef = useRef(createUiActionGate());
+  const deleteBarAnim = useRef(new Animated.Value(0)).current;
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener?.("reduceMotionChanged", setReduceMotion);
+    return () => {
+      // RN versions differ: subscription may be EventSubscription or void
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sub as { remove?: () => void } | undefined)?.remove?.();
+    };
+  }, []);
+
+  const showDeleteBar = selecting && selected.size > 0;
+
+  useEffect(() => {
+    Animated.timing(deleteBarAnim, {
+      toValue: showDeleteBar ? 1 : 0,
+      duration: reduceMotion ? 0 : 220,
+      useNativeDriver: false,
+    }).start();
+  }, [showDeleteBar, reduceMotion, deleteBarAnim]);
+
   const selectionBarH = 0;
-  const listBottomPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight) + selectionBarH;
+  const listBottomPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight);
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -424,38 +450,25 @@ export default function LocalLibraryScreen() {
           </Pressable>
         ),
         headerRight: () => (
-          <View style={styles.headerRightRow}>
-            {selected.size > 0 ? (
-              <Pressable
-                onPress={() => setDeleteConfirmOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={`Delete ${selected.size} local files`}
-                hitSlop={HitSlop44}
-                style={styles.headerIconBtn}
-              >
-                <Ionicons name="trash-outline" size={22} color={colors.danger} />
-              </Pressable>
-            ) : null}
-            <Pressable
-              onPress={() => {
-                if (allSelected) deselectAll();
-                else selectAllFiltered();
-              }}
-              accessibilityRole="button"
-              accessibilityLabel={
-                allSelected ? "Deselect all" : `Select all ${filteredFiles.length} results`
-              }
-              hitSlop={HitSlop44}
-              style={styles.headerSideBtn}
+          <Pressable
+            onPress={() => {
+              if (allSelected) deselectAll();
+              else selectAllFiltered();
+            }}
+            accessibilityRole="button"
+            accessibilityLabel={
+              allSelected ? "Deselect all" : `Select all ${filteredFiles.length} results`
+            }
+            hitSlop={HitSlop44}
+            style={styles.headerSideBtn}
+          >
+            <Text
+              style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
+              numberOfLines={1}
             >
-              <Text
-                style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
-                numberOfLines={1}
-              >
-                {allSelected ? "Deselect all" : "Select all"}
-              </Text>
-            </Pressable>
-          </View>
+              {allSelected ? "Deselect all" : "Select all"}
+            </Text>
+          </Pressable>
         ),
         headerTitleAlign: "center",
       });
@@ -609,6 +622,40 @@ export default function LocalLibraryScreen() {
           <Text style={[styles.resultsLine, { color: colors.textMuted }]}>{resultsSummary}</Text>
         </View>
       ) : null}
+
+      <Animated.View
+        style={[
+          styles.selectionDeleteWrap,
+          {
+            height: deleteBarAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [0, SELECTION_DELETE_BAR_H],
+            }),
+            opacity: deleteBarAnim,
+            borderBottomColor: colors.border,
+            backgroundColor: colors.dangerSoft,
+          },
+        ]}
+        pointerEvents={showDeleteBar ? "auto" : "none"}
+      >
+        <Pressable
+          onPress={() => setDeleteConfirmOpen(true)}
+          disabled={!showDeleteBar || deleting}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${selected.size} local files`}
+          style={({ pressed }) => [
+            styles.selectionDeleteBtn,
+            {
+              opacity: pressed || deleting ? 0.75 : 1,
+            },
+          ]}
+        >
+          <Ionicons name="trash-outline" size={16} color={colors.danger} style={{ marginRight: 8 }} />
+          <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 14 }}>
+            Delete local{selected.size > 0 ? ` · ${selected.size}` : ""}
+          </Text>
+        </Pressable>
+      </Animated.View>
 
       <SectionList
         sections={sections}
@@ -833,6 +880,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 4,
   },
+  selectionDeleteWrap: {
+    overflow: "hidden",
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    zIndex: 1,
+  },
+  selectionDeleteBtn: {
+    height: SELECTION_DELETE_BAR_H,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "baseline",
@@ -841,7 +900,8 @@ const styles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 2,
+    // Above list cards; delete strip sits outside the list under the nav.
+    zIndex: 3,
     ...Platform.select({
       android: { elevation: 3 },
       ios: {},
