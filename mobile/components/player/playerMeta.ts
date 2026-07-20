@@ -3,6 +3,8 @@ import { formatDuration, parseRecordedParts } from "@/components/mediaMeta";
 /** Same locale family as Local Library card dates (`19 iul. 2026`). */
 const DATE_LOCALE = "ro-RO";
 
+export const PLAYER_META_LABELS = ["DATE", "TIME", "SIZE", "DURATION"] as const;
+
 export interface PlayerMetaFields {
   readonly date: string;
   readonly time: string;

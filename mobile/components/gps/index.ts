@@ -16,4 +16,10 @@ export {
   smoothBearing,
   zoomForSpeedKmh,
 } from "./mapFollow";
+export {
+  DEFAULT_ONLINE_MAP_PROVIDER,
+  OPENSTREETMAP_TILE_SOURCE,
+  MAP_MODE_OPTIONS,
+  buildLeafletBootstrapConfig,
+} from "./onlineMapProvider";
 export { loadSiblingNmea } from "./loadSiblingNmea";

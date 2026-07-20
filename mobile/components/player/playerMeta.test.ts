@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import {
-  buildPlayerMetaFields,
+import { PLAYER_META_LABELS, buildPlayerMetaFields,
   formatPlayerDuration,
   formatPlayerRecordedDate,
   formatPlayerRecordedTime,
@@ -16,6 +15,13 @@ import {
   formatSpeedParts,
   speedA11yLabel,
 } from "./telemetryFormat";
+import { MAP_MODE_OPTIONS } from "../gps/onlineMapProvider";
+
+test("premium meta labels are exactly DATE TIME SIZE DURATION", () => {
+  assert.deepEqual([...PLAYER_META_LABELS], ["DATE", "TIME", "SIZE", "DURATION"]);
+  assert.ok(!PLAYER_META_LABELS.includes("RECORDED DATE" as never));
+  assert.ok(!PLAYER_META_LABELS.includes("FILE SIZE" as never));
+});
 
 test("premium meta fields include date time size duration", () => {
   const fields = buildPlayerMetaFields("FILE260719-135021F.MP4", 371_200_000, 180);
@@ -62,6 +68,12 @@ test("telemetry a11y labels", () => {
     cameraTimeA11yLabel("13:50:23"),
     "Camera time 13 hours 50 minutes 23 seconds",
   );
+});
+
+test("map selector has exactly Online map and Local schematic", () => {
+  assert.deepEqual([...MAP_MODE_OPTIONS], ["Online map", "Local schematic"]);
+  assert.equal(MAP_MODE_OPTIONS.length, 2);
+  assert.ok(!MAP_MODE_OPTIONS.includes("Map privacy" as never));
 });
 
 test("online map defaults to opt-in local mode semantics", () => {

@@ -1,7 +1,6 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 
-import { buildPlayerMetaFields } from "@/components/player/playerMeta";
+import { PLAYER_META_LABELS, buildPlayerMetaFields } from "@/components/player/playerMeta";
 import { Card } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 
@@ -12,24 +11,20 @@ interface PlayerMetaCardProps {
 }
 
 /**
- * Premium 4-metric file card — matches Library/Queue Card tokens.
+ * Premium 4-metric file card — centered columns, short labels, Library/Queue tokens.
  * Wraps to 2×2 on narrow / large Dynamic Type.
  */
 export function PlayerMetaCard({ name, sizeBytes, durationSeconds }: PlayerMetaCardProps) {
   const { colors, radius, spacing } = useAppTheme();
-  const { width } = useWindowDimensions();
+  const { width, fontScale } = useWindowDimensions();
   const fields = buildPlayerMetaFields(name, sizeBytes, durationSeconds);
-  const compact = width < 380;
+  const compact = width < 380 || fontScale > 1.2;
 
-  const metrics: {
-    icon: keyof typeof Ionicons.glyphMap;
-    label: string;
-    value: string;
-  }[] = [
-    { icon: "calendar-outline", label: "Recorded date", value: fields.date },
-    { icon: "time-outline", label: "Time", value: fields.time },
-    { icon: "server-outline", label: "File size", value: fields.size },
-    { icon: "timer-outline", label: "Duration", value: fields.duration },
+  const metrics: { label: (typeof PLAYER_META_LABELS)[number]; value: string; flex: number }[] = [
+    { label: "DATE", value: fields.date, flex: 1.15 },
+    { label: "TIME", value: fields.time, flex: 1 },
+    { label: "SIZE", value: fields.size, flex: 1 },
+    { label: "DURATION", value: fields.duration, flex: 0.9 },
   ];
 
   return (
@@ -40,9 +35,8 @@ export function PlayerMetaCard({ name, sizeBytes, durationSeconds }: PlayerMetaC
           borderRadius: radius.xl,
           marginHorizontal: spacing.md,
           marginBottom: spacing.sm,
-          paddingVertical: compact ? 10 : 12,
-          paddingHorizontal: compact ? 10 : 12,
-          minHeight: compact ? 68 : 72,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
         },
       ]}
     >
@@ -52,27 +46,26 @@ export function PlayerMetaCard({ name, sizeBytes, durationSeconds }: PlayerMetaC
             key={m.label}
             style={[
               styles.metric,
-              compact ? styles.metricHalf : styles.metricQuarter,
-              !compact && index > 0 ? styles.withSep : null,
-              !compact && index > 0 ? { borderLeftColor: colors.border } : null,
-              compact && index % 2 === 1 ? styles.withSep : null,
-              compact && index % 2 === 1 ? { borderLeftColor: colors.border } : null,
+              compact
+                ? styles.metricHalf
+                : { flex: m.flex, paddingHorizontal: 6 },
+              !compact && index > 0 ? [styles.withSep, { borderLeftColor: colors.border }] : null,
+              compact && index % 2 === 1
+                ? [styles.withSep, { borderLeftColor: colors.border }]
+                : null,
             ]}
           >
-            <View style={styles.labelRow}>
-              <Ionicons name={m.icon} size={11} color={colors.brand} style={{ marginRight: 4 }} />
-              <Text
-                style={[styles.label, { color: colors.textMuted }]}
-                numberOfLines={1}
-                maxFontSizeMultiplier={1.3}
-              >
-                {m.label}
-              </Text>
-            </View>
+            <Text
+              style={[styles.label, { color: colors.textMuted }]}
+              numberOfLines={1}
+              maxFontSizeMultiplier={1.25}
+            >
+              {m.label}
+            </Text>
             <Text
               style={[styles.value, { color: colors.text, fontVariant: ["tabular-nums"] }]}
               numberOfLines={1}
-              maxFontSizeMultiplier={1.35}
+              maxFontSizeMultiplier={1.3}
             >
               {m.value}
             </Text>
@@ -85,23 +78,39 @@ export function PlayerMetaCard({ name, sizeBytes, durationSeconds }: PlayerMetaC
 
 const styles = StyleSheet.create({
   card: {},
-  row: { flexDirection: "row", alignItems: "stretch" },
+  row: {
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
   rowWrap: { flexWrap: "wrap" },
-  metric: { minWidth: 0, paddingVertical: 2 },
-  metricQuarter: { flex: 1, paddingHorizontal: 8 },
-  metricHalf: { width: "50%", paddingHorizontal: 8, paddingVertical: 6 },
-  withSep: { borderLeftWidth: StyleSheet.hairlineWidth },
-  labelRow: { flexDirection: "row", alignItems: "center", marginBottom: 4 },
+  metric: {
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 4,
+  },
+  metricHalf: {
+    width: "50%",
+    paddingHorizontal: 8,
+    paddingVertical: 8,
+  },
+  withSep: {
+    borderLeftWidth: StyleSheet.hairlineWidth,
+  },
   label: {
     fontSize: 9,
     fontFamily: Type.fontSemi,
-    letterSpacing: 0.35,
+    letterSpacing: 0.4,
     textTransform: "uppercase",
-    flexShrink: 1,
+    textAlign: "center",
+    marginBottom: 4,
+    width: "100%",
   },
   value: {
     fontSize: 14,
     fontFamily: Type.fontSemi,
     lineHeight: 18,
+    textAlign: "center",
+    width: "100%",
   },
 });

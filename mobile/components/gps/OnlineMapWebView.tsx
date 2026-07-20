@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -9,6 +9,11 @@ import {
 } from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
+import {
+  DEFAULT_ONLINE_MAP_PROVIDER,
+  buildLeafletBootstrapConfig,
+  type OnlineMapProviderConfig,
+} from "@/components/gps/onlineMapProvider";
 import type { GpsSample } from "@/packages/parsers/src/index";
 import { Type, useAppTheme } from "@/constants/Theme";
 
@@ -30,42 +35,36 @@ interface OnlineMapWebViewProps {
   readonly onUserMoved?: () => void;
   readonly onRecenter?: () => void;
   readonly following: boolean;
+  readonly provider?: OnlineMapProviderConfig;
 }
 
 /**
- * Leaflet online map (opt-in). Route geometry once; marker/camera via imperative inject.
- *
- * Limitation: map stays North-up. Heading is shown by rotating the marker chevron only —
- * Leaflet tile rotation is not used (avoids heavy/unstable deps).
+ * Leaflet online map (opt-in). Route once; marker/camera via imperative inject.
+ * North-up only — heading rotates the marker chevron (no fragile map rotation).
  */
-const MAP_HTML = `<!DOCTYPE html>
+function buildMapHtml(provider: OnlineMapProviderConfig): string {
+  const cfg = buildLeafletBootstrapConfig(provider);
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
-    html, body, #map { margin: 0; height: 100%; background: #0b1220; }
-    .leaflet-control-attribution { font-size: 9px !important; }
-    .laneory-marker {
-      width: 0; height: 0; position: relative;
-    }
+    html, body, #map { margin: 0; height: 100%; background: ${provider.mapBackground}; }
+    .leaflet-control-attribution { font-size: 9px !important; background: rgba(255,255,255,0.82) !important; }
+    .laneory-marker { width: 0; height: 0; position: relative; }
     .laneory-chevron {
       width: 18px; height: 18px; margin-left: -9px; margin-top: -9px;
-      border-radius: 50%;
-      background: #14b8a6;
-      border: 2px solid #042f2e;
-      box-shadow: 0 0 0 1px rgba(255,255,255,0.35);
-      display: flex; align-items: center; justify-content: center;
+      border-radius: 50%; background: #14b8a6; border: 2px solid #042f2e;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.55);
       transform-origin: 50% 50%;
+      display: flex; align-items: center; justify-content: center;
     }
     .laneory-chevron::after {
-      content: "";
-      width: 0; height: 0;
-      border-left: 4px solid transparent;
-      border-right: 4px solid transparent;
-      border-bottom: 8px solid #042f2e;
-      margin-top: -2px;
+      content: ""; width: 0; height: 0;
+      border-left: 4px solid transparent; border-right: 4px solid transparent;
+      border-bottom: 8px solid #042f2e; margin-top: -2px;
     }
   </style>
 </head>
@@ -73,20 +72,22 @@ const MAP_HTML = `<!DOCTYPE html>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    let map, pastLine, remainLine, marker, latlngs = [];
-    let userMoved = false, follow = true, reduceMotion = false;
-    let lastZoom = 16, suppressMove = false;
-    const TILE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+    var CFG = ${cfg};
+    let map, pastLine, remainLine, marker, latlngs = [], tileLayer;
+    let userMoved = false, follow = true, reduceMotion = false, suppressMove = false;
     function post(msg) {
       if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
     }
     function init() {
       try {
         map = L.map("map", { zoomControl: false, attributionControl: true, preferCanvas: true });
-        var layer = L.tileLayer(TILE, { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
-        layer.on("tileerror", function () { post({ type: "tileError" }); });
-        layer.on("load", function () { post({ type: "tilesOk" }); });
-        layer.addTo(map);
+        tileLayer = L.tileLayer(CFG.tileUrl, {
+          maxZoom: CFG.maxZoom,
+          attribution: CFG.attribution
+        });
+        tileLayer.on("tileerror", function () { post({ type: "tileError" }); });
+        tileLayer.on("load", function () { post({ type: "tilesOk" }); });
+        tileLayer.addTo(map);
         map.on("dragstart", function () {
           if (suppressMove) return;
           userMoved = true; follow = false; post({ type: "userMoved" });
@@ -101,10 +102,9 @@ const MAP_HTML = `<!DOCTYPE html>
       }
     }
     function makeIcon(bearing) {
-      var rot = (bearing || 0);
       return L.divIcon({
         className: "laneory-marker",
-        html: '<div class="laneory-chevron" style="transform:rotate(' + rot + 'deg)"></div>',
+        html: '<div class="laneory-chevron" style="transform:rotate(' + (bearing || 0) + 'deg)"></div>',
         iconSize: [18, 18],
         iconAnchor: [9, 9]
       });
@@ -114,8 +114,12 @@ const MAP_HTML = `<!DOCTYPE html>
       latlngs = points.map(function (p) { return [p.lat, p.lon]; });
       if (pastLine) pastLine.remove();
       if (remainLine) remainLine.remove();
-      remainLine = L.polyline(latlngs, { color: "#2dd4bf", weight: 4, opacity: 0.85 }).addTo(map);
-      pastLine = L.polyline([], { color: "#64748b", weight: 4, opacity: 0.9 }).addTo(map);
+      remainLine = L.polyline(latlngs, {
+        color: CFG.remainColor, weight: CFG.routeWeight, opacity: 0.75
+      }).addTo(map);
+      pastLine = L.polyline([], {
+        color: CFG.pastColor, weight: CFG.routeWeight, opacity: 0.8
+      }).addTo(map);
       if (!map._laneoryFit) {
         suppressMove = true;
         map.fitBounds(L.latLngBounds(latlngs), { padding: [28, 28], maxZoom: 17 });
@@ -128,47 +132,34 @@ const MAP_HTML = `<!DOCTYPE html>
     function splitLines(idx) {
       if (!latlngs.length) return;
       var i = Math.min(Math.max(0, idx | 0), latlngs.length - 1);
-      var past = latlngs.slice(0, i + 1);
+      if (pastLine) pastLine.setLatLngs(latlngs.slice(0, i + 1));
       var remain = latlngs.slice(i);
-      if (pastLine) pastLine.setLatLngs(past);
       if (remainLine) remainLine.setLatLngs(remain.length ? remain : [latlngs[latlngs.length - 1]]);
     }
-    function followCamera(lat, lon, zoom, bearing) {
+    function followCamera(lat, lon, zoom) {
       if (!map) return;
       var z = zoom || map.getZoom() || 16;
-      lastZoom = z;
       suppressMove = true;
       var size = map.getSize();
-      var target = L.latLng(lat, lon);
-      // Center so marker sits ~50% x, ~68% y (more road ahead).
-      var projected = map.project(target, z);
+      var projected = map.project(L.latLng(lat, lon), z);
       var desired = L.point(size.x * 0.5, size.y * 0.68);
-      var centerPoint = projected.subtract(desired).add(map.getSize().divideBy(2));
+      var centerPoint = projected.subtract(desired).add(size.divideBy(2));
       var center = map.unproject(centerPoint, z);
-      if (reduceMotion) {
-        map.setView(center, z, { animate: false });
-      } else {
-        map.setView(center, z, { animate: true, duration: 0.28 });
-      }
+      map.setView(center, z, { animate: !reduceMotion, duration: reduceMotion ? 0 : 0.28 });
       setTimeout(function () { suppressMove = false; }, 100);
     }
     function updatePose(data) {
       if (!map || !latlngs.length) return;
-      var lat = data.lat, lon = data.lon;
-      var bearing = data.bearing || 0;
-      var idx = data.index | 0;
       follow = !!data.following;
       reduceMotion = !!data.reduceMotion;
-      splitLines(idx);
+      splitLines(data.index | 0);
       if (!marker) {
-        marker = L.marker([lat, lon], { icon: makeIcon(bearing), interactive: false }).addTo(map);
+        marker = L.marker([data.lat, data.lon], { icon: makeIcon(data.bearing), interactive: false }).addTo(map);
       } else {
-        marker.setLatLng([lat, lon]);
-        marker.setIcon(makeIcon(bearing));
+        marker.setLatLng([data.lat, data.lon]);
+        marker.setIcon(makeIcon(data.bearing));
       }
-      if (follow && !userMoved) {
-        followCamera(lat, lon, data.zoom, bearing);
-      }
+      if (follow && !userMoved) followCamera(data.lat, data.lon, data.zoom);
     }
     function recenter(data) {
       userMoved = false;
@@ -191,6 +182,7 @@ const MAP_HTML = `<!DOCTYPE html>
   </script>
 </body>
 </html>`;
+}
 
 export function OnlineMapWebView({
   samples,
@@ -201,6 +193,7 @@ export function OnlineMapWebView({
   onUserMoved,
   onRecenter,
   following,
+  provider = DEFAULT_ONLINE_MAP_PROVIDER,
 }: OnlineMapWebViewProps) {
   const { colors, radius } = useAppTheme();
   const ref = useRef<WebView>(null);
@@ -210,6 +203,8 @@ export function OnlineMapWebView({
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
+
+  const html = useMemo(() => buildMapHtml(provider), [provider]);
 
   useEffect(() => {
     void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
@@ -230,8 +225,10 @@ export function OnlineMapWebView({
 
   const pushRoute = useCallback(() => {
     if (!ready.current || samples.length === 0) return;
-    const points = samples.map((s) => ({ lat: s.latitude, lon: s.longitude }));
-    inject({ type: "setRoute", points });
+    inject({
+      type: "setRoute",
+      points: samples.map((s) => ({ lat: s.latitude, lon: s.longitude })),
+    });
     routeSent.current = true;
     lastPoseKey.current = "";
   }, [samples, inject]);
@@ -356,14 +353,19 @@ export function OnlineMapWebView({
     <View
       style={[
         styles.wrap,
-        { height, borderColor: colors.border, borderRadius: radius.md, backgroundColor: colors.surfaceMuted },
+        {
+          height,
+          borderColor: colors.border,
+          borderRadius: radius.md,
+          backgroundColor: provider.mapBackground,
+        },
       ]}
     >
       <WebView
         key={retryKey}
         ref={ref}
         originWhitelist={["*"]}
-        source={{ html: MAP_HTML, baseUrl: "https://localhost/" }}
+        source={{ html, baseUrl: "https://localhost/" }}
         onMessage={onMessage}
         onError={() => {
           setFailed(true);
@@ -377,6 +379,7 @@ export function OnlineMapWebView({
         setSupportMultipleWindows={false}
         javaScriptEnabled
         domStorageEnabled
+        applicationNameForUserAgent={provider.tileSource.requestedWith}
         startInLoadingState
         renderLoading={() => (
           <View style={styles.loading}>
@@ -420,6 +423,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
+    zIndex: 2,
   },
   fallback: { alignItems: "center", justifyContent: "center", paddingHorizontal: 16 },
   fallbackTitle: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 12, textAlign: "center" },

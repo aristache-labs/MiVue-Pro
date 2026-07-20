@@ -281,7 +281,6 @@ function VideoWithGps({
   const [gpsStatus, setGpsStatus] = useState<GpsSyncStatus>("waiting");
   const [mapMode, setMapMode] = useState<MapMode>("local");
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
-  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [playStatus, setPlayStatus] = useState<PlaybackUiStatus>("loading");
   const [slowLoad, setSlowLoad] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
@@ -449,16 +448,19 @@ function VideoWithGps({
 
   const frame = telemetryFrame ?? track?.samples[activeIndex];
   const showGpsChrome = !fullscreen;
-  const mapModeLabel = mapMode === "online" ? "Online map" : "Local map";
+  const mapModeLabel = mapMode === "online" ? "Online map" : "Local schematic";
   const isFollowingUi =
     following && mapMode === "online" && (gpsStatus === "synchronized" || gpsStatus === "partial");
-  const headerStatusLabel = isFollowingUi
-    ? "Following"
-    : gpsWaiting
-      ? gpsStatusLabel("waiting")
-      : gpsStatusLabel(gpsStatus);
+  const isExploreUi = mapMode === "online" && !following && !gpsWaiting && (track?.samples.length ?? 0) > 0;
+  const headerStatusLabel = gpsWaiting
+    ? gpsStatusLabel("waiting")
+    : isExploreUi
+      ? "Explore mode"
+      : isFollowingUi
+        ? "Following"
+        : gpsStatusLabel(gpsStatus);
   const statusTextColor =
-    gpsStatus === "synchronized" || isFollowingUi ? colors.brand : colors.textMuted;
+    isFollowingUi || gpsStatus === "synchronized" ? colors.brand : colors.textMuted;
 
   const retryPlayback = () => {
     void retryGate.current(async () => {
@@ -554,9 +556,11 @@ function VideoWithGps({
               style={styles.gpsStatusWrap}
               accessible
               accessibilityLabel={
-                isFollowingUi
-                  ? "Following GPS on map"
-                  : gpsStatusA11yLabel(gpsWaiting ? "waiting" : gpsStatus)
+                isExploreUi
+                  ? "Explore mode"
+                  : isFollowingUi
+                    ? "Following GPS on map"
+                    : gpsStatusA11yLabel(gpsWaiting ? "waiting" : gpsStatus)
               }
             >
               {gpsWaiting ||
@@ -594,21 +598,6 @@ function VideoWithGps({
                 {mapModeLabel} ▾
               </Text>
             </Pressable>
-            <Pressable
-              onPress={() => setPrivacyOpen(true)}
-              accessibilityRole="button"
-              accessibilityLabel="Map privacy"
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.privacyLink,
-                { opacity: pressed ? 0.7 : 1, minHeight: 44 },
-              ]}
-            >
-              <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-              <Text style={{ color: colors.textMuted, fontFamily: Type.font, fontSize: 12, marginLeft: 4 }}>
-                Map privacy
-              </Text>
-            </Pressable>
           </View>
 
           <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} clipName={clipName} />
@@ -641,6 +630,14 @@ function VideoWithGps({
               <Text style={[styles.noGpsText, { color: colors.textMuted }]}>GPS unavailable</Text>
             </View>
           )}
+
+          {track && track.samples.length > 0 ? (
+            <Text style={[styles.privacyInline, { color: colors.textFaint }]}>
+              Local schematic works entirely on this device. Online map requests only the visible map
+              area from the configured tile provider after you enable it. Laneory does not upload the
+              video or the complete GPS track.
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -659,7 +656,7 @@ function VideoWithGps({
             colors={colors}
           />
           <MenuRow
-            label="Local schematic map"
+            label="Local schematic"
             selected={mapMode === "local"}
             onPress={() => {
               setMapMode("local");
@@ -668,50 +665,6 @@ function VideoWithGps({
             a11y="Use local schematic map"
             colors={colors}
           />
-          <MenuRow
-            label="Map privacy"
-            selected={false}
-            onPress={() => {
-              setMapMenuOpen(false);
-              setPrivacyOpen(true);
-            }}
-            a11y="Map privacy"
-            colors={colors}
-          />
-        </View>
-      </Modal>
-
-      <Modal visible={privacyOpen} transparent animationType="fade" onRequestClose={() => setPrivacyOpen(false)}>
-        <Pressable style={styles.menuBackdrop} onPress={() => setPrivacyOpen(false)} />
-        <View style={[styles.privacyCard, { backgroundColor: colors.surfaceElevated, borderColor: colors.border }]}>
-          <Text style={[styles.privacyTitle, { color: colors.text }]}>Map privacy</Text>
-          <Text style={[styles.privacyBody, { color: colors.textMuted }]}>
-            Local schematic map works entirely on this device.
-          </Text>
-          <Text style={[styles.privacyBody, { color: colors.textMuted }]}>
-            When Online map is enabled, the visible map area is requested from the configured tile
-            provider. Laneory does not upload the video or the complete GPS track.
-          </Text>
-          <Text style={[styles.privacyBody, { color: colors.textMuted }]}>
-            Public map tiles may be unavailable and are not guaranteed as a product dependency.
-          </Text>
-          <Pressable
-            onPress={() => setPrivacyOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Done"
-            style={({ pressed }) => [
-              styles.actionBtn,
-              {
-                backgroundColor: colors.brand,
-                opacity: pressed ? 0.85 : 1,
-                marginTop: 16,
-                minHeight: 44,
-                alignSelf: "stretch",
-              },
-            ]}
-          >
-            <Text style={{ color: colors.onBrand, fontFamily: Type.fontBold }}>Done</Text>
-          </Pressable>
         </View>
       </Modal>
     </View>
@@ -840,7 +793,6 @@ const styles = StyleSheet.create({
   mapModeRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     marginBottom: 8,
     gap: 8,
   },
@@ -851,10 +803,11 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
   },
-  privacyLink: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 4,
+  privacyInline: {
+    fontSize: 11,
+    fontFamily: Type.font,
+    lineHeight: 15,
+    marginTop: 10,
   },
   noGps: {
     minHeight: 100,
@@ -883,15 +836,4 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 10,
   },
-  privacyCard: {
-    position: "absolute",
-    left: 24,
-    right: 24,
-    top: "22%",
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 20,
-  },
-  privacyTitle: { fontSize: 18, fontFamily: Type.fontBold, marginBottom: 10 },
-  privacyBody: { fontSize: 13, fontFamily: Type.font, lineHeight: 19, marginTop: 8 },
 });
