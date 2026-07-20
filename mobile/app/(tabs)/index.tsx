@@ -1,11 +1,12 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useNavigation } from "expo-router";
-import { useCallback, useLayoutEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   Modal,
   Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   SectionList,
   StyleSheet,
@@ -14,8 +15,10 @@ import {
   View,
 } from "react-native";
 
-import { CameraConnectionStrip } from "@/components/camera/CameraConnectionStrip";
+import { CameraConnectionHeaderButton } from "@/components/camera/CameraConnectionHeaderButton";
+import { CameraConnectionSheet } from "@/components/camera/CameraConnectionSheet";
 import { CameraFilterSheet } from "@/components/camera/CameraFilterSheet";
+import { CameraUnavailableBanner } from "@/components/camera/CameraUnavailableBanner";
 import {
   buildCameraFilterChips,
   buildCameraLibrarySections,
@@ -27,7 +30,9 @@ import {
   filterAndSortRemoteFiles,
   formatMediaSizeMbGb,
   formatRemoteDateTime,
+  friendlyConnectionError,
   isCameraFiltersEmpty,
+  libraryEmptyInstruction,
   librarySubtitle,
   sumRemoteBytes,
   type CameraLibraryFilters,
@@ -86,10 +91,13 @@ export default function LibraryScreen() {
     localFiles,
     enqueueDownload,
     refreshFiles,
+    disconnectSession,
     lastError,
     cameraLinkState,
     isRefreshingCamera,
     cameraModel,
+    cameraHost,
+    lastConnectedAt,
     queuePosition,
   } = useDemoMode();
 
@@ -100,7 +108,9 @@ export default function LibraryScreen() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
-  const [banner, setBanner] = useState<string | undefined>();
+  const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
+  const [errorBanner, setErrorBanner] = useState<string | undefined>();
+  const [successToast, setSuccessToast] = useState(false);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
   const counts = useMemo(() => countCategories(files), [files]);
@@ -132,14 +142,30 @@ export default function LibraryScreen() {
     hasActiveFilters,
   });
 
-  const openSettings = useCallback(() => {
-    router.push("/(tabs)/settings" as Parameters<typeof router.push>[0]);
-  }, []);
+  const showUnavailableBanner =
+    cameraLinkState === "idle" ||
+    cameraLinkState === "disconnected" ||
+    (cameraLinkState === "connection_lost" && files.length === 0);
+
+  const openConnectionSheet = useCallback(() => {
+    if (cameraLinkState === "connecting" || isRefreshingCamera) return;
+    setConnectionSheetOpen(true);
+  }, [cameraLinkState, isRefreshingCamera]);
 
   const runRefresh = useCallback(async () => {
-    setBanner(undefined);
-    await refreshFiles();
+    setErrorBanner(undefined);
+    const result = await refreshFiles();
+    if (!result.ok) {
+      setErrorBanner(friendlyConnectionError(result.error));
+    }
+    return result;
   }, [refreshFiles]);
+
+  useEffect(() => {
+    if (!successToast) return;
+    const t = setTimeout(() => setSuccessToast(false), 2500);
+    return () => clearTimeout(t);
+  }, [successToast]);
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -153,26 +179,28 @@ export default function LibraryScreen() {
       ),
       headerTitleAlign: "center",
       headerRight: () => (
-        <Pressable
-          onPress={openSettings}
-          accessibilityRole="button"
-          accessibilityLabel="Open settings"
-          hitSlop={HitSlop44}
-          style={({ pressed }) => [styles.headerIconBtn, { opacity: pressed ? 0.65 : 1 }]}
-        >
-          <Ionicons name="settings-outline" size={22} color={colors.textMuted} />
-        </Pressable>
+        <CameraConnectionHeaderButton
+          linkState={cameraLinkState}
+          refreshing={isRefreshingCamera}
+          onPress={openConnectionSheet}
+        />
       ),
       headerRightContainerStyle: {
         paddingRight: Platform.OS === "ios" ? 4 : 8,
       },
     });
-  }, [navigation, colors, subtitle, openSettings]);
+  }, [
+    navigation,
+    colors,
+    subtitle,
+    cameraLinkState,
+    isRefreshingCamera,
+    openConnectionSheet,
+  ]);
 
-  // Surface refresh errors as non-blocking banner without clearing list.
-  useLayoutEffect(() => {
-    if (lastError && (cameraLinkState === "connection_lost" || cameraLinkState === "disconnected")) {
-      setBanner(lastError);
+  useEffect(() => {
+    if (lastError && cameraLinkState === "unstable") {
+      setErrorBanner(friendlyConnectionError(lastError));
     }
   }, [lastError, cameraLinkState]);
 
@@ -205,6 +233,8 @@ export default function LibraryScreen() {
   const showSkeleton =
     isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
 
+  const emptyInstruction = libraryEmptyInstruction(cameraLinkState);
+
   const listEmpty =
     files.length === 0 && !showSkeleton ? (
       <EmptyState
@@ -212,12 +242,7 @@ export default function LibraryScreen() {
         title={
           cameraLinkState === "connected"
             ? "No recordings found on this camera."
-            : "Camera not connected"
-        }
-        subtitle={
-          cameraLinkState === "connected"
-            ? undefined
-            : "Connect to the camera Wi‑Fi, then tap Connect."
+            : (emptyInstruction ?? "Connect to the camera Wi-Fi to view recordings.")
         }
       />
     ) : filtered.length === 0 && files.length > 0 ? (
@@ -231,25 +256,33 @@ export default function LibraryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
-        <CameraConnectionStrip
-          linkState={cameraLinkState}
-          modelName={cameraModel}
-          refreshing={isRefreshingCamera}
-          onConnect={() => void runRefresh()}
-          onRetry={() => void runRefresh()}
-          onRefresh={() => void runRefresh()}
-          onOpenCameraSettings={openSettings}
-        />
+        {showUnavailableBanner ? (
+          <CameraUnavailableBanner
+            connecting={isRefreshingCamera}
+            onConnect={() => {
+              setConnectionSheetOpen(true);
+            }}
+          />
+        ) : null}
 
-        {banner ? (
+        {successToast ? (
+          <View
+            style={[styles.banner, { backgroundColor: colors.brandSoft, borderColor: colors.brand }]}
+            accessibilityLiveRegion="polite"
+          >
+            <Text style={[styles.bannerText, { color: colors.brand }]}>Camera connected</Text>
+          </View>
+        ) : null}
+
+        {errorBanner && !showUnavailableBanner ? (
           <Pressable
-            onPress={() => setBanner(undefined)}
+            onPress={() => setErrorBanner(undefined)}
             style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
             accessibilityRole="button"
-            accessibilityLabel={`Error: ${banner}. Dismiss.`}
+            accessibilityLabel={`Error: ${errorBanner}. Dismiss.`}
           >
             <Text style={[styles.bannerText, { color: colors.danger }]} numberOfLines={2}>
-              {banner}
+              {errorBanner}
             </Text>
           </Pressable>
         ) : null}
@@ -391,6 +424,15 @@ export default function LibraryScreen() {
           sections={sections.map((s) => ({ ...s, data: [...s.data] }))}
           keyExtractor={(item) => item.path}
           stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
+          refreshControl={
+            cameraLinkState === "connected" || cameraLinkState === "unstable" ? (
+              <RefreshControl
+                refreshing={isRefreshingCamera}
+                onRefresh={() => void runRefresh()}
+                tintColor={colors.brand}
+              />
+            ) : undefined
+          }
           contentContainerStyle={{
             paddingHorizontal: spacing.lg,
             paddingBottom: Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING),
@@ -432,6 +474,22 @@ export default function LibraryScreen() {
           }}
         />
       )}
+
+      <CameraConnectionSheet
+        visible={connectionSheetOpen}
+        linkState={cameraLinkState}
+        refreshing={isRefreshingCamera}
+        cameraModel={cameraModel}
+        cameraHost={cameraHost}
+        lastConnectedAt={lastConnectedAt}
+        recordingCount={files.length}
+        lastError={lastError}
+        onClose={() => setConnectionSheetOpen(false)}
+        onTryConnect={runRefresh}
+        onRefresh={runRefresh}
+        onDisconnect={disconnectSession}
+        onConnectedSuccess={() => setSuccessToast(true)}
+      />
 
       <CameraFilterSheet
         visible={filterOpen}

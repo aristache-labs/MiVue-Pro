@@ -7,6 +7,8 @@ import {
   filterAndSortRemoteFiles,
   isCameraFiltersEmpty,
   librarySubtitle,
+  libraryEmptyInstruction,
+  friendlyConnectionError,
   matchesSearch,
   PRODUCTION_LIBRARY_FORBIDDEN_UI,
   sanitizeDiagnosticLine,
@@ -146,6 +148,37 @@ describe("cameraLibraryModel", () => {
       }),
       "Connecting to camera…",
     );
+    assert.equal(
+      librarySubtitle({
+        linkState: "unstable",
+        totalCount: 10,
+        filteredCount: 10,
+        hasActiveFilters: false,
+      }),
+      "10 recordings on camera",
+    );
+    assert.equal(
+      librarySubtitle({
+        linkState: "disconnected",
+        totalCount: 0,
+        filteredCount: 0,
+        hasActiveFilters: false,
+      }),
+      "Camera not connected",
+    );
+  });
+
+  it("dedupes empty-state instruction", () => {
+    assert.equal(
+      libraryEmptyInstruction("disconnected"),
+      "Connect to the camera Wi-Fi to view recordings.",
+    );
+    assert.equal(libraryEmptyInstruction("connected"), undefined);
+  });
+
+  it("maps raw errors to friendly connection copy", () => {
+    assert.match(friendlyConnectionError("timeout waiting") ?? "", /did not respond/i);
+    assert.equal(friendlyConnectionError("secret=abc123")?.includes("abc123"), false);
   });
 
   it("sanitizes diagnostic secrets and paths", () => {

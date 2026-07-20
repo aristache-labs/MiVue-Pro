@@ -90,6 +90,7 @@ export type CameraLinkState =
   | "connecting"
   | "connected"
   | "disconnected"
+  | "unstable"
   | "connection_lost";
 
 /** Production Camera Library must never surface demo/dev chrome. */
@@ -441,10 +442,21 @@ export function librarySubtitle(options: {
     if (totalCount > 0) return `${totalCount} recordings on camera`;
     return "Camera not connected";
   }
-  if (hasActiveFilters || filteredCount !== totalCount) {
-    return `${filteredCount} of ${totalCount} recordings`;
+  // connected or unstable — show counts when we have a list
+  if (linkState === "unstable" || linkState === "connected") {
+    if (hasActiveFilters || filteredCount !== totalCount) {
+      return `${filteredCount} of ${totalCount} recordings`;
+    }
+    return `${totalCount} recordings on camera`;
   }
-  return `${totalCount} recordings on camera`;
+  return "Camera not connected";
+}
+
+export function libraryEmptyInstruction(linkState: CameraLinkState): string | undefined {
+  if (linkState === "idle" || linkState === "disconnected" || linkState === "connection_lost") {
+    return "Connect to the camera Wi-Fi to view recordings.";
+  }
+  return undefined;
 }
 
 export function formatRemoteDateTime(recordedAt: string): string {
@@ -470,4 +482,19 @@ export function sanitizeDiagnosticLine(line: string): string {
     .replace(/(api[_-]?key|secret|token|password|authorization)\s*[:=]\s*\S+/giu, "$1=[redacted]")
     .replace(/Bearer\s+\S+/giu, "Bearer [redacted]")
     .replace(/([A-Za-z]:\\|\/Users\/|\/home\/)[^\s]+/gu, "[path]");
+}
+
+export function friendlyConnectionError(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const s = sanitizeDiagnosticLine(raw).toLowerCase();
+  if (s.includes("timeout") || s.includes("timed out")) {
+    return "The camera did not respond in time. Check Wi‑Fi and try again.";
+  }
+  if (s.includes("private ipv4") || s.includes("host must")) {
+    return "Set a valid camera IP in Settings, then try again.";
+  }
+  if (s.includes("network") || s.includes("econnrefused") || s.includes("failed to fetch")) {
+    return "Laneory cannot reach the camera. Join the camera Wi‑Fi and try again.";
+  }
+  return "Could not connect to the camera. Try again.";
 }

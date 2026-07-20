@@ -54,8 +54,10 @@ interface DemoModeContextValue {
   readonly files: readonly RemoteFile[];
   readonly queueItems: readonly QueueItem[];
   readonly localFiles: readonly LocalMediaFile[];
-  readonly refreshFiles: () => Promise<void>;
+  readonly refreshFiles: () => Promise<{ ok: boolean; error?: string }>;
   readonly refreshLocalFiles: () => Promise<void>;
+  /** Clears Laneory camera session only — never mutates the camera. */
+  readonly disconnectSession: () => void;
   readonly enqueueDownload: (file: RemoteFile) => Promise<void>;
   readonly cancelDownload: (id: string) => Promise<void>;
   readonly pauseDownload: (id: string) => Promise<void>;
@@ -329,8 +331,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     }
   }, [thumbDir]);
 
-  const refreshFiles = useCallback(async () => {
-    if (refreshInflightRef.current) return;
+  const refreshFiles = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (refreshInflightRef.current) return { ok: false, error: "A refresh is already in progress." };
     refreshInflightRef.current = true;
     setIsRefreshingCamera(true);
     setCameraLinkState("connecting");
@@ -347,13 +349,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setCameraModel(COMPAT_MODEL);
         setLastConnectedAt(new Date().toISOString());
         setConnectionNote(undefined);
-        return;
+        return { ok: true };
       }
 
       if (!isPrivateIpv4(cameraHost)) {
-        setLastError("Host must be a private IPv4 address (e.g. 192.72.1.1).");
-        setCameraLinkState(filesLenRef.current > 0 ? "connection_lost" : "disconnected");
-        return;
+        const error = "Host must be a private IPv4 address (e.g. 192.72.1.1).";
+        setLastError(error);
+        setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
+        return { ok: false, error };
       }
 
       const transport = createLiveTransport(cameraHost);
@@ -370,16 +373,27 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setCameraModel(COMPAT_MODEL);
       setLastConnectedAt(new Date().toISOString());
       setConnectionNote(undefined);
+      return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       setLastError(message);
-      setCameraLinkState(filesLenRef.current > 0 ? "connection_lost" : "disconnected");
-      // Preserve previously loaded list — never replace with demo data.
+      setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
+      return { ok: false, error: message };
     } finally {
       refreshInflightRef.current = false;
       setIsRefreshingCamera(false);
     }
   }, [demoMode, cameraHost, queue]);
+
+  const disconnectSession = useCallback(() => {
+    setFiles([]);
+    setCameraLinkState("disconnected");
+    setCameraModel(undefined);
+    setCameraProperties({});
+    setLastConnectedAt(undefined);
+    setLastError(undefined);
+    setConnectionNote(undefined);
+  }, []);
 
   const enqueueNmeaSidecar = useCallback(
     async (remotePath: string, localName: string) => {
@@ -607,6 +621,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       queueItems,
       localFiles,
       refreshFiles,
+      disconnectSession,
       refreshLocalFiles,
       enqueueDownload,
       cancelDownload,
@@ -642,6 +657,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       queueItems,
       localFiles,
       refreshFiles,
+      disconnectSession,
       refreshLocalFiles,
       enqueueDownload,
       cancelDownload,

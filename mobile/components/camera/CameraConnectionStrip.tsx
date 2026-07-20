@@ -27,7 +27,7 @@ export function CameraConnectionStrip({
 
   const connected = linkState === "connected";
   const connecting = linkState === "connecting" || refreshing;
-  const lost = linkState === "connection_lost";
+  const lost = linkState === "connection_lost" || linkState === "unstable";
   const disconnected = linkState === "disconnected" || linkState === "idle";
 
   const label = connected

@@ -78,9 +78,11 @@ export default function SettingsScreen() {
       ? "Connected"
       : cameraLinkState === "connecting"
         ? "Connecting…"
-        : cameraLinkState === "connection_lost"
-          ? "Connection lost"
-          : "Not connected";
+        : cameraLinkState === "unstable"
+          ? "Unstable"
+          : cameraLinkState === "connection_lost"
+            ? "Connection lost"
+            : "Not connected";
 
   const version =
     Constants.expoConfig?.version ??
