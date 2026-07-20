@@ -89,7 +89,6 @@ export default function TabLayout() {
         options={{
           title: "Local library",
           tabBarLabel: "Local",
-          headerTitle: () => <HeaderTitle title="Local library" subtitle="Saved on this device" />,
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? "folder-open" : "folder-open-outline"} color={color} />
           ),

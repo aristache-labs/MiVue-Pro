@@ -5,6 +5,7 @@ import * as Sharing from "expo-sharing";
 import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { APP_USER_AGENT } from "../constants/Brand";
+import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
 import {
   cameraThumbCacheFileName,
   cameraThumbRequestPath,
@@ -57,6 +58,10 @@ interface DemoModeContextValue {
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly shareLocalFile: (file: LocalMediaFile) => Promise<void>;
   readonly deleteLocalFile: (file: LocalMediaFile) => Promise<void>;
+  /** Sequential local-only deletes; never mutates the camera. */
+  readonly deleteLocalFilesBatch: (
+    files: readonly LocalMediaFile[],
+  ) => Promise<{ deleted: number; failed: number }>;
   readonly queuePosition: (id: string) => number | undefined;
   readonly downloadDir: string;
   readonly lastError: string | undefined;
@@ -516,6 +521,29 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [refreshLocalFiles],
   );
 
+  const deleteLocalFilesBatch = useCallback(
+    async (files: readonly LocalMediaFile[]) => {
+      let deleted = 0;
+      let failed = 0;
+      for (const file of files) {
+        try {
+          assertManagedLocalMediaUri(file.uri, downloadDir);
+          await FileSystem.deleteAsync(file.uri, { idempotent: true });
+          if (/\.mp4$/i.test(file.name)) {
+            const nmeaUri = file.uri.replace(/\.[^.]+$/u, ".NMEA");
+            await FileSystem.deleteAsync(nmeaUri, { idempotent: true });
+          }
+          deleted += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+      await refreshLocalFiles();
+      return { deleted, failed };
+    },
+    [downloadDir, refreshLocalFiles],
+  );
+
   const value = useMemo<DemoModeContextValue>(
     () => ({
       demoMode,
@@ -535,6 +563,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       shareCompleted,
       shareLocalFile,
       deleteLocalFile,
+      deleteLocalFilesBatch,
       queuePosition: (id) => queue.queuePosition(id),
       downloadDir,
       lastError,
@@ -561,6 +590,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       shareCompleted,
       shareLocalFile,
       deleteLocalFile,
+      deleteLocalFilesBatch,
       queue,
       downloadDir,
       lastError,
