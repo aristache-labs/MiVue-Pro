@@ -70,7 +70,10 @@ function Metric({
     <View style={styles.metric} accessible accessibilityLabel={accessibilityLabel}>
       <Text style={[styles.metricLabel, { color: colors.textMuted }]}>{label}</Text>
       <View style={styles.valueRow}>
-        <Text style={[styles.metricValue, { color: colors.text }]} numberOfLines={1}>
+        <Text
+          style={[styles.metricValue, { color: colors.text, fontVariant: ["tabular-nums"] }]}
+          numberOfLines={1}
+        >
           {value}
         </Text>
         {unit ? (
@@ -85,7 +88,7 @@ function Metric({
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 10 },
+  card: { marginBottom: 10, borderRadius: 14 },
   row: { flexDirection: "row", gap: 8 },
   metric: { flex: 1, minWidth: 0 },
   metricLabel: {

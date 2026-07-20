@@ -1,18 +1,43 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  AccessibilityInfo,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { WebView, type WebViewMessageEvent } from "react-native-webview";
 
 import type { GpsSample } from "@/packages/parsers/src/index";
 import { Type, useAppTheme } from "@/constants/Theme";
 
+export interface MapFollowPose {
+  readonly latitude: number;
+  readonly longitude: number;
+  readonly bearingDeg: number;
+  readonly zoom: number;
+  readonly index: number;
+  readonly following: boolean;
+}
+
 interface OnlineMapWebViewProps {
   readonly samples: readonly GpsSample[];
-  readonly activeIndex: number;
+  readonly pose: MapFollowPose | null;
   readonly height?: number;
   readonly onUnavailable?: () => void;
   readonly onUseLocalMap?: () => void;
+  readonly onUserMoved?: () => void;
+  readonly onRecenter?: () => void;
+  readonly following: boolean;
 }
 
+/**
+ * Leaflet online map (opt-in). Route geometry once; marker/camera via imperative inject.
+ *
+ * Limitation: map stays North-up. Heading is shown by rotating the marker chevron only —
+ * Leaflet tile rotation is not used (avoids heavy/unstable deps).
+ */
 const MAP_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -22,69 +47,142 @@ const MAP_HTML = `<!DOCTYPE html>
   <style>
     html, body, #map { margin: 0; height: 100%; background: #0b1220; }
     .leaflet-control-attribution { font-size: 9px !important; }
+    .laneory-marker {
+      width: 0; height: 0; position: relative;
+    }
+    .laneory-chevron {
+      width: 18px; height: 18px; margin-left: -9px; margin-top: -9px;
+      border-radius: 50%;
+      background: #14b8a6;
+      border: 2px solid #042f2e;
+      box-shadow: 0 0 0 1px rgba(255,255,255,0.35);
+      display: flex; align-items: center; justify-content: center;
+      transform-origin: 50% 50%;
+    }
+    .laneory-chevron::after {
+      content: "";
+      width: 0; height: 0;
+      border-left: 4px solid transparent;
+      border-right: 4px solid transparent;
+      border-bottom: 8px solid #042f2e;
+      margin-top: -2px;
+    }
   </style>
 </head>
 <body>
   <div id="map"></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
-    let map, route, progress, marker, latlngs = [], userMoved = false, tilesOk = false;
+    let map, pastLine, remainLine, marker, latlngs = [];
+    let userMoved = false, follow = true, reduceMotion = false;
+    let lastZoom = 16, suppressMove = false;
     const TILE = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
     function post(msg) {
       if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(msg));
     }
     function init() {
       try {
-        map = L.map("map", { zoomControl: false, attributionControl: true });
+        map = L.map("map", { zoomControl: false, attributionControl: true, preferCanvas: true });
         var layer = L.tileLayer(TILE, { maxZoom: 19, attribution: "&copy; OpenStreetMap" });
         layer.on("tileerror", function () { post({ type: "tileError" }); });
-        layer.on("load", function () { tilesOk = true; post({ type: "tilesOk" }); });
+        layer.on("load", function () { post({ type: "tilesOk" }); });
         layer.addTo(map);
-        map.on("dragstart", function () { userMoved = true; post({ type: "userMoved" }); });
-        map.on("zoomstart", function () { userMoved = true; post({ type: "userMoved" }); });
+        map.on("dragstart", function () {
+          if (suppressMove) return;
+          userMoved = true; follow = false; post({ type: "userMoved" });
+        });
+        map.on("zoomstart", function () {
+          if (suppressMove) return;
+          userMoved = true; follow = false; post({ type: "userMoved" });
+        });
         post({ type: "ready" });
       } catch (e) {
         post({ type: "initError" });
       }
     }
+    function makeIcon(bearing) {
+      var rot = (bearing || 0);
+      return L.divIcon({
+        className: "laneory-marker",
+        html: '<div class="laneory-chevron" style="transform:rotate(' + rot + 'deg)"></div>',
+        iconSize: [18, 18],
+        iconAnchor: [9, 9]
+      });
+    }
     function setRoute(points) {
       if (!map || !points || !points.length) return;
       latlngs = points.map(function (p) { return [p.lat, p.lon]; });
-      if (route) route.remove();
-      route = L.polyline(latlngs, { color: "#64748b", weight: 4 }).addTo(map);
+      if (pastLine) pastLine.remove();
+      if (remainLine) remainLine.remove();
+      remainLine = L.polyline(latlngs, { color: "#2dd4bf", weight: 4, opacity: 0.85 }).addTo(map);
+      pastLine = L.polyline([], { color: "#64748b", weight: 4, opacity: 0.9 }).addTo(map);
       if (!map._laneoryFit) {
-        map.fitBounds(route.getBounds(), { padding: [24, 24] });
+        suppressMove = true;
+        map.fitBounds(L.latLngBounds(latlngs), { padding: [28, 28], maxZoom: 17 });
         map._laneoryFit = true;
+        setTimeout(function () { suppressMove = false; }, 80);
         userMoved = false;
+        follow = true;
       }
-      updateMarker(0, true);
     }
-    function updateMarker(activeIndex, forcePan) {
+    function splitLines(idx) {
+      if (!latlngs.length) return;
+      var i = Math.min(Math.max(0, idx | 0), latlngs.length - 1);
+      var past = latlngs.slice(0, i + 1);
+      var remain = latlngs.slice(i);
+      if (pastLine) pastLine.setLatLngs(past);
+      if (remainLine) remainLine.setLatLngs(remain.length ? remain : [latlngs[latlngs.length - 1]]);
+    }
+    function followCamera(lat, lon, zoom, bearing) {
+      if (!map) return;
+      var z = zoom || map.getZoom() || 16;
+      lastZoom = z;
+      suppressMove = true;
+      var size = map.getSize();
+      var target = L.latLng(lat, lon);
+      // Center so marker sits ~50% x, ~68% y (more road ahead).
+      var projected = map.project(target, z);
+      var desired = L.point(size.x * 0.5, size.y * 0.68);
+      var centerPoint = projected.subtract(desired).add(map.getSize().divideBy(2));
+      var center = map.unproject(centerPoint, z);
+      if (reduceMotion) {
+        map.setView(center, z, { animate: false });
+      } else {
+        map.setView(center, z, { animate: true, duration: 0.28 });
+      }
+      setTimeout(function () { suppressMove = false; }, 100);
+    }
+    function updatePose(data) {
       if (!map || !latlngs.length) return;
-      var idx = Math.min(Math.max(0, activeIndex | 0), latlngs.length - 1);
-      var slice = latlngs.slice(0, idx + 1);
-      if (progress) progress.setLatLngs(slice);
-      else progress = L.polyline(slice, { color: "#14b8a6", weight: 5 }).addTo(map);
-      var cur = latlngs[idx];
-      if (marker) marker.setLatLng(cur);
-      else {
-        marker = L.circleMarker(cur, {
-          radius: 7, color: "#042f2e", fillColor: "#14b8a6", fillOpacity: 1, weight: 2
-        }).addTo(map);
+      var lat = data.lat, lon = data.lon;
+      var bearing = data.bearing || 0;
+      var idx = data.index | 0;
+      follow = !!data.following;
+      reduceMotion = !!data.reduceMotion;
+      splitLines(idx);
+      if (!marker) {
+        marker = L.marker([lat, lon], { icon: makeIcon(bearing), interactive: false }).addTo(map);
+      } else {
+        marker.setLatLng([lat, lon]);
+        marker.setIcon(makeIcon(bearing));
       }
-      if (forcePan || !userMoved) map.panTo(cur, { animate: false });
+      if (follow && !userMoved) {
+        followCamera(lat, lon, data.zoom, bearing);
+      }
     }
-    function recenter(activeIndex) {
+    function recenter(data) {
       userMoved = false;
-      updateMarker(activeIndex, true);
+      follow = true;
+      updatePose(Object.assign({}, data, { following: true }));
     }
     function onMsg(event) {
       try {
         var data = typeof event.data === "string" ? JSON.parse(event.data) : event.data;
         if (!data) return;
         if (data.type === "setRoute") setRoute(data.points || []);
-        if (data.type === "updateMarker") updateMarker(data.activeIndex || 0, false);
-        if (data.type === "recenter") recenter(data.activeIndex || 0);
+        if (data.type === "updatePose") updatePose(data);
+        if (data.type === "recenter") recenter(data);
+        if (data.type === "setReduceMotion") reduceMotion = !!data.value;
       } catch (e) {}
     }
     document.addEventListener("message", onMsg);
@@ -94,25 +192,33 @@ const MAP_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-/**
- * Online map after explicit user opt-in. Route geometry injected once; marker updates only.
- * Tile host is not a guaranteed product dependency.
- */
 export function OnlineMapWebView({
   samples,
-  activeIndex,
-  height = 200,
+  pose,
+  height = 220,
   onUnavailable,
   onUseLocalMap,
+  onUserMoved,
+  onRecenter,
+  following,
 }: OnlineMapWebViewProps) {
   const { colors, radius } = useAppTheme();
   const ref = useRef<WebView>(null);
   const ready = useRef(false);
   const routeSent = useRef(false);
-  const lastIndex = useRef(-1);
+  const lastPoseKey = useRef("");
   const [failed, setFailed] = useState(false);
   const [retryKey, setRetryKey] = useState(0);
-  const tileTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [reduceMotion, setReduceMotion] = useState(false);
+
+  useEffect(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const sub = AccessibilityInfo.addEventListener?.("reduceMotionChanged", setReduceMotion);
+    return () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (sub as { remove?: () => void } | undefined)?.remove?.();
+    };
+  }, []);
 
   const inject = useCallback((payload: object) => {
     if (!ref.current) return;
@@ -123,36 +229,41 @@ export function OnlineMapWebView({
   }, []);
 
   const pushRoute = useCallback(() => {
-    if (!ready.current || !ref.current || samples.length === 0) return;
+    if (!ready.current || samples.length === 0) return;
     const points = samples.map((s) => ({ lat: s.latitude, lon: s.longitude }));
     inject({ type: "setRoute", points });
     routeSent.current = true;
-    lastIndex.current = -1;
+    lastPoseKey.current = "";
   }, [samples, inject]);
 
-  const pushMarker = useCallback(
-    (index: number) => {
-      if (!ready.current || !routeSent.current) return;
-      if (index === lastIndex.current) return;
-      lastIndex.current = index;
-      inject({ type: "updateMarker", activeIndex: index });
-    },
-    [inject],
-  );
+  const pushPose = useCallback(() => {
+    if (!ready.current || !routeSent.current || !pose) return;
+    const key = `${pose.latitude.toFixed(6)}|${pose.longitude.toFixed(6)}|${pose.index}|${pose.zoom}|${following}|${Math.round(pose.bearingDeg)}`;
+    if (key === lastPoseKey.current) return;
+    lastPoseKey.current = key;
+    inject({
+      type: "updatePose",
+      lat: pose.latitude,
+      lon: pose.longitude,
+      bearing: pose.bearingDeg,
+      zoom: pose.zoom,
+      index: pose.index,
+      following,
+      reduceMotion,
+    });
+  }, [pose, following, reduceMotion, inject]);
 
   useEffect(() => {
     if (ready.current && !routeSent.current) pushRoute();
   }, [pushRoute]);
 
   useEffect(() => {
-    pushMarker(activeIndex);
-  }, [activeIndex, pushMarker]);
+    pushPose();
+  }, [pushPose]);
 
   useEffect(() => {
-    return () => {
-      if (tileTimer.current) clearTimeout(tileTimer.current);
-    };
-  }, []);
+    if (ready.current) inject({ type: "setReduceMotion", value: reduceMotion });
+  }, [reduceMotion, inject]);
 
   const onMessage = (event: WebViewMessageEvent) => {
     try {
@@ -161,20 +272,12 @@ export function OnlineMapWebView({
         ready.current = true;
         routeSent.current = false;
         pushRoute();
-        pushMarker(activeIndex);
-        if (tileTimer.current) clearTimeout(tileTimer.current);
-        tileTimer.current = setTimeout(() => {
-          // Soft timeout if tiles never load — do not infinite-retry.
-          setFailed((prev) => prev);
-        }, 12_000);
+        pushPose();
       }
+      if (data.type === "userMoved") onUserMoved?.();
       if (data.type === "initError" || data.type === "tileError") {
         setFailed(true);
         onUnavailable?.();
-      }
-      if (data.type === "tilesOk" && tileTimer.current) {
-        clearTimeout(tileTimer.current);
-        tileTimer.current = null;
       }
     } catch {
       // ignore
@@ -185,8 +288,23 @@ export function OnlineMapWebView({
     setFailed(false);
     ready.current = false;
     routeSent.current = false;
-    lastIndex.current = -1;
+    lastPoseKey.current = "";
     setRetryKey((k) => k + 1);
+  };
+
+  const handleRecenter = () => {
+    if (!pose) return;
+    onRecenter?.();
+    inject({
+      type: "recenter",
+      lat: pose.latitude,
+      lon: pose.longitude,
+      bearing: pose.bearingDeg,
+      zoom: pose.zoom,
+      index: pose.index,
+      following: true,
+      reduceMotion,
+    });
   };
 
   if (failed) {
@@ -266,21 +384,23 @@ export function OnlineMapWebView({
           </View>
         )}
       />
-      <Pressable
-        onPress={() => inject({ type: "recenter", activeIndex })}
-        accessibilityRole="button"
-        accessibilityLabel="Recenter map"
-        style={({ pressed }) => [
-          styles.recenter,
-          {
-            backgroundColor: colors.surfaceElevated,
-            borderColor: colors.border,
-            opacity: pressed ? 0.8 : 1,
-          },
-        ]}
-      >
-        <Text style={{ color: colors.text, fontFamily: Type.fontSemi, fontSize: 12 }}>Recenter</Text>
-      </Pressable>
+      {!following ? (
+        <Pressable
+          onPress={handleRecenter}
+          accessibilityRole="button"
+          accessibilityLabel="Recenter map on current GPS position"
+          style={({ pressed }) => [
+            styles.recenter,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.border,
+              opacity: pressed ? 0.8 : 1,
+            },
+          ]}
+        >
+          <Text style={{ color: colors.text, fontFamily: Type.fontSemi, fontSize: 12 }}>Recenter</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }

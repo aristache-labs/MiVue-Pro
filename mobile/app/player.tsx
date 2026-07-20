@@ -21,21 +21,26 @@ import {
   OnlineMapWebView,
   SchematicRoute,
   TelemetryPanel,
+  interpolateGpsAtVideoTime,
   loadSiblingNmea,
+  zoomForSpeedKmh,
 } from "@/components/gps";
 import {
   gpsStatusA11yLabel,
   gpsStatusLabel,
-  lookupGpsAtVideoTime,
   normalizeGpsTrack,
   type GpsSyncStatus,
   type NormalizedGpsTrack,
 } from "@/components/gps/sampleIndex";
-import { formatPlayerCompactMeta, truncatePlayerFilename } from "@/components/player/playerMeta";
+import type { MapFollowPose } from "@/components/gps/OnlineMapWebView";
+import { PlayerMetaCard } from "@/components/player/PlayerMetaCard";
+import { truncatePlayerFilename } from "@/components/player/playerMeta";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { IconButton } from "@/components/ui";
+import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import type { FileCategory, GpsSample } from "@/packages/parsers/src/index";
 
 type MapMode = "local" | "online";
 type PlaybackUiStatus = "loading" | "ready" | "buffering" | "error" | "unsupported";
@@ -45,8 +50,8 @@ export default function PlayerScreen() {
   const uri = typeof params.uri === "string" ? params.uri : "";
   const name = typeof params.name === "string" ? params.name : "Media";
   const kind = typeof params.kind === "string" ? params.kind : "other";
-  const { shareLocalFile } = useDemoMode();
-  const { colors } = useAppTheme();
+  const { shareLocalFile, files } = useDemoMode();
+  const { colors, scheme } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const isVideo = kind === "video" || name.toLowerCase().endsWith(".mp4");
@@ -56,8 +61,24 @@ export default function PlayerScreen() {
     name.toLowerCase().endsWith(".jpeg");
 
   const [sizeBytes, setSizeBytes] = useState(0);
+  const [durationSec, setDurationSec] = useState<number | undefined>();
   const [fileMissing, setFileMissing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+
+  const category: FileCategory | undefined = useMemo(() => {
+    if (isImage) return "photo";
+    const remote = files.find((f) => f.name === name);
+    if (!remote) return undefined;
+    if (
+      remote.category === "normal" ||
+      remote.category === "parking" ||
+      remote.category === "event" ||
+      remote.category === "photo"
+    ) {
+      return remote.category;
+    }
+    return undefined;
+  }, [files, name, isImage]);
 
   useEffect(() => {
     if (!uri) {
@@ -88,7 +109,6 @@ export default function PlayerScreen() {
     };
   }, [uri]);
 
-  const meta = useMemo(() => formatPlayerCompactMeta(name, sizeBytes), [name, sizeBytes]);
   const title = truncatePlayerFilename(name);
 
   const close = useCallback(() => {
@@ -117,13 +137,31 @@ export default function PlayerScreen() {
               onPress={close}
               accessibilityLabel="Close video player"
             />
-            <Text
-              style={[styles.topBarTitle, { color: colors.text }]}
-              numberOfLines={1}
-              ellipsizeMode="middle"
-            >
-              {title}
-            </Text>
+            <View style={styles.titleCenter}>
+              <Text
+                style={[styles.topBarTitle, { color: colors.text }]}
+                numberOfLines={1}
+                ellipsizeMode="middle"
+              >
+                {title}
+              </Text>
+              {category ? (
+                <View
+                  style={[
+                    styles.catBadge,
+                    { backgroundColor: categoryColor(category, scheme) + "22" },
+                  ]}
+                  accessibilityLabel={CATEGORY_LABEL[category]}
+                >
+                  <Text
+                    style={[styles.catBadgeText, { color: categoryColor(category, scheme) }]}
+                    numberOfLines={1}
+                  >
+                    {CATEGORY_LABEL[category]}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
             <IconButton
               icon="share-outline"
               tone="ghost"
@@ -139,26 +177,6 @@ export default function PlayerScreen() {
               accessibilityLabel={`Share ${name}`}
             />
           </View>
-          {meta.when || meta.size ? (
-            <View style={styles.metaWrap}>
-              <Text
-                style={[styles.metaLeft, { color: colors.textMuted }]}
-                numberOfLines={2}
-                maxFontSizeMultiplier={1.35}
-              >
-                {meta.when ?? "—"}
-              </Text>
-              {meta.size ? (
-                <Text
-                  style={[styles.metaRight, { color: colors.textMuted }]}
-                  numberOfLines={1}
-                  maxFontSizeMultiplier={1.35}
-                >
-                  {meta.size}
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
         </View>
       ) : null}
 
@@ -168,6 +186,10 @@ export default function PlayerScreen() {
         bounces={false}
         scrollEnabled={!fullscreen}
       >
+        {!fullscreen && !fileMissing ? (
+          <PlayerMetaCard name={name} sizeBytes={sizeBytes} durationSeconds={durationSec} />
+        ) : null}
+
         {fileMissing ? (
           <View style={styles.centerMessage}>
             <Text style={[styles.centerText, { color: colors.text }]}>
@@ -210,6 +232,7 @@ export default function PlayerScreen() {
             fullscreen={fullscreen}
             onFullscreenChange={setFullscreen}
             onClose={close}
+            onDuration={setDurationSec}
           />
         ) : null}
 
@@ -234,12 +257,14 @@ function VideoWithGps({
   fullscreen,
   onFullscreenChange,
   onClose,
+  onDuration,
 }: {
   readonly uri: string;
   readonly clipName: string;
   readonly fullscreen: boolean;
   readonly onFullscreenChange: (value: boolean) => void;
   readonly onClose: () => void;
+  readonly onDuration: (seconds: number) => void;
 }) {
   const { colors, spacing } = useAppTheme();
   const player = useVideoPlayer(uri, (instance) => {
@@ -260,11 +285,19 @@ function VideoWithGps({
   const [playStatus, setPlayStatus] = useState<PlaybackUiStatus>("loading");
   const [slowLoad, setSlowLoad] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
+  const [following, setFollowing] = useState(true);
+  const [mapPose, setMapPose] = useState<MapFollowPose | null>(null);
+  const [telemetryFrame, setTelemetryFrame] = useState<GpsSample | undefined>(undefined);
+
   const wasPlayingRef = useRef(false);
   const mountedRef = useRef(true);
   const lastUiTick = useRef(0);
   const retryGate = useRef(createUiActionGate());
   const savedTimeRef = useRef(0);
+  const bearingRef = useRef(0);
+  const zoomRef = useRef(16);
+  const followingRef = useRef(true);
+  followingRef.current = following;
 
   // Load NMEA once; normalize/sort once.
   useEffect(() => {
@@ -349,7 +382,7 @@ function VideoWithGps({
   const durationRef = useRef(durationSec);
   durationRef.current = durationSec;
 
-  // Throttled GPS/UI sync (~4–5 Hz). Does not recreate player or map geometry.
+  // Throttled GPS/UI sync (~5 Hz). Interpolates pose; does not recreate map/player.
   useEffect(() => {
     const id = setInterval(() => {
       if (!mountedRef.current) return;
@@ -357,12 +390,13 @@ function VideoWithGps({
         const d = player.duration;
         if (typeof d === "number" && Number.isFinite(d) && d > 0 && d !== durationRef.current) {
           setDurationSec(d);
+          onDuration(d);
         }
         const t = typeof player.currentTime === "number" ? player.currentTime : 0;
         savedTimeRef.current = t;
 
         const now = Date.now();
-        if (now - lastUiTick.current < 220) return;
+        if (now - lastUiTick.current < 180) return;
         lastUiTick.current = now;
 
         if (player.status === "loading" && playStatusRef.current === "ready") {
@@ -375,16 +409,28 @@ function VideoWithGps({
 
         const currentTrack = trackRef.current;
         if (currentTrack && currentTrack.samples.length > 0) {
-          const lookup = lookupGpsAtVideoTime(currentTrack, t);
-          if (lookup.index !== activeIndexRef.current) setActiveIndex(lookup.index);
-          if (lookup.status !== gpsStatusRef.current) setGpsStatus(lookup.status);
+          const pose = interpolateGpsAtVideoTime(currentTrack, t, bearingRef.current);
+          if (!pose) return;
+          bearingRef.current = pose.bearingDeg;
+          zoomRef.current = zoomForSpeedKmh(pose.speedKmh, zoomRef.current);
+          if (pose.index !== activeIndexRef.current) setActiveIndex(pose.index);
+          if (pose.status !== gpsStatusRef.current) setGpsStatus(pose.status);
+          setTelemetryFrame(pose.sample);
+          setMapPose({
+            latitude: pose.latitude,
+            longitude: pose.longitude,
+            bearingDeg: pose.bearingDeg,
+            zoom: zoomRef.current,
+            index: pose.index,
+            following: followingRef.current,
+          });
         }
       } catch {
         // player may be disposed
       }
-    }, 200);
+    }, 180);
     return () => clearInterval(id);
-  }, [player]);
+  }, [player, onDuration]);
 
   // Background: do not force play on resume if user had paused.
   useEffect(() => {
@@ -401,9 +447,18 @@ function VideoWithGps({
     return () => sub.remove();
   }, [player]);
 
-  const frame = track?.samples[activeIndex];
+  const frame = telemetryFrame ?? track?.samples[activeIndex];
   const showGpsChrome = !fullscreen;
   const mapModeLabel = mapMode === "online" ? "Online map" : "Local map";
+  const isFollowingUi =
+    following && mapMode === "online" && (gpsStatus === "synchronized" || gpsStatus === "partial");
+  const headerStatusLabel = isFollowingUi
+    ? "Following"
+    : gpsWaiting
+      ? gpsStatusLabel("waiting")
+      : gpsStatusLabel(gpsStatus);
+  const statusTextColor =
+    gpsStatus === "synchronized" || isFollowingUi ? colors.brand : colors.textMuted;
 
   const retryPlayback = () => {
     void retryGate.current(async () => {
@@ -498,26 +553,23 @@ function VideoWithGps({
             <View
               style={styles.gpsStatusWrap}
               accessible
-              accessibilityLabel={gpsStatusA11yLabel(gpsWaiting ? "waiting" : gpsStatus)}
+              accessibilityLabel={
+                isFollowingUi
+                  ? "Following GPS on map"
+                  : gpsStatusA11yLabel(gpsWaiting ? "waiting" : gpsStatus)
+              }
             >
-              {gpsWaiting || gpsStatus === "synchronized" || gpsStatus === "partial" ? (
+              {gpsWaiting ||
+              gpsStatus === "synchronized" ||
+              gpsStatus === "partial" ||
+              isFollowingUi ? (
                 <View style={[styles.statusDot, { backgroundColor: statusDotColor }]} />
               ) : null}
               <Text
-                style={[
-                  styles.gpsStatusText,
-                  {
-                    color:
-                      gpsStatus === "synchronized"
-                        ? colors.brand
-                        : gpsWaiting
-                          ? colors.textMuted
-                          : colors.textMuted,
-                  },
-                ]}
+                style={[styles.gpsStatusText, { color: statusTextColor }]}
                 numberOfLines={1}
               >
-                {gpsWaiting ? gpsStatusLabel("waiting") : gpsStatusLabel(gpsStatus)}
+                {headerStatusLabel}
               </Text>
             </View>
           </View>
@@ -574,9 +626,12 @@ function VideoWithGps({
             mapMode === "online" ? (
               <OnlineMapWebView
                 samples={track.samples}
-                activeIndex={activeIndex}
-                height={200}
+                pose={mapPose}
+                height={220}
+                following={following}
                 onUseLocalMap={() => setMapMode("local")}
+                onUserMoved={() => setFollowing(false)}
+                onRecenter={() => setFollowing(true)}
               />
             ) : (
               <SchematicRoute samples={track.samples} activeIndex={activeIndex} height={160} />
@@ -597,6 +652,7 @@ function VideoWithGps({
             selected={mapMode === "online"}
             onPress={() => {
               setMapMode("online");
+              setFollowing(true);
               setMapMenuOpen(false);
             }}
             a11y="Use online map"
@@ -749,22 +805,25 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   topBarTitle: {
-    flex: 1,
     fontSize: 15,
     fontFamily: Type.fontSemi,
     textAlign: "center",
+    maxWidth: "100%",
+  },
+  titleCenter: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
     marginHorizontal: 4,
+    minWidth: 0,
   },
-  metaWrap: {
-    marginTop: 4,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    gap: 12,
+  catBadge: {
+    marginTop: 2,
+    borderRadius: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  metaLeft: { flex: 1, fontSize: 12, fontFamily: Type.font, lineHeight: 16 },
-  metaRight: { fontSize: 12, fontFamily: Type.monoMed, lineHeight: 16 },
+  catBadgeText: { fontSize: 10, fontFamily: Type.fontSemi },
   gpsBlock: { gap: 0 },
   gpsHeader: {
     flexDirection: "row",

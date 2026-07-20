@@ -10,4 +10,10 @@ export {
   gpsStatusLabel,
   gpsStatusA11yLabel,
 } from "./sampleIndex";
+export {
+  interpolateGpsAtVideoTime,
+  bearingBetween,
+  smoothBearing,
+  zoomForSpeedKmh,
+} from "./mapFollow";
 export { loadSiblingNmea } from "./loadSiblingNmea";
