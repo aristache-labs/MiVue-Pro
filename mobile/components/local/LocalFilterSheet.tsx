@@ -1,7 +1,8 @@
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import { useEffect, useMemo, useState } from "react";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
   Platform,
@@ -29,6 +30,7 @@ import {
   datePreset,
   EMPTY_FILTERS,
   filterNormalizedFiles,
+  isFiltersEmpty,
   localTodayKey,
   RECORDING_CATEGORIES,
   showLocalCategorySectionInFilters,
@@ -39,7 +41,9 @@ import {
   type NormalizedLocalFile,
 } from "@/components/local/localLibraryFilters";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
-import { Type, useAppTheme } from "@/constants/Theme";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
+import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 interface LocalFilterSheetProps {
   readonly visible: boolean;
@@ -169,6 +173,9 @@ function applyPickerDate(
   return { ...draft, timeTo: dateToHhmm(date) };
 }
 
+/**
+ * Local Library filters — same static backdrop + header as Camera Filters.
+ */
 export function LocalFilterSheet({
   visible,
   initial,
@@ -183,14 +190,15 @@ export function LocalFilterSheet({
   const [activePicker, setActivePicker] = useState<PickerField | null>(null);
   const [iosTemp, setIosTemp] = useState<Date | null>(null);
   const showCategory = showLocalCategorySectionInFilters(categoryScope);
+  const resetDisabled = isFiltersEmpty(draft);
 
   useEffect(() => {
-    if (visible) {
-      setDraft(initial);
-      setActivePicker(null);
-      setIosTemp(null);
-    }
-  }, [visible, initial]);
+    if (!visible) return;
+    setDraft(initial);
+    setActivePicker(null);
+    setIosTemp(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on open
+  }, [visible]);
 
   const draftCount = useMemo(
     () => filterNormalizedFiles(normalized, draft).length,
@@ -203,18 +211,22 @@ export function LocalFilterSheet({
       ? "time"
       : "date";
 
+  const dismissPicker = useCallback(() => {
+    setActivePicker(null);
+    setIosTemp(null);
+  }, []);
+
   const openPicker = (field: PickerField) => {
+    if (activePicker) return;
     setIosTemp(pickerValue(draft, field));
     setActivePicker(field);
   };
 
-  const dismissPicker = () => {
-    setActivePicker(null);
-    setIosTemp(null);
-  };
-
   const commitPicker = (date: Date) => {
-    if (!activePicker) return;
+    if (!activePicker || !Number.isFinite(date.getTime())) {
+      dismissPicker();
+      return;
+    }
     setDraft((prev) => applyPickerDate(prev, activePicker, date));
     dismissPicker();
   };
@@ -232,37 +244,78 @@ export function LocalFilterSheet({
     setIosTemp(date);
   };
 
+  const interceptClose = useCallback(() => {
+    if (activePicker) {
+      dismissPicker();
+      return true;
+    }
+    return false;
+  }, [activePicker, dismissPicker]);
+
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.avoid}>
-        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss filters" />
-        <View
-          style={[
-            styles.sheet,
-            {
-              backgroundColor: colors.surfaceElevated,
-              paddingBottom: Math.max(insets.bottom, 12),
-              borderTopLeftRadius: radius.xl,
-              borderTopRightRadius: radius.xl,
-            },
-          ]}
-        >
+    <StaticBackdropSheet
+      visible={visible}
+      onClose={onClose}
+      interceptClose={interceptClose}
+      scrimAccessibilityLabel="Close filters"
+      scrimTestID="local-filter-scrim"
+      sheetTestID="local-filter-sheet"
+      sheetStyle={{
+        backgroundColor: colors.surfaceElevated,
+        borderColor: colors.border,
+        borderTopLeftRadius: MEDIA_SHEET_RADIUS,
+        borderTopRightRadius: MEDIA_SHEET_RADIUS,
+        paddingBottom: Math.max(insets.bottom, 12),
+        maxHeight: "88%",
+      }}
+    >
+      {({ requestClose }) => (
+        <>
+          <View style={styles.handleRow}>
+            <View style={[styles.handle, { backgroundColor: colors.border }]} />
+          </View>
+
           <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: colors.text }]}>Filters</Text>
-            <Pressable
-              onPress={() => setDraft(EMPTY_FILTERS)}
-              accessibilityRole="button"
-              accessibilityLabel="Reset filters"
-              hitSlop={8}
-              style={styles.headerBtn}
-            >
-              <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>Reset</Text>
-            </Pressable>
+            <View style={styles.headerSide}>
+              <Pressable
+                onPress={() => setDraft(EMPTY_FILTERS)}
+                disabled={resetDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Reset filters"
+                accessibilityState={{ disabled: resetDisabled }}
+                hitSlop={HitSlop44}
+                style={[styles.headerHit, { opacity: resetDisabled ? 0.4 : 1 }]}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                  Reset
+                </Text>
+              </Pressable>
+            </View>
+            <Text style={[styles.sheetTitle, { color: colors.text }]} accessibilityRole="header">
+              Filters
+            </Text>
+            <View style={[styles.headerSide, styles.headerSideRight]}>
+              <Pressable
+                onPress={() => {
+                  if (activePicker) {
+                    dismissPicker();
+                    return;
+                  }
+                  requestClose();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel="Close filters"
+                hitSlop={HitSlop44}
+                style={styles.headerHit}
+              >
+                <Ionicons name="close" size={22} color={colors.textMuted} />
+              </Pressable>
+            </View>
           </View>
 
           <ScrollView
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 16 }}
+            contentContainerStyle={{ paddingHorizontal: MEDIA_SHEET_PAD_H, paddingBottom: 16 }}
           >
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
             <View style={styles.rowWrap}>
@@ -475,7 +528,10 @@ export function LocalFilterSheet({
           </ScrollView>
 
           <Pressable
-            onPress={() => onApply(draft)}
+            onPress={() => {
+              onApply(draft);
+              requestClose();
+            }}
             accessibilityRole="button"
             accessibilityLabel={`Show ${draftCount} results`}
             style={({ pressed }) => [
@@ -489,86 +545,119 @@ export function LocalFilterSheet({
               },
             ]}
           >
-            <Text style={[styles.applyText, { color: colors.onBrand }]}>Show {draftCount} results</Text>
+            <Text style={[styles.applyText, { color: colors.onBrand }]}>
+              Show {draftCount} results
+            </Text>
           </Pressable>
-        </View>
-      </View>
 
-      {activePicker && Platform.OS === "android" ? (
-        <DateTimePicker
-          value={pickerValue(draft, activePicker)}
-          mode={pickerMode}
-          display="default"
-          minuteInterval={1}
-          onChange={onNativeChange}
-        />
-      ) : null}
-
-      {activePicker && Platform.OS === "ios" ? (
-        <Modal transparent animationType="fade" visible onRequestClose={dismissPicker}>
-          <Pressable style={styles.pickerBackdrop} onPress={dismissPicker} accessibilityLabel="Cancel" />
-          <View
-            style={[
-              styles.iosPickerSheet,
-              {
-                backgroundColor: colors.surfaceElevated,
-                paddingBottom: Math.max(insets.bottom, 12),
-                borderTopLeftRadius: radius.lg,
-                borderTopRightRadius: radius.lg,
-              },
-            ]}
-          >
-            <View style={styles.iosPickerHeader}>
-              <Pressable
-                onPress={dismissPicker}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-                hitSlop={8}
-                style={styles.headerBtn}
-              >
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Cancel
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={() => commitPicker(iosTemp ?? pickerValue(draft, activePicker))}
-                accessibilityRole="button"
-                accessibilityLabel="Confirm"
-                hitSlop={8}
-                style={styles.headerBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>Done</Text>
-              </Pressable>
-            </View>
+          {activePicker && Platform.OS === "android" ? (
             <DateTimePicker
-              value={iosTemp ?? pickerValue(draft, activePicker)}
+              value={pickerValue(draft, activePicker)}
               mode={pickerMode}
-              display="spinner"
+              display="default"
               minuteInterval={1}
+              is24Hour
               onChange={onNativeChange}
-              style={{ alignSelf: "center" }}
+              testID="local-filter-android-picker"
             />
-          </View>
-        </Modal>
-      ) : null}
-    </Modal>
+          ) : null}
+
+          {activePicker && Platform.OS === "ios" ? (
+            <Modal
+              transparent
+              animationType="fade"
+              visible
+              onRequestClose={dismissPicker}
+              testID="local-filter-ios-picker"
+            >
+              <Pressable
+                style={styles.pickerBackdrop}
+                onPress={dismissPicker}
+                accessibilityLabel="Cancel"
+              />
+              <View
+                style={[
+                  styles.iosPickerSheet,
+                  {
+                    backgroundColor: colors.surfaceElevated,
+                    paddingBottom: Math.max(insets.bottom, 12),
+                    borderTopLeftRadius: radius.lg,
+                    borderTopRightRadius: radius.lg,
+                  },
+                ]}
+              >
+                <View style={styles.iosPickerHeader}>
+                  <Pressable
+                    onPress={dismissPicker}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel"
+                    hitSlop={HitSlop44}
+                    style={styles.headerHit}
+                  >
+                    <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                      Cancel
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => commitPicker(iosTemp ?? pickerValue(draft, activePicker))}
+                    accessibilityRole="button"
+                    accessibilityLabel="Done"
+                    hitSlop={HitSlop44}
+                    style={styles.headerHit}
+                  >
+                    <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                      Done
+                    </Text>
+                  </Pressable>
+                </View>
+                <DateTimePicker
+                  value={iosTemp ?? pickerValue(draft, activePicker)}
+                  mode={pickerMode}
+                  display="spinner"
+                  minuteInterval={1}
+                  is24Hour
+                  onChange={onNativeChange}
+                  style={{ alignSelf: "center" }}
+                />
+              </View>
+            </Modal>
+          ) : null}
+        </>
+      )}
+    </StaticBackdropSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  avoid: { flex: 1, justifyContent: "flex-end" },
-  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { maxHeight: "78%", paddingTop: 8, width: "100%" },
+  handleRow: { alignItems: "center", paddingTop: 8 },
+  handle: { width: 36, height: 4, borderRadius: 2 },
   sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    minHeight: 44,
+    height: LOCAL_ACTION_HIT + 8,
+    justifyContent: "center",
+    marginBottom: 4,
   },
-  sheetTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  headerBtn: { minHeight: 44, justifyContent: "center", paddingHorizontal: 4 },
+  headerSide: {
+    position: "absolute",
+    left: 8,
+    top: 0,
+    bottom: 0,
+    width: 88,
+    justifyContent: "center",
+    zIndex: 1,
+  },
+  headerSideRight: { left: undefined, right: 8, alignItems: "flex-end" },
+  headerHit: {
+    minWidth: LOCAL_ACTION_HIT,
+    minHeight: LOCAL_ACTION_HIT,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 8,
+  },
+  sheetTitle: {
+    textAlign: "center",
+    fontSize: 17,
+    fontFamily: Type.fontBold,
+  },
   sectionLabel: {
     fontSize: 12,
     fontFamily: Type.fontSemi,
@@ -596,19 +685,14 @@ const styles = StyleSheet.create({
   rangeRow: { flexDirection: "row", gap: 8 },
   applyBtn: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   applyText: { fontSize: 16, fontFamily: Type.fontBold },
-  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.4)" },
-  iosPickerSheet: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    paddingTop: 4,
-  },
+  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  iosPickerSheet: { marginTop: "auto", width: "100%", paddingTop: 4 },
   iosPickerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minHeight: LOCAL_ACTION_HIT,
     alignItems: "center",
   },
 });
