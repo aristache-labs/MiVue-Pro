@@ -32,6 +32,18 @@ export function formatDuration(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+/** Wall-clock time inside the clip: recording start (from filename) + playback offset. */
+export function formatLiveClipTime(fileName: string, offsetSec: number): string {
+  const parts = parseRecordedParts(fileName);
+  if (!parts) return formatDuration(offsetSec);
+  const [hh, mi, ss] = parts.time.split(":").map(Number);
+  const total = (hh ?? 0) * 3600 + (mi ?? 0) * 60 + (ss ?? 0) + Math.max(0, Math.floor(offsetSec));
+  const h = Math.floor(total / 3600) % 24;
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+}
+
 /** Remaining download time from average rate since start. */
 export function formatEta(receivedBytes: number, totalBytes: number, startedAtMs: number): string | undefined {
   if (totalBytes <= 0 || receivedBytes <= 0) return undefined;

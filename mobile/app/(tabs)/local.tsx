@@ -97,12 +97,14 @@ export default function LocalLibraryScreen() {
               )}
 
               <View style={[styles.actions, { marginTop: spacing.md }]}>
-                <IconButton
-                  icon="share-outline"
-                  tone="neutral"
-                  onPress={() => void shareLocalFile(item)}
-                  accessibilityLabel={`Share ${item.name}`}
-                />
+                <View style={styles.actionSide}>
+                  <IconButton
+                    icon="share-outline"
+                    tone="neutral"
+                    onPress={() => void shareLocalFile(item)}
+                    accessibilityLabel={`Share ${item.name}`}
+                  />
+                </View>
                 <PrimaryButton
                   label={item.kind === "image" ? "View" : "Play"}
                   icon={item.kind === "image" ? "eye-outline" : "play"}
@@ -114,12 +116,14 @@ export default function LocalLibraryScreen() {
                   }}
                   accessibilityLabel={`Open ${item.name}`}
                 />
-                <IconButton
-                  icon="trash-outline"
-                  tone="danger"
-                  onPress={() => confirmDelete(item)}
-                  accessibilityLabel={`Delete ${item.name}`}
-                />
+                <View style={[styles.actionSide, styles.actionSideEnd]}>
+                  <IconButton
+                    icon="trash-outline"
+                    tone="danger"
+                    onPress={() => confirmDelete(item)}
+                    accessibilityLabel={`Delete ${item.name}`}
+                  />
+                </View>
               </View>
             </Card>
           );
@@ -151,7 +155,8 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
+    justifyContent: "space-between",
   },
+  actionSide: { flex: 1, alignItems: "flex-start" },
+  actionSideEnd: { alignItems: "flex-end" },
 });

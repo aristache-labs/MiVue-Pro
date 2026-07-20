@@ -122,7 +122,7 @@ export default function PlayerScreen() {
         ) : null}
 
         {uri && isVideo ? (
-          <VideoWithGps uri={uri} onDuration={(sec) => setDurationSec(sec)} />
+          <VideoWithGps uri={uri} clipName={name} onDuration={(sec) => setDurationSec(sec)} />
         ) : null}
 
         {!uri || (!isVideo && !isImage) ? (
@@ -140,9 +140,11 @@ export default function PlayerScreen() {
 
 function VideoWithGps({
   uri,
+  clipName,
   onDuration,
 }: {
   readonly uri: string;
+  readonly clipName: string;
   readonly onDuration: (seconds: number) => void;
 }) {
   const { colors, spacing } = useAppTheme();
@@ -191,7 +193,7 @@ function VideoWithGps({
 
   return (
     <View style={{ backgroundColor: colors.bg }}>
-      <View style={[styles.media, { backgroundColor: colors.bg }]}>
+      <View style={[styles.media, { backgroundColor: "#000" }]}>
         <VideoView
           style={styles.videoView}
           player={player}
@@ -204,7 +206,7 @@ function VideoWithGps({
 
       <View style={[styles.gpsBlock, { padding: spacing.md, backgroundColor: colors.bg }]}>
         <Text style={[styles.gpsTitle, { color: colors.text }]}>GPS track</Text>
-        <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} />
+        <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} clipName={clipName} />
 
         <View style={{ height: spacing.sm }} />
 
@@ -262,8 +264,13 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: 0 },
-  media: { width: "100%", height: 220 },
-  videoView: { flex: 1 },
+  media: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    alignSelf: "stretch",
+    overflow: "hidden",
+  },
+  videoView: { width: "100%", height: "100%" },
   centerMessage: { alignItems: "center", justifyContent: "center", paddingHorizontal: 32, paddingVertical: 48 },
   centerText: { textAlign: "center", marginTop: 12, fontSize: 13, lineHeight: 18, fontFamily: Type.font },
   topBar: {

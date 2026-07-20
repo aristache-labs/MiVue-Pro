@@ -1,6 +1,6 @@
 import { StyleSheet, Text, View } from "react-native";
 
-import { formatDuration } from "@/components/mediaMeta";
+import { formatLiveClipTime } from "@/components/mediaMeta";
 import { Card } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 import type { GpsSample } from "@/packages/parsers/src/index";
@@ -8,6 +8,7 @@ import type { GpsSample } from "@/packages/parsers/src/index";
 interface TelemetryPanelProps {
   readonly frame: GpsSample | undefined;
   readonly videoTimeSec: number;
+  readonly clipName: string;
 }
 
 function fmtSpeed(kmh: number | undefined): string {
@@ -20,7 +21,7 @@ function fmtAlt(m: number | undefined): string {
   return `${m.toFixed(1)} m`;
 }
 
-export function TelemetryPanel({ frame, videoTimeSec }: TelemetryPanelProps) {
+export function TelemetryPanel({ frame, videoTimeSec, clipName }: TelemetryPanelProps) {
   const { colors } = useAppTheme();
 
   return (
@@ -28,7 +29,7 @@ export function TelemetryPanel({ frame, videoTimeSec }: TelemetryPanelProps) {
       <View style={styles.row}>
         <Metric label="Speed" value={fmtSpeed(frame?.speedKmh)} colors={colors} />
         <Metric label="Altitude" value={fmtAlt(frame?.altitudeMeters)} colors={colors} />
-        <Metric label="In clip" value={formatDuration(videoTimeSec)} colors={colors} />
+        <Metric label="In clip" value={formatLiveClipTime(clipName, videoTimeSec)} colors={colors} />
       </View>
     </Card>
   );
