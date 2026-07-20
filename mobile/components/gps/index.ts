@@ -1,5 +1,13 @@
 export { SchematicRoute } from "./SchematicRoute";
 export { TelemetryPanel } from "./TelemetryPanel";
 export { OnlineMapWebView } from "./OnlineMapWebView";
-export { sampleIndexAtTime } from "./sampleIndex";
+export {
+  sampleIndexAtTime,
+  normalizeGpsTrack,
+  lookupGpsAtVideoTime,
+  nearestTimeIndex,
+  GPS_VIDEO_SYNC_TOLERANCE_SEC,
+  gpsStatusLabel,
+  gpsStatusA11yLabel,
+} from "./sampleIndex";
 export { loadSiblingNmea } from "./loadSiblingNmea";
