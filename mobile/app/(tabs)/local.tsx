@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { recordingMetaChips } from "@/components/mediaMeta";
-import { Badge, Card, IconButton, MediaMetaRow, PrimaryButton } from "@/components/ui";
+import { Badge, Card, MediaMetaRow } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
@@ -76,9 +76,11 @@ export default function LocalLibraryScreen() {
             sizeBytes: item.sizeBytes,
             durationSeconds: durationByName.get(item.name),
           });
+          const playLabel = item.kind === "image" ? "View" : "Play";
+          const playIcon = item.kind === "image" ? "eye-outline" : "play";
 
           return (
-            <Card>
+            <Card style={styles.card}>
               <View style={styles.row}>
                 <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
                   <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
@@ -96,34 +98,64 @@ export default function LocalLibraryScreen() {
                 <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
               )}
 
-              <View style={[styles.actions, { marginTop: spacing.md }]}>
-                <View style={styles.actionSide}>
-                  <IconButton
-                    icon="share-outline"
-                    tone="neutral"
-                    onPress={() => void shareLocalFile(item)}
-                    accessibilityLabel={`Share ${item.name}`}
-                  />
-                </View>
-                <PrimaryButton
-                  label={item.kind === "image" ? "View" : "Play"}
-                  icon={item.kind === "image" ? "eye-outline" : "play"}
-                  compact
+              <View
+                style={[
+                  styles.actionBar,
+                  {
+                    marginHorizontal: -spacing.lg,
+                    marginBottom: -spacing.lg,
+                    marginTop: spacing.md,
+                    borderTopColor: colors.border,
+                    backgroundColor: colors.surfaceMuted,
+                  },
+                ]}
+              >
+                <Pressable
+                  onPress={() => void shareLocalFile(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Share ${item.name}`}
+                  style={({ pressed }) => [
+                    styles.sideBtn,
+                    { borderRadius: radius.sm, opacity: pressed ? 0.75 : 1 },
+                  ]}
+                >
+                  <Ionicons name="share-outline" size={18} color={colors.textMuted} />
+                  <Text style={[styles.sideLabel, { color: colors.textMuted }]}>Share</Text>
+                </Pressable>
+
+                <Pressable
                   onPress={() => {
                     const href =
                       `/player?uri=${encodeURIComponent(item.uri)}&name=${encodeURIComponent(item.name)}&kind=${item.kind}` as const;
                     router.push(href as Parameters<typeof router.push>[0]);
                   }}
+                  accessibilityRole="button"
                   accessibilityLabel={`Open ${item.name}`}
-                />
-                <View style={[styles.actionSide, styles.actionSideEnd]}>
-                  <IconButton
-                    icon="trash-outline"
-                    tone="danger"
-                    onPress={() => confirmDelete(item)}
-                    accessibilityLabel={`Delete ${item.name}`}
-                  />
-                </View>
+                  style={({ pressed }) => [
+                    styles.playBtn,
+                    {
+                      backgroundColor: colors.brand,
+                      borderRadius: radius.sm,
+                      opacity: pressed ? 0.88 : 1,
+                    },
+                  ]}
+                >
+                  <Ionicons name={playIcon} size={16} color={colors.onBrand} style={{ marginRight: 6 }} />
+                  <Text style={[styles.playLabel, { color: colors.onBrand }]}>{playLabel}</Text>
+                </Pressable>
+
+                <Pressable
+                  onPress={() => confirmDelete(item)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${item.name}`}
+                  style={({ pressed }) => [
+                    styles.sideBtn,
+                    { borderRadius: radius.sm, opacity: pressed ? 0.75 : 1 },
+                  ]}
+                >
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} />
+                  <Text style={[styles.sideLabel, { color: colors.danger }]}>Delete</Text>
+                </Pressable>
               </View>
             </Card>
           );
@@ -147,16 +179,35 @@ const styles = StyleSheet.create({
   },
   refreshText: { fontSize: 13, fontFamily: Type.fontSemi },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
+  card: { overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center" },
   iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
   name: { flex: 1, fontFamily: Type.fontSemi, fontSize: 14, minWidth: 0 },
   metaRow: { marginTop: 10 },
   metaFallback: { fontSize: 12, fontFamily: Type.mono, marginTop: 10 },
-  actions: {
+  actionBar: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+    gap: 8,
   },
-  actionSide: { flex: 1, alignItems: "flex-start" },
-  actionSideEnd: { alignItems: "flex-end" },
+  sideBtn: {
+    width: 64,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 6,
+    gap: 2,
+  },
+  sideLabel: { fontSize: 10, fontFamily: Type.fontSemi },
+  playBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 11,
+    minHeight: 40,
+  },
+  playLabel: { fontSize: 14, fontFamily: Type.fontSemi },
 });

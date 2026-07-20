@@ -166,7 +166,12 @@ export default function QueueScreen() {
                     <Text style={[styles.waitingText, { color: colors.textMuted }]}>Starting download…</Text>
                   </View>
                 ) : (
-                  <ProgressBar percent={percent} label={`Downloading ${percent}%${eta ? ` · ETA ${eta}` : ""}`} />
+                  <ProgressBar
+                    percent={percent}
+                    label={`Downloading ${percent}%`}
+                    rightLabel={eta ? `ETA ${eta}` : undefined}
+                  />
+
                 )
               ) : null}
 
