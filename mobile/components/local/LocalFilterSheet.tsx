@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -92,33 +94,41 @@ export function LocalFilterSheet({
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss filters" />
-      <View
-        style={[
-          styles.sheet,
-          {
-            backgroundColor: colors.surfaceElevated,
-            paddingBottom: Math.max(insets.bottom, 12),
-            borderTopLeftRadius: radius.xl,
-            borderTopRightRadius: radius.xl,
-          },
-        ]}
+      <KeyboardAvoidingView
+        style={styles.avoid}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
       >
-        <View style={styles.sheetHeader}>
-          <Text style={[styles.sheetTitle, { color: colors.text }]}>Filters</Text>
-          <Pressable
-            onPress={() => setDraft(EMPTY_FILTERS)}
-            accessibilityRole="button"
-            accessibilityLabel="Reset filters"
-            hitSlop={8}
-            style={styles.headerBtn}
-          >
-            <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>Reset</Text>
-          </Pressable>
-        </View>
+        <Pressable style={styles.backdrop} onPress={onClose} accessibilityLabel="Dismiss filters" />
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.surfaceElevated,
+              paddingBottom: Math.max(insets.bottom, 12),
+              borderTopLeftRadius: radius.xl,
+              borderTopRightRadius: radius.xl,
+            },
+          ]}
+        >
+          <View style={styles.sheetHeader}>
+            <Text style={[styles.sheetTitle, { color: colors.text }]}>Filters</Text>
+            <Pressable
+              onPress={() => setDraft(EMPTY_FILTERS)}
+              accessibilityRole="button"
+              accessibilityLabel="Reset filters"
+              hitSlop={8}
+              style={styles.headerBtn}
+            >
+              <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>Reset</Text>
+            </Pressable>
+          </View>
 
-        <ScrollView contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 16 }}>
-          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            keyboardDismissMode="on-drag"
+            contentContainerStyle={{ paddingHorizontal: spacing.lg, paddingBottom: 16 }}
+          >          <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
           <View style={styles.rowWrap}>
             <Chip
               label="Any"
@@ -347,14 +357,16 @@ export function LocalFilterSheet({
         >
           <Text style={[styles.applyText, { color: colors.onBrand }]}>Show {draftCount} results</Text>
         </Pressable>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.45)" },
-  sheet: { maxHeight: "78%", paddingTop: 8 },
+  avoid: { flex: 1, justifyContent: "flex-end" },
+  backdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  sheet: { maxHeight: "78%", paddingTop: 8, width: "100%" },
   sheetHeader: {
     flexDirection: "row",
     alignItems: "center",

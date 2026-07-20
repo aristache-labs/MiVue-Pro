@@ -1,11 +1,13 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { BlurView } from "expo-blur";
 import { router, useNavigation } from "expo-router";
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -260,12 +262,12 @@ export default function LocalLibraryScreen() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
   const [deleting, setDeleting] = useState(false);
+  const [selectionActionsOpen, setSelectionActionsOpen] = useState(false);
 
   const refreshBusyRef = useRef(false);
   const actionGateRef = useRef(createUiActionGate());
-  const selectionBarH = selecting && selected.size > 0 ? 56 : 0;
-  const listBottomPad =
-    Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight) + selectionBarH;
+  const selectionBarH = 0;
+  const listBottomPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight) + selectionBarH;
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -316,6 +318,7 @@ export default function LocalLibraryScreen() {
   const exitSelection = useCallback(() => {
     setSelecting(false);
     setSelected(new Set());
+    setSelectionActionsOpen(false);
   }, []);
 
   const applyFilters = useCallback(
@@ -349,16 +352,19 @@ export default function LocalLibraryScreen() {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
       else next.add(uri);
+      setSelectionActionsOpen(next.size > 0);
       return next;
     });
   }, []);
 
   const selectAllFiltered = useCallback(() => {
     setSelected(new Set(filteredFiles.map((f) => f.uri)));
+    setSelectionActionsOpen(true);
   }, [filteredFiles]);
 
   const deselectAll = useCallback(() => {
     setSelected(new Set());
+    setSelectionActionsOpen(false);
   }, []);
 
   const confirmSingleDelete = useCallback(
@@ -684,46 +690,124 @@ export default function LocalLibraryScreen() {
         }}
       />
 
-      {selecting && selected.size > 0 ? (
-        <View
-          style={[
-            styles.selectionBar,
+      {selecting && selected.size > 0 && !selectionActionsOpen ? (
+        <Pressable
+          onPress={() => setSelectionActionsOpen(true)}
+          accessibilityRole="button"
+          accessibilityLabel={`Delete ${selected.size} local files`}
+          style={({ pressed }) => [
+            styles.selectionFab,
             {
-              backgroundColor: colors.surfaceElevated,
-              borderTopColor: colors.border,
-              bottom: tabBarHeight,
-              paddingBottom: 10,
+              backgroundColor: colors.danger,
+              bottom: tabBarHeight + 16,
+              opacity: pressed ? 0.85 : 1,
+              borderRadius: radius.lg,
             },
           ]}
         >
-          <Text style={[styles.selectionMeta, { color: colors.text }]} numberOfLines={1}>
-            {selected.size} selected · {formatSelectionSize(selectedBytes)}
+          <Ionicons name="trash-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
+          <Text style={{ color: "#ffffff", fontFamily: Type.fontBold, fontSize: 15 }}>
+            Delete local · {selected.size}
           </Text>
+        </Pressable>
+      ) : null}
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={selecting && selected.size > 0 && selectionActionsOpen}
+        statusBarTranslucent
+        onRequestClose={() => setSelectionActionsOpen(false)}
+      >
+        <View style={styles.selectionOverlay}>
+          {Platform.OS === "ios" ? (
+            <BlurView intensity={36} tint="dark" style={StyleSheet.absoluteFill} />
+          ) : null}
           <Pressable
-            onPress={confirmBatchDelete}
-            disabled={deleting}
-            accessibilityRole="button"
-            accessibilityLabel={`Delete ${selected.size} local files`}
-            style={({ pressed }) => [
-              styles.deleteLocalBtn,
+            style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(8,12,20,0.55)" }]}
+            onPress={() => setSelectionActionsOpen(false)}
+            accessibilityLabel="Keep selecting"
+          />
+          <View
+            style={[
+              styles.selectionCard,
               {
-                borderColor: colors.danger,
-                borderRadius: radius.sm,
-                opacity: deleting || pressed ? 0.6 : 1,
-                minHeight: LOCAL_ACTION_HIT,
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderRadius: radius.lg,
               },
             ]}
+            accessibilityViewIsModal
           >
-            {deleting ? (
-              <ActivityIndicator size="small" color={colors.danger} />
-            ) : (
-              <Text style={{ color: colors.danger, fontFamily: Type.fontSemi, fontSize: 14 }}>
-                Delete local
+            <Text style={[styles.selectionTitle, { color: colors.text }]}>
+              {selected.size} selected
+            </Text>
+            <Text style={[styles.selectionSub, { color: colors.textMuted }]}>
+              {formatSelectionSize(selectedBytes)} on this device
+            </Text>
+            <Text style={[styles.selectionHint, { color: colors.textFaint }]}>
+              Camera files will not be deleted.
+            </Text>
+            <Pressable
+              onPress={confirmBatchDelete}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel={`Delete ${selected.size} local files`}
+              style={({ pressed }) => [
+                styles.deleteLocalBtn,
+                {
+                  backgroundColor: colors.dangerSoft,
+                  borderColor: colors.danger,
+                  borderRadius: radius.md,
+                  opacity: deleting || pressed ? 0.7 : 1,
+                  minHeight: LOCAL_ACTION_HIT,
+                },
+              ]}
+            >
+              {deleting ? (
+                <ActivityIndicator size="small" color={colors.danger} />
+              ) : (
+                <>
+                  <Ionicons name="trash-outline" size={18} color={colors.danger} style={{ marginRight: 8 }} />
+                  <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 16 }}>
+                    Delete local
+                  </Text>
+                </>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => setSelectionActionsOpen(false)}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Keep selecting"
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.selectionSecondary,
+                { opacity: pressed ? 0.65 : 1, minHeight: LOCAL_ACTION_HIT },
+              ]}
+            >
+              <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                Keep selecting
               </Text>
-            )}
-          </Pressable>
+            </Pressable>
+            <Pressable
+              onPress={deselectAll}
+              disabled={deleting}
+              accessibilityRole="button"
+              accessibilityLabel="Deselect all"
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.selectionSecondary,
+                { opacity: pressed ? 0.65 : 1, minHeight: 40 },
+              ]}
+            >
+              <Text style={{ color: colors.textMuted, fontFamily: Type.font, fontSize: 14 }}>
+                Deselect all
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      ) : null}
+      </Modal>
 
       <LocalFilterSheet
         visible={filterOpen}
@@ -865,25 +949,59 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  selectionBar: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    paddingHorizontal: 16,
-    paddingTop: 10,
-    borderTopWidth: StyleSheet.hairlineWidth,
-  },
-  selectionMeta: { flex: 1, fontFamily: Type.fontSemi, fontSize: 14 },
-  deleteLocalBtn: {
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 14,
+  selectionOverlay: {
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    minWidth: 110,
+    paddingHorizontal: 28,
+  },
+  selectionCard: {
+    width: "100%",
+    maxWidth: 360,
+    paddingHorizontal: 20,
+    paddingTop: 22,
+    paddingBottom: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    zIndex: 2,
+  },
+  selectionTitle: { fontSize: 20, fontFamily: Type.fontBold, textAlign: "center" },
+  selectionSub: { fontSize: 14, fontFamily: Type.font, marginTop: 6, textAlign: "center" },
+  selectionHint: { fontSize: 12, fontFamily: Type.font, marginTop: 4, marginBottom: 18, textAlign: "center" },
+  deleteLocalBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 16,
+  },
+  selectionSecondary: {
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    marginTop: 4,
+  },
+  selectionFab: {
+    position: "absolute",
+    alignSelf: "center",
+    left: 24,
+    right: 24,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: LOCAL_ACTION_HIT,
+    paddingHorizontal: 18,
+    zIndex: 5,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.35,
+        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 6 },
+      },
+      android: { elevation: 8 },
+      default: {},
+    }),
   },
 });
