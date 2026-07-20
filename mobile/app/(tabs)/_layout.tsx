@@ -2,7 +2,7 @@ import React from "react";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { BlurView } from "expo-blur";
 import { Link, Tabs } from "expo-router";
-import { Platform, Pressable, StyleSheet } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 
 import Colors from "@/constants/Colors";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -14,6 +14,22 @@ function TabBarIcon(props: {
   readonly color: string;
 }) {
   return <Ionicons size={23} name={props.name} color={props.color} />;
+}
+
+function HeaderTitle({ title, subtitle }: { readonly title: string; readonly subtitle?: string }) {
+  const { colors } = useAppTheme();
+  return (
+    <View style={styles.headerTitleWrap}>
+      <Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+        {title}
+      </Text>
+      {subtitle ? (
+        <Text style={[styles.headerSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          {subtitle}
+        </Text>
+      ) : null}
+    </View>
+  );
 }
 
 export default function TabLayout() {
@@ -71,7 +87,9 @@ export default function TabLayout() {
       <Tabs.Screen
         name="local"
         options={{
-          title: "Local",
+          title: "Local library",
+          tabBarLabel: "Local",
+          headerTitle: () => <HeaderTitle title="Local library" subtitle="Saved on this device" />,
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? "folder-open" : "folder-open-outline"} color={color} />
           ),
@@ -80,7 +98,11 @@ export default function TabLayout() {
       <Tabs.Screen
         name="two"
         options={{
-          title: "Queue",
+          title: "Download queue",
+          tabBarLabel: "Queue",
+          headerTitle: () => (
+            <HeaderTitle title="Download queue" subtitle="One active transfer at a time" />
+          ),
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? "cloud-download" : "cloud-download-outline"} color={color} />
           ),
@@ -89,3 +111,9 @@ export default function TabLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  headerTitleWrap: { alignItems: Platform.OS === "ios" ? "center" : "flex-start" },
+  headerTitle: { fontSize: 17, fontFamily: Type.fontBold },
+  headerSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 1 },
+});

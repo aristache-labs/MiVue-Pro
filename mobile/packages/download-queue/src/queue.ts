@@ -211,6 +211,13 @@ export class DownloadQueue {
     }
 
     await this.persist();
+
+    // Successful transfers leave the queue — the file lives in Local.
+    const final = this.items.find((entry) => entry.id === item.id);
+    if (final?.status === "completed") {
+      this.items = this.items.filter((entry) => entry.id !== item.id);
+      await this.persist();
+    }
   }
 
   private patch(id: string, patch: Partial<QueueItem>): void {

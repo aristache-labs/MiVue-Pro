@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import * as FileSystem from "expo-file-system/legacy";
 import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -12,7 +13,8 @@ import {
   loadSiblingNmea,
   sampleIndexAtTime,
 } from "@/components/gps";
-import { IconButton } from "@/components/ui";
+import { recordingMetaChips } from "@/components/mediaMeta";
+import { IconButton, MediaMetaRow } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { GpsSample } from "@/packages/parsers/src/index";
@@ -32,6 +34,33 @@ export default function PlayerScreen() {
     name.toLowerCase().endsWith(".jpg") ||
     name.toLowerCase().endsWith(".jpeg");
 
+  const [sizeBytes, setSizeBytes] = useState(0);
+  const [durationSec, setDurationSec] = useState<number | undefined>();
+
+  useEffect(() => {
+    if (!uri) return;
+    void (async () => {
+      try {
+        const info = await FileSystem.getInfoAsync(uri);
+        if (info.exists && "size" in info && typeof info.size === "number") {
+          setSizeBytes(info.size);
+        }
+      } catch {
+        setSizeBytes(0);
+      }
+    })();
+  }, [uri]);
+
+  const metaChips = useMemo(
+    () =>
+      recordingMetaChips({
+        name,
+        sizeBytes: sizeBytes > 0 ? sizeBytes : undefined,
+        durationSeconds: durationSec,
+      }),
+    [name, sizeBytes, durationSec],
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ headerShown: false, presentation: "fullScreenModal" }} />
@@ -42,22 +71,28 @@ export default function PlayerScreen() {
           {
             backgroundColor: colors.bg,
             paddingTop: Math.max(insets.top, 8),
-            borderBottomColor: colors.border,
           },
         ]}
       >
-        <IconButton icon="close" tone="neutral" onPress={() => router.back()} accessibilityLabel="Close player" />
-        <Text style={[styles.topBarTitle, { color: colors.text }]} numberOfLines={1}>
-          {name}
-        </Text>
+        <IconButton icon="close" tone="ghost" onPress={() => router.back()} accessibilityLabel="Close player" />
+        <View style={styles.topBarCenter}>
+          <Text style={[styles.topBarTitle, { color: colors.text }]} numberOfLines={1}>
+            {name}
+          </Text>
+          {metaChips.length > 0 ? (
+            <View style={styles.metaWrap}>
+              <MediaMetaRow chips={metaChips} compact />
+            </View>
+          ) : null}
+        </View>
         <IconButton
           icon="share-outline"
-          tone="neutral"
+          tone="ghost"
           onPress={() =>
             void shareLocalFile({
               name,
               uri,
-              sizeBytes: 0,
+              sizeBytes,
               kind: isVideo ? "video" : isImage ? "image" : "other",
             })
           }
@@ -66,20 +101,22 @@ export default function PlayerScreen() {
       </View>
 
       <ScrollView
-        style={styles.scroll}
+        style={[styles.scroll, { backgroundColor: colors.bg }]}
         contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
         bounces={false}
       >
         {uri && isImage ? (
           <Image
             source={{ uri }}
-            style={[styles.media, { backgroundColor: colors.surface }]}
+            style={[styles.media, { backgroundColor: colors.bg }]}
             resizeMode="contain"
             accessibilityLabel={name}
           />
         ) : null}
 
-        {uri && isVideo ? <VideoWithGps uri={uri} /> : null}
+        {uri && isVideo ? (
+          <VideoWithGps uri={uri} onDuration={(sec) => setDurationSec(sec)} />
+        ) : null}
 
         {!uri || (!isVideo && !isImage) ? (
           <View style={styles.centerMessage}>
@@ -94,7 +131,13 @@ export default function PlayerScreen() {
   );
 }
 
-function VideoWithGps({ uri }: { readonly uri: string }) {
+function VideoWithGps({
+  uri,
+  onDuration,
+}: {
+  readonly uri: string;
+  readonly onDuration: (seconds: number) => void;
+}) {
   const { colors, spacing } = useAppTheme();
   const player = useVideoPlayer(uri, (instance) => {
     instance.loop = false;
@@ -103,7 +146,7 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
 
   const [samples, setSamples] = useState<readonly GpsSample[]>([]);
   const [activeIndex, setActiveIndex] = useState(0);
-  const [gpsStatus, setGpsStatus] = useState("Loading GPS…");
+  const [videoTimeSec, setVideoTimeSec] = useState(0);
   const [mapEnabled, setMapEnabled] = useState(false);
 
   useEffect(() => {
@@ -111,13 +154,7 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
     void (async () => {
       const loaded = await loadSiblingNmea(uri);
       if (cancelled) return;
-      if (loaded && loaded.length > 0) {
-        setSamples(loaded);
-        setGpsStatus(`${loaded.length} points · synced`);
-      } else {
-        setSamples([]);
-        setGpsStatus("No GPS data");
-      }
+      setSamples(loaded && loaded.length > 0 ? loaded : []);
     })();
     return () => {
       cancelled = true;
@@ -125,33 +162,42 @@ function VideoWithGps({ uri }: { readonly uri: string }) {
   }, [uri]);
 
   useEffect(() => {
-    if (samples.length === 0) return;
     const id = setInterval(() => {
       try {
-        const t = player.currentTime;
-        setActiveIndex(sampleIndexAtTime(samples, typeof t === "number" ? t : 0));
+        const d = player.duration;
+        if (typeof d === "number" && Number.isFinite(d) && d > 0) {
+          onDuration(d);
+        }
+        const t = typeof player.currentTime === "number" ? player.currentTime : 0;
+        setVideoTimeSec(t);
+        if (samples.length > 0) {
+          setActiveIndex(sampleIndexAtTime(samples, t));
+        }
       } catch {
         // player may be disposed
       }
     }, 250);
     return () => clearInterval(id);
-  }, [player, samples]);
+  }, [player, samples, onDuration]);
+
+  const frame = samples[activeIndex];
 
   return (
-    <View>
-      <View style={[styles.media, { backgroundColor: colors.surface }]}>
+    <View style={{ backgroundColor: colors.bg }}>
+      <View style={[styles.media, { backgroundColor: colors.bg }]}>
         <VideoView
           style={styles.videoView}
           player={player}
           allowsFullscreen
           allowsPictureInPicture
           nativeControls
+          contentFit="contain"
         />
       </View>
 
       <View style={[styles.gpsBlock, { padding: spacing.md, backgroundColor: colors.bg }]}>
         <Text style={[styles.gpsTitle, { color: colors.text }]}>GPS track</Text>
-        <TelemetryPanel samples={samples} activeIndex={activeIndex} status={gpsStatus} />
+        <TelemetryPanel frame={frame} sampleCount={samples.length} videoTimeSec={videoTimeSec} />
 
         <View style={{ height: spacing.sm }} />
 
@@ -215,19 +261,18 @@ const styles = StyleSheet.create({
   centerText: { textAlign: "center", marginTop: 12, fontSize: 13, lineHeight: 18, fontFamily: Type.font },
   topBar: {
     flexDirection: "row",
-    alignItems: "center",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    paddingBottom: 6,
-    paddingHorizontal: 8,
-    borderBottomWidth: StyleSheet.hairlineWidth,
+    paddingBottom: 8,
+    paddingHorizontal: 4,
   },
+  topBarCenter: { flex: 1, marginHorizontal: 4, alignItems: "center" },
   topBarTitle: {
     fontSize: 14,
     fontFamily: Type.fontSemi,
-    flex: 1,
     textAlign: "center",
-    marginHorizontal: 8,
   },
+  metaWrap: { marginTop: 6, width: "100%", maxWidth: 340 },
   gpsBlock: { gap: 0 },
   gpsTitle: { fontSize: 14, fontFamily: Type.fontSemi, marginBottom: 8 },
   noGps: {

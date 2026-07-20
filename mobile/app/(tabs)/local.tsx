@@ -1,8 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
+import { useMemo } from "react";
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { Badge, Card, IconButton, PrimaryButton } from "@/components/ui";
+import { recordingMetaChips } from "@/components/mediaMeta";
+import { Badge, Card, IconButton, MediaMetaRow, PrimaryButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
@@ -15,7 +17,16 @@ function kindIcon(kind: LocalMediaFile["kind"]): keyof typeof Ionicons.glyphMap 
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
-  const { localFiles, refreshLocalFiles, shareLocalFile, deleteLocalFile, lastError, demoMode } = useDemoMode();
+  const { localFiles, refreshLocalFiles, shareLocalFile, deleteLocalFile, lastError, demoMode, files } =
+    useDemoMode();
+
+  const durationByName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of files) {
+      if (f.durationSeconds !== undefined) map.set(f.name, f.durationSeconds);
+    }
+    return map;
+  }, [files]);
 
   const confirmDelete = (file: LocalMediaFile) => {
     Alert.alert("Delete file?", `${file.name} will be removed from this device. This cannot be undone.`, [
@@ -26,13 +37,11 @@ export default function LocalLibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>Local library</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>Saved on this device</Text>
+      {demoMode ? (
+        <View style={styles.headerRow}>
+          <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
         </View>
-        {demoMode ? <Badge label="Demo Mode" tone="demo" icon="flask-outline" /> : null}
-      </View>
+      ) : null}
 
       <Pressable
         onPress={() => void refreshLocalFiles()}
@@ -61,26 +70,37 @@ export default function LocalLibraryScreen() {
             subtitle="Download from Library, then check back here."
           />
         }
-        renderItem={({ item }) => (
-          <Card>
-            <View style={styles.row}>
-              <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
-                <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
+        renderItem={({ item }) => {
+          const chips = recordingMetaChips({
+            name: item.name,
+            sizeBytes: item.sizeBytes,
+            durationSeconds: durationByName.get(item.name),
+          });
+
+          return (
+            <Card>
+              <View style={styles.row}>
+                <View style={[styles.iconSquare, { backgroundColor: colors.brandSoft, borderRadius: radius.sm }]}>
+                  <Ionicons name={kindIcon(item.kind)} size={18} color={colors.brand} />
+                </View>
+                <View style={styles.body}>
+                  <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
+                    {item.name}
+                  </Text>
+                  {chips.length > 0 ? (
+                    <View style={styles.metaRow}>
+                      <MediaMetaRow chips={chips} compact />
+                    </View>
+                  ) : (
+                    <Text style={[styles.metaFallback, { color: colors.textMuted }]}>{item.kind}</Text>
+                  )}
+                </View>
               </View>
-              <View style={styles.body}>
-                <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
-                  {item.name}
-                </Text>
-                <Text style={[styles.meta, { color: colors.textMuted }]}>
-                  {item.kind} · {Math.round(item.sizeBytes / 1024)} KiB
-                </Text>
-              </View>
-            </View>
-            <View style={[styles.actions, { marginTop: spacing.md }]}>
-              <View style={{ flex: 1 }}>
+              <View style={[styles.actions, { marginTop: spacing.md }]}>
                 <PrimaryButton
                   label={item.kind === "image" ? "View" : "Play"}
                   icon={item.kind === "image" ? "eye-outline" : "play"}
+                  compact
                   onPress={() => {
                     const href =
                       `/player?uri=${encodeURIComponent(item.uri)}&name=${encodeURIComponent(item.name)}&kind=${item.kind}` as const;
@@ -88,22 +108,22 @@ export default function LocalLibraryScreen() {
                   }}
                   accessibilityLabel={`Open ${item.name}`}
                 />
+                <IconButton
+                  icon="share-outline"
+                  tone="neutral"
+                  onPress={() => void shareLocalFile(item)}
+                  accessibilityLabel={`Share ${item.name}`}
+                />
+                <IconButton
+                  icon="trash-outline"
+                  tone="danger"
+                  onPress={() => confirmDelete(item)}
+                  accessibilityLabel={`Delete ${item.name}`}
+                />
               </View>
-              <IconButton
-                icon="share-outline"
-                tone="neutral"
-                onPress={() => void shareLocalFile(item)}
-                accessibilityLabel={`Share ${item.name}`}
-              />
-              <IconButton
-                icon="trash-outline"
-                tone="danger"
-                onPress={() => confirmDelete(item)}
-                accessibilityLabel={`Delete ${item.name}`}
-              />
-            </View>
-          </Card>
-        )}
+            </Card>
+          );
+        }}
       />
     </View>
   );
@@ -111,24 +131,23 @@ export default function LocalLibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  title: { fontSize: 20, fontFamily: Type.fontBold, marginBottom: 2 },
-  subtitle: { fontSize: 12, fontFamily: Type.font },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "flex-end", minHeight: 0 },
   refreshBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     borderWidth: StyleSheet.hairlineWidth,
     paddingVertical: 10,
-    marginTop: 14,
+    marginTop: 4,
     marginBottom: 6,
   },
   refreshText: { fontSize: 13, fontFamily: Type.fontSemi },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
   row: { flexDirection: "row", alignItems: "center" },
   iconSquare: { width: 40, height: 40, alignItems: "center", justifyContent: "center", marginRight: 12 },
-  body: { flex: 1 },
-  name: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 3 },
-  meta: { fontSize: 12, fontFamily: Type.mono },
+  body: { flex: 1, minWidth: 0 },
+  name: { fontFamily: Type.fontSemi, fontSize: 14, marginBottom: 4 },
+  metaRow: { marginTop: 0 },
+  metaFallback: { fontSize: 12, fontFamily: Type.mono },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
 });

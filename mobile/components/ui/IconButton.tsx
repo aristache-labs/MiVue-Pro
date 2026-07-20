@@ -3,7 +3,7 @@ import { Pressable, StyleSheet } from "react-native";
 
 import { useAppTheme } from "@/constants/Theme";
 
-export type IconButtonTone = "neutral" | "brand" | "danger";
+export type IconButtonTone = "neutral" | "brand" | "danger" | "ghost";
 
 interface IconButtonProps {
   readonly icon: keyof typeof Ionicons.glyphMap;
@@ -29,6 +29,7 @@ export function IconButton({
     neutral: { fg: colors.textMuted, bg: colors.surfaceMuted },
     brand: { fg: colors.brand, bg: colors.brandSoft },
     danger: { fg: colors.danger, bg: colors.dangerSoft },
+    ghost: { fg: colors.text, bg: "transparent" },
   };
   const { fg, bg } = toneColors[tone];
 

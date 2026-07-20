@@ -1,9 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, StyleSheet, Text, View } from "react-native";
 
-import { Badge, type BadgeTone, Card, IconButton, PrimaryButton } from "@/components/ui";
+import { formatBytesShort, formatEta, recordingMetaChips } from "@/components/mediaMeta";
+import { Badge, type BadgeTone, Card, IconButton, MediaMetaRow, PrimaryButton } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -12,12 +13,6 @@ import type { QueueItem, QueueItemStatus } from "@/packages/local-db/src/index";
 
 function isSidecarNmea(name: string): boolean {
   return /\.nmea$/i.test(name);
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KiB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 
 const STATUS_TONE: Record<QueueItemStatus, BadgeTone> = {
@@ -55,28 +50,48 @@ export default function QueueScreen() {
     removeFromQueue,
     lastError,
     downloadDir,
+    files,
   } = useDemoMode();
 
-  // NMEA sidecars download with the video but stay out of the visible queue.
+  const startedAtRef = useRef(new Map<string, number>());
+  const [, setTick] = useState(0);
+
+  // Hide NMEA sidecars and completed transfers (completed files live in Local).
   const visibleItems = useMemo(
-    () => queueItems.filter((item) => !isSidecarNmea(item.localName)),
+    () =>
+      queueItems.filter(
+        (item) => !isSidecarNmea(item.localName) && item.status !== "completed",
+      ),
     [queueItems],
   );
 
+  useEffect(() => {
+    const hasActive = visibleItems.some((i) => i.status === "active");
+    if (!hasActive) return;
+    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [visibleItems]);
+
+  const durationByName = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const f of files) {
+      if (f.durationSeconds !== undefined) map.set(f.name, f.durationSeconds);
+    }
+    return map;
+  }, [files]);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.bg, padding: spacing.lg }]}>
-      <View style={styles.headerRow}>
-        <View>
-          <Text style={[styles.title, { color: colors.text }]}>Download queue</Text>
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>One active transfer at a time</Text>
+      {demoMode ? (
+        <View style={styles.headerRow}>
+          <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
         </View>
-        {demoMode ? <Badge label="Demo Mode" tone="demo" icon="flask-outline" /> : null}
-      </View>
+      ) : null}
 
       {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
 
       <FlatList
-        contentContainerStyle={{ paddingTop: spacing.md, paddingBottom: spacing.xxl }}
+        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: spacing.xxl }}
         data={visibleItems}
         keyExtractor={(item: QueueItem) => item.id}
         ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
@@ -104,6 +119,24 @@ export default function QueueScreen() {
                 ? Math.min(100, Math.round((received / total) * 100))
                 : 0;
 
+          if (item.status === "active" && received > 0 && !startedAtRef.current.has(item.id)) {
+            startedAtRef.current.set(item.id, Date.now());
+          }
+          if (item.status !== "active") {
+            startedAtRef.current.delete(item.id);
+          }
+          const startedAt = startedAtRef.current.get(item.id);
+          const eta =
+            item.status === "active" && startedAt !== undefined
+              ? formatEta(received, total, startedAt)
+              : undefined;
+
+          const chips = recordingMetaChips({
+            name: item.localName,
+            sizeBytes: item.expectedBytes > 0 ? item.expectedBytes : undefined,
+            durationSeconds: durationByName.get(item.localName),
+          });
+
           return (
             <Card>
               <View style={styles.rowTop}>
@@ -112,9 +145,17 @@ export default function QueueScreen() {
                 </Text>
                 <Badge label={STATUS_LABEL[item.status]} tone={STATUS_TONE[item.status]} icon={STATUS_ICON[item.status]} />
               </View>
+
+              {chips.length > 0 ? (
+                <View style={styles.metaRow}>
+                  <MediaMetaRow chips={chips} compact />
+                </View>
+              ) : null}
+
               <Text style={[styles.meta, { color: colors.textMuted }]}>
                 {position !== undefined ? `#${position} in queue · ` : ""}
-                {total > 0 ? `${formatBytes(received)} / ${formatBytes(total)}` : formatBytes(item.expectedBytes)}
+                {total > 0 ? `${formatBytesShort(received)} / ${formatBytesShort(total)}` : formatBytesShort(item.expectedBytes)}
+                {eta ? ` · ETA ${eta}` : ""}
               </Text>
 
               {item.status === "active" ? (
@@ -124,7 +165,7 @@ export default function QueueScreen() {
                     <Text style={[styles.waitingText, { color: colors.textMuted }]}>Starting download…</Text>
                   </View>
                 ) : (
-                  <ProgressBar percent={percent} label={`Downloading ${percent}%`} />
+                  <ProgressBar percent={percent} label={`Downloading ${percent}%${eta ? ` · ETA ${eta}` : ""}`} />
                 )
               ) : null}
 
@@ -137,18 +178,17 @@ export default function QueueScreen() {
               <View style={[styles.actions, { marginTop: spacing.md }]}>
                 {item.status === "completed" ? (
                   <>
-                    <View style={{ flex: 1 }}>
-                      <PrimaryButton
-                        label="Open / Play"
-                        icon="play"
-                        onPress={() => {
-                          const href =
-                            `/player?uri=${encodeURIComponent(localUri)}&name=${encodeURIComponent(item.localName)}&kind=${kind}` as const;
-                          router.push(href as Parameters<typeof router.push>[0]);
-                        }}
-                        accessibilityLabel={`Open ${item.localName} in player`}
-                      />
-                    </View>
+                    <PrimaryButton
+                      label="Play"
+                      icon="play"
+                      compact
+                      onPress={() => {
+                        const href =
+                          `/player?uri=${encodeURIComponent(localUri)}&name=${encodeURIComponent(item.localName)}&kind=${kind}` as const;
+                        router.push(href as Parameters<typeof router.push>[0]);
+                      }}
+                      accessibilityLabel={`Open ${item.localName} in player`}
+                    />
                     <IconButton
                       icon="share-outline"
                       tone="neutral"
@@ -164,6 +204,7 @@ export default function QueueScreen() {
                       label="Cancel"
                       icon="close"
                       variant="outline"
+                      compact
                       onPress={() => void cancelDownload(item.id)}
                       accessibilityLabel={`Cancel ${item.localName}`}
                     />
@@ -176,6 +217,7 @@ export default function QueueScreen() {
                       label="Dismiss"
                       icon="trash-outline"
                       variant="outline"
+                      compact
                       onPress={() => void removeFromQueue(item.id)}
                       accessibilityLabel={`Dismiss ${item.localName}`}
                     />
@@ -192,14 +234,13 @@ export default function QueueScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" },
-  title: { fontSize: 20, fontFamily: Type.fontBold, marginBottom: 2 },
-  subtitle: { fontSize: 12, fontFamily: Type.font },
-  rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 6, gap: 8 },
-  name: { fontFamily: Type.fontSemi, fontSize: 14, flex: 1 },
-  meta: { fontSize: 12, fontFamily: Type.mono },
-  waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 10 },
-  waitingText: { fontSize: 12, fontFamily: Type.font },
-  error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 8 },
+  headerRow: { flexDirection: "row", alignItems: "flex-start", justifyContent: "flex-end", minHeight: 0 },
+  metaRow: { marginTop: 8, marginBottom: 4 },
+  name: { fontFamily: Type.fontSemi, fontSize: 14, flex: 1, marginRight: 8 },
+  meta: { fontSize: 12, fontFamily: Type.mono, marginTop: 4 },
+  error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
+  rowTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   actions: { flexDirection: "row", alignItems: "center", gap: 8 },
+  waitingRow: { flexDirection: "row", alignItems: "center", gap: 8, marginTop: 8 },
+  waitingText: { fontSize: 12, fontFamily: Type.font },
 });

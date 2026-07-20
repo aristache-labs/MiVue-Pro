@@ -54,16 +54,18 @@ test("queue processes one active transfer and persists", async () => {
     expectedBytes: 100,
   });
 
-  await waitUntil(() => queue.list().every((i) => i.status === "completed" || i.status === "failed"));
+  await waitUntil(() => queue.list().length === 0);
+  await waitUntil(async () => (await sink.exists("/downloads/B.MP4")) === true);
 
   assert.equal(transport.maxConcurrentGets, 1);
-  assert.equal(queue.list().filter((i) => i.status === "completed").length, 2);
   assert.ok(await sink.exists("/downloads/A.MP4"));
   assert.ok(await sink.exists("/downloads/B.MP4"));
+  // Completed transfers leave the queue (Local library owns the files).
+  assert.equal(queue.list().length, 0);
 
   const reloaded = new DownloadQueue({ store, transport, sink, downloadDir: "/downloads" });
   await reloaded.init();
-  assert.equal(reloaded.list().length, 2);
+  assert.equal(reloaded.list().length, 0);
 });
 
 test("queue rejects duplicate active/queued paths", async () => {
@@ -125,9 +127,7 @@ test("queue prefers HEAD size over list expectedBytes", async () => {
     localName: "C.MP4",
     expectedBytes: 196608,
   });
-  await waitUntil(() => queue.list().every((i) => i.status === "completed" || i.status === "failed"));
-  assert.equal(queue.list()[0]?.status, "completed");
-  assert.equal(queue.list()[0]?.expectedBytes, 80);
+  await waitUntil(() => queue.list().length === 0);
   assert.ok(await sink.exists("/downloads/C.MP4"));
 });
 
@@ -151,7 +151,8 @@ test("cancel a queued item marks it cancelled without running it", async () => {
   await queue.cancel(queuedItem!.id);
   assert.equal(queue.list().find((i) => i.id === queuedItem!.id)?.status, "cancelled");
 
-  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "completed");
+  // A finishes and is auto-removed from the queue; B stays cancelled.
+  await waitUntil(() => queue.list().every((i) => i.localName !== "A.MP4"));
   assert.equal(queue.list().find((i) => i.localName === "B.MP4")?.status, "cancelled");
 });
 
@@ -200,9 +201,12 @@ test("cancel the active item aborts the transport and marks cancelled", async ()
   assert.equal(queue.list().find((i) => i.localName === "A.MP4")?.status, "cancelled");
 });
 
-async function waitUntil(predicate: () => boolean, timeoutMs = 2_000): Promise<void> {
+async function waitUntil(
+  predicate: (() => boolean) | (() => Promise<boolean>),
+  timeoutMs = 2_000,
+): Promise<void> {
   const started = Date.now();
-  while (!predicate()) {
+  while (!(await predicate())) {
     if (Date.now() - started > timeoutMs) throw new Error("timeout");
     await new Promise((r) => setTimeout(r, 10));
   }
