@@ -1,16 +1,25 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { router } from "expo-router";
-import { useMemo } from "react";
+import { router, useNavigation } from "expo-router";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
+  ActivityIndicator,
   Alert,
+  Platform,
   Pressable,
+  RefreshControl,
   SectionList,
   StyleSheet,
   Text,
   View,
 } from "react-native";
 
-import { formatDuration, parseRecordedParts } from "@/components/mediaMeta";
+import { formatDuration } from "@/components/mediaMeta";
+import {
+  buildLocalLibrarySections,
+  formatCompactDateTime,
+  LOCAL_LIBRARY_STICKY_HEADERS,
+} from "@/components/local/localLibrarySections";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VideoThumbnail } from "@/components/VideoThumbnail";
@@ -22,63 +31,6 @@ import type { FileCategory } from "@/packages/parsers/src/index";
 const THUMB_W = 88;
 const THUMB_H = 66;
 
-interface LocalSection {
-  readonly title: string;
-  readonly countLabel: string;
-  readonly dayKey: string;
-  readonly data: readonly LocalMediaFile[];
-}
-
-function dayKeyFromName(name: string): string {
-  const parts = parseRecordedParts(name);
-  if (!parts) return "unknown";
-  return parts.isoLocal.slice(0, 10);
-}
-
-function formatSectionHeading(dayKey: string): string {
-  if (dayKey === "unknown") return "NECUNOSCUT";
-  const d = new Date(`${dayKey}T12:00:00`);
-  if (!Number.isFinite(d.getTime())) return dayKey.toUpperCase();
-  return d
-    .toLocaleDateString("ro-RO", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-    .toUpperCase();
-}
-
-function formatCountLabel(count: number): string {
-  return count === 1 ? "1 fișier" : `${count} fișiere`;
-}
-
-/** Compact localized card line: `19 iul. 2026 · 13:50`. */
-function formatCompactDateTime(name: string): string | undefined {
-  const parts = parseRecordedParts(name);
-  if (!parts) return undefined;
-  const d = new Date(`${parts.isoLocal.replace(" ", "T")}`);
-  if (!Number.isFinite(d.getTime())) {
-    return `${parts.date} · ${parts.time.slice(0, 5)}`;
-  }
-  const date = d.toLocaleDateString("ro-RO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return `${date} · ${parts.time.slice(0, 5)}`;
-}
-
-function formatSizeMb(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  const mb = bytes / (1024 * 1024);
-  if (mb < 0.1) {
-    const kb = bytes / 1024;
-    return `${kb.toFixed(0)} KB`;
-  }
-  return `${mb.toFixed(1).replace(".", ",")} MB`;
-}
-
 function openLocalMedia(item: LocalMediaFile): void {
   const href =
     `/player?uri=${encodeURIComponent(item.uri)}&name=${encodeURIComponent(item.name)}&kind=${item.kind}` as const;
@@ -87,8 +39,12 @@ function openLocalMedia(item: LocalMediaFile): void {
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius, scheme } = useAppTheme();
+  const navigation = useNavigation();
   const { localFiles, refreshLocalFiles, shareLocalFile, deleteLocalFile, lastError, demoMode, files } =
     useDemoMode();
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshBusyRef = useRef(false);
 
   const metaByName = useMemo(() => {
     const map = new Map<string, { durationSeconds?: number; category: FileCategory }>();
@@ -101,37 +57,50 @@ export default function LocalLibraryScreen() {
     return map;
   }, [files]);
 
-  const sections = useMemo<LocalSection[]>(() => {
-    const sorted = [...localFiles].sort((a, b) => {
-      const ka = dayKeyFromName(a.name);
-      const kb = dayKeyFromName(b.name);
-      if (ka !== kb) {
-        if (ka === "unknown") return 1;
-        if (kb === "unknown") return -1;
-        return kb.localeCompare(ka);
-      }
-      const pa = parseRecordedParts(a.name);
-      const pb = parseRecordedParts(b.name);
-      const ta = pa?.isoLocal ?? a.name;
-      const tb = pb?.isoLocal ?? b.name;
-      return tb.localeCompare(ta);
-    });
+  const sections = useMemo(() => buildLocalLibrarySections(localFiles), [localFiles]);
 
-    const map = new Map<string, LocalMediaFile[]>();
-    for (const file of sorted) {
-      const key = dayKeyFromName(file.name);
-      const list = map.get(key);
-      if (list) list.push(file);
-      else map.set(key, [file]);
+  const runRefresh = useCallback(async () => {
+    if (refreshBusyRef.current) return;
+    refreshBusyRef.current = true;
+    setRefreshing(true);
+    try {
+      await refreshLocalFiles();
+      void AccessibilityInfo.announceForAccessibility("Local library refreshed");
+    } catch {
+      void AccessibilityInfo.announceForAccessibility("Local library refresh failed");
+    } finally {
+      refreshBusyRef.current = false;
+      setRefreshing(false);
     }
+  }, [refreshLocalFiles]);
 
-    return [...map.entries()].map(([dayKey, data]) => ({
-      dayKey,
-      title: formatSectionHeading(dayKey),
-      countLabel: formatCountLabel(data.length),
-      data,
-    }));
-  }, [localFiles]);
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerRight: () => (
+        <Pressable
+          onPress={() => void runRefresh()}
+          disabled={refreshing}
+          accessibilityRole="button"
+          accessibilityLabel="Refresh local library"
+          accessibilityState={{ busy: refreshing, disabled: refreshing }}
+          hitSlop={8}
+          style={({ pressed }) => [
+            styles.headerRefresh,
+            { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
+          ]}
+        >
+          {refreshing ? (
+            <ActivityIndicator size="small" color={colors.textMuted} />
+          ) : (
+            <Ionicons name="refresh" size={22} color={colors.textMuted} />
+          )}
+        </Pressable>
+      ),
+      headerRightContainerStyle: {
+        paddingRight: Platform.OS === "ios" ? 8 : 12,
+      },
+    });
+  }, [navigation, runRefresh, refreshing, colors.textMuted]);
 
   const confirmDelete = (file: LocalMediaFile) => {
     Alert.alert("Delete file?", `${file.name} will be removed from this device. This cannot be undone.`, [
@@ -141,37 +110,31 @@ export default function LocalLibraryScreen() {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.bg, paddingHorizontal: spacing.lg }]}>
-      {demoMode ? (
-        <View style={[styles.headerRow, { paddingTop: spacing.lg }]}>
-          <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
-        </View>
-      ) : (
-        <View style={{ height: spacing.md }} />
-      )}
-
-      <Pressable
-        onPress={() => void refreshLocalFiles()}
-        accessibilityRole="button"
-        accessibilityLabel="Refresh local library"
-        style={({ pressed }) => [
-          styles.refreshBtn,
-          { borderColor: colors.border, borderRadius: radius.sm, opacity: pressed ? 0.7 : 1 },
-        ]}
-      >
-        <Ionicons name="refresh" size={15} color={colors.textMuted} style={{ marginRight: 6 }} />
-        <Text style={[styles.refreshText, { color: colors.textMuted }]}>Refresh</Text>
-      </Pressable>
-
-      {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
+    <View style={[styles.container, { backgroundColor: colors.bg }]}>
+      {lastError ? (
+        <Text style={[styles.error, { color: colors.danger, paddingHorizontal: spacing.lg }]}>
+          {lastError}
+        </Text>
+      ) : null}
 
       <SectionList
         sections={sections}
         keyExtractor={(item) => item.uri}
-        stickySectionHeadersEnabled={false}
-        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: spacing.xxl }}
+        stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
+        contentContainerStyle={{
+          paddingHorizontal: spacing.lg,
+          paddingTop: spacing.sm,
+          paddingBottom: 96,
+          flexGrow: 1,
+        }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        SectionSeparatorComponent={() => <View style={{ height: 4 }} />}
+        ListHeaderComponent={
+          demoMode ? (
+            <View style={styles.demoRow}>
+              <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
+            </View>
+          ) : null
+        }
         ListEmptyComponent={
           <EmptyState
             icon="folder-open-outline"
@@ -179,8 +142,24 @@ export default function LocalLibraryScreen() {
             subtitle="Download from Library, then check back here."
           />
         }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void runRefresh()}
+            tintColor={colors.brand}
+            colors={[colors.brand]}
+          />
+        }
         renderSectionHeader={({ section }) => (
-          <View style={styles.sectionHeader}>
+          <View
+            style={[
+              styles.sectionHeader,
+              {
+                backgroundColor: colors.bg,
+                borderBottomColor: colors.border,
+              },
+            ]}
+          >
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
               {section.title}
             </Text>
@@ -191,7 +170,10 @@ export default function LocalLibraryScreen() {
           const meta = metaByName.get(item.name);
           const durationSec = meta?.durationSeconds;
           const when = formatCompactDateTime(item.name);
-          const sizeLabel = formatSizeMb(item.sizeBytes);
+          const sizeLabel =
+            item.sizeBytes > 0
+              ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
+              : "—";
           const category: FileCategory =
             item.kind === "image" ? "photo" : (meta?.category ?? "unknown");
           const typeLabel = CATEGORY_LABEL[category];
@@ -294,30 +276,33 @@ export default function LocalLibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerRow: {
+  demoRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "flex-end",
-    minHeight: 0,
+    marginBottom: 8,
   },
-  refreshBtn: {
-    flexDirection: "row",
+  headerRefresh: {
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 10,
-    marginTop: 4,
-    marginBottom: 6,
   },
-  refreshText: { fontSize: 13, fontFamily: Type.fontSemi },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4, marginBottom: 4 },
   sectionHeader: {
     flexDirection: "row",
     alignItems: "baseline",
     justifyContent: "space-between",
     gap: 12,
-    paddingTop: 12,
+    paddingTop: 10,
     paddingBottom: 8,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    // Opaque sticky surface so cards do not show through.
+    zIndex: 2,
+    ...Platform.select({
+      android: { elevation: 3 },
+      ios: {},
+      default: {},
+    }),
   },
   sectionTitle: {
     flex: 1,

@@ -100,9 +100,7 @@ export default function TabLayout() {
         options={{
           title: "Download queue",
           tabBarLabel: "Queue",
-          headerTitle: () => (
-            <HeaderTitle title="Download queue" subtitle="One active transfer at a time" />
-          ),
+          headerTitle: "Download queue",
           tabBarIcon: ({ color, focused }) => (
             <TabBarIcon name={focused ? "cloud-download" : "cloud-download-outline"} color={color} />
           ),
