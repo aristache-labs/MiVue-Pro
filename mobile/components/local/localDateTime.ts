@@ -1,8 +1,9 @@
 /**
- * Pure helpers for Local Library date/time pickers (ISO internal, localized display).
+ * Pure helpers for Local Library date/time pickers (ISO internal, en-GB display).
  */
 
 import { isValidDayKey, parseMinutesOfDay } from "@/components/local/localLibraryFilters";
+import { formatRecordingDate, formatRecordingTime } from "@/components/media/recordingDateTime";
 
 const FALLBACK_DAY = "1970-01-01";
 const FALLBACK_TIME = "12:00";
@@ -24,14 +25,10 @@ export function dateToDayKey(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** Localized date for picker field buttons (device locale). */
+/** Localized date for picker field buttons (always en-GB). */
 export function formatDayDisplay(dayKey: string | undefined): string {
   if (!dayKey || !isValidDayKey(dayKey)) return "Choose date";
-  return dayKeyToDate(dayKey).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  return formatRecordingDate(`${dayKey} 12:00:00`);
 }
 
 export function hhmmToDate(hhmm: string | undefined, baseDay = FALLBACK_DAY): Date {
@@ -48,13 +45,10 @@ export function dateToHhmm(date: Date): string {
   return `${h}:${m}`;
 }
 
-/** Localized time for picker field buttons (device locale, minute precision). */
+/** Time for picker field buttons (24h, en-GB). */
 export function formatTimeDisplay(hhmm: string | undefined): string {
   if (!hhmm || parseMinutesOfDay(hhmm) === undefined) return "Choose time";
-  return hhmmToDate(hhmm).toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatRecordingTime(`1970-01-01 ${hhmm}:00`);
 }
 
 /**

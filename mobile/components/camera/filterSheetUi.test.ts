@@ -77,7 +77,7 @@ function isCameraFiltersEmptySafe(): boolean {
   );
 }
 
-test("draft validation for incomplete time/date", () => {
+test("draft validation for incomplete time/date and inverted date range", () => {
   assert.equal(cameraFilterDraftIssue(EMPTY_CAMERA_FILTERS), undefined);
   assert.match(
     cameraFilterDraftIssue({ ...EMPTY_CAMERA_FILTERS, timeMode: "single" }) ?? "",
@@ -100,6 +100,15 @@ test("draft validation for incomplete time/date", () => {
     }),
     undefined,
   );
+  assert.match(
+    cameraFilterDraftIssue({
+      ...EMPTY_CAMERA_FILTERS,
+      dateMode: "range",
+      rangeStart: "2026-07-22",
+      rangeEnd: "2026-07-19",
+    }) ?? "",
+    /From must be/i,
+  );
 });
 
 test("Filters and media details share StaticBackdropSheet", () => {
@@ -117,6 +126,36 @@ test("Filters and media details share StaticBackdropSheet", () => {
   assert.equal(detail.includes('animationType="slide"'), false);
 });
 
+test("pickers match Local overlay pattern — not inline in Filters scroll", () => {
+  const src = readFileSync(join(__dirname, "CameraFilterSheet.tsx"), "utf8");
+  const local = readFileSync(join(__dirname, "../local/LocalFilterSheet.tsx"), "utf8");
+  assert.equal(src.includes("camera-filter-inline-picker"), false);
+  assert.equal(src.includes("inlinePicker"), false);
+  assert.match(src, /camera-filter-ios-picker/);
+  assert.match(src, /camera-filter-android-picker/);
+  assert.match(src, /display="default"/);
+  assert.match(src, /animationType="fade"/);
+  assert.match(src, /iosPickerSheet/);
+  assert.match(src, /activePicker/);
+  assert.match(src, /dismissPicker/);
+  assert.match(src, /commitPicker/);
+  // Same platform split as Local
+  assert.match(local, /Platform\.OS === "android"/);
+  assert.match(local, /Platform\.OS === "ios"/);
+  assert.match(src, /Platform\.OS === "android"/);
+  assert.match(src, /Platform\.OS === "ios"/);
+});
+
+test("Cancel dismisses without applying; Done commits once", () => {
+  const src = readFileSync(join(__dirname, "CameraFilterSheet.tsx"), "utf8");
+  assert.match(src, /accessibilityLabel="Cancel"/);
+  assert.match(src, /accessibilityLabel="Done"/);
+  assert.match(src, /onPress=\{dismissPicker\}/);
+  assert.match(src, /commitPicker\(iosTemp/);
+  assert.match(src, /setDraft\(\(prev\) => applyPickerDate/);
+  assert.match(src, /event\.type === "dismissed"/);
+});
+
 test("backdrop is sibling of sheet host — not nested inside animated tree as only child wrapper for both", () => {
   const shell = readFileSync(join(__dirname, "../media/StaticBackdropSheet.tsx"), "utf8");
   assert.match(shell, /styles\.scrim/);
@@ -126,4 +165,5 @@ test("backdrop is sibling of sheet host — not nested inside animated tree as o
   const scrimBlock = shell.slice(shell.indexOf("scrim:"), shell.indexOf("sheetHost:"));
   assert.equal(scrimBlock.includes("transform"), false);
   assert.equal(scrimBlock.includes("translateY"), false);
+  assert.match(shell, /interceptClose/);
 });

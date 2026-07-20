@@ -104,6 +104,8 @@ test("search by date and time formats", () => {
   assert.equal(matchesSearch(park, "2026-07-19"), true);
   assert.equal(matchesSearch(park, "19.07.2026"), true);
   assert.equal(matchesSearch(park, "19/07/2026"), true);
+  assert.equal(matchesSearch(park, "19 Jul 2026"), true);
+  assert.equal(matchesSearch(park, "19 July 2026"), true);
   assert.equal(matchesSearch(park, "14:05"), true);
   assert.equal(matchesSearch(park, "1405"), true);
   assert.equal(matchesSearch(park, "14"), true);

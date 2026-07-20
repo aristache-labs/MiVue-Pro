@@ -10,7 +10,7 @@ import { shouldEnqueueOnDownloadPress } from "@/components/camera/remoteDownload
 import { formatDuration } from "@/components/mediaMeta";
 import { MediaCard } from "@/components/media/MediaCard";
 import { MEDIA_THUMB_H, MEDIA_THUMB_W } from "@/components/media/mediaCardTokens";
-import { formatCompactDateTime } from "@/components/local/localLibrarySections";
+import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
@@ -41,7 +41,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
 }: RemoteRecordingCardProps) {
   const { colors, scheme } = useAppTheme();
   const catAccent = categoryColor(file.category, scheme);
-  const when = formatCompactDateTime(file.name) ?? undefined;
+  const when = formatRecordingDateTime(file.recordedAt);
   const sizeLabel = formatMediaSizeMbGb(file.sizeBytes);
   const duration =
     file.durationSeconds !== undefined && file.durationSeconds > 0

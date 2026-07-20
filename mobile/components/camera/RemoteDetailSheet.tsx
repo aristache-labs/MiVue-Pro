@@ -10,7 +10,6 @@ import {
 } from "@/components/camera/remoteDownloadA11y";
 import type { RemoteDownloadUiState } from "@/components/camera/remoteDownloadState";
 import { shouldEnqueueOnDownloadPress } from "@/components/camera/remoteDownloadState";
-import { formatCompactDateTime } from "@/components/local/localLibrarySections";
 import { formatDuration } from "@/components/mediaMeta";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import {
@@ -19,6 +18,7 @@ import {
   MEDIA_THUMB_H,
   MEDIA_THUMB_W,
 } from "@/components/media/mediaCardTokens";
+import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import { PrimaryButton } from "@/components/ui";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
@@ -72,7 +72,7 @@ export function RemoteDetailSheet({
       {({ requestClose }) => {
         if (!file || !downloadState) return null;
         const catAccent = categoryColor(file.category, scheme);
-        const when = formatCompactDateTime(file.name);
+        const when = formatRecordingDateTime(file.recordedAt);
         const sizeLabel = formatMediaSizeMbGb(file.sizeBytes);
         const duration =
           file.durationSeconds !== undefined && file.durationSeconds > 0

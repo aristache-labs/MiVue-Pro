@@ -1,4 +1,5 @@
 import { parseRecordedParts } from "@/components/mediaMeta";
+import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 
 export interface LocalLibrarySection {
@@ -43,20 +44,11 @@ export function formatCountLabel(count: number): string {
   return count === 1 ? "1 fișier" : `${count} fișiere`;
 }
 
-/** Compact card line: `19 iul. 2026 · 13:50`. */
+/** Compact card line: `19 Jul 2026 · 13:50` (en-GB). */
 export function formatCompactDateTime(name: string): string | undefined {
   const parts = parseRecordedParts(name);
   if (!parts) return undefined;
-  const d = new Date(`${parts.isoLocal.replace(" ", "T")}`);
-  if (!Number.isFinite(d.getTime())) {
-    return `${parts.date} · ${parts.time.slice(0, 5)}`;
-  }
-  const date = d.toLocaleDateString("ro-RO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return `${date} · ${parts.time.slice(0, 5)}`;
+  return formatRecordingDateTime(parts.isoLocal);
 }
 
 /**

@@ -2,7 +2,7 @@ import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Modal,
   Platform,
@@ -26,8 +26,6 @@ import {
   type DownloadedFilter,
 } from "@/components/camera/cameraLibraryModel";
 import {
-  clampRangeAfterEnd,
-  clampRangeAfterStart,
   dateToDayKey,
   dateToHhmm,
   dayKeyToDate,
@@ -152,13 +150,10 @@ function applyPickerDate(
   field: PickerField,
   date: Date,
 ): CameraLibraryFilters {
+  if (!Number.isFinite(date.getTime())) return draft;
   if (field === "singleDay") return { ...draft, singleDay: dateToDayKey(date) };
-  if (field === "rangeStart") {
-    return { ...draft, ...clampRangeAfterStart(dateToDayKey(date), draft.rangeEnd) };
-  }
-  if (field === "rangeEnd") {
-    return { ...draft, ...clampRangeAfterEnd(draft.rangeStart, dateToDayKey(date)) };
-  }
+  if (field === "rangeStart") return { ...draft, rangeStart: dateToDayKey(date) };
+  if (field === "rangeEnd") return { ...draft, rangeEnd: dateToDayKey(date) };
   if (field === "singleTime") return { ...draft, singleTime: dateToHhmm(date) };
   if (field === "timeFrom") return { ...draft, timeFrom: dateToHhmm(date) };
   return { ...draft, timeTo: dateToHhmm(date) };
@@ -179,23 +174,26 @@ export function CameraFilterSheet({
   onClose,
   onApply,
 }: CameraFilterSheetProps) {
-  const { colors, spacing } = useAppTheme();
+  const { colors, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(initial);
+  /** Single active picker — same overlay pattern as LocalFilterSheet. */
   const [activePicker, setActivePicker] = useState<PickerField | null>(null);
   const [iosTemp, setIosTemp] = useState<Date | null>(null);
+  const openingRef = useRef(false);
   const today = localTodayKey();
   const showCategory = showCategorySectionInFilters(categoryScope);
   const resetDisabled = isCameraFiltersEmpty(draft);
   const draftIssue = cameraFilterDraftIssue(draft);
 
   useEffect(() => {
-    if (visible) {
-      setDraft(initial);
-      setActivePicker(null);
-      setIosTemp(null);
-    }
-  }, [visible, initial]);
+    if (!visible) return;
+    setDraft(initial);
+    setActivePicker(null);
+    setIosTemp(null);
+    openingRef.current = false;
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only on open
+  }, [visible]);
 
   const draftCount = useMemo(
     () =>
@@ -217,25 +215,40 @@ export function CameraFilterSheet({
       ? "time"
       : "date";
 
-  const openPicker = (field: PickerField) => {
-    setIosTemp(pickerValue(draft, field));
-    setActivePicker(field);
-  };
-  const dismissPicker = () => {
+  const dismissPicker = useCallback(() => {
     setActivePicker(null);
     setIosTemp(null);
+    openingRef.current = false;
+  }, []);
+
+  const openPicker = (field: PickerField) => {
+    if (openingRef.current || activePicker) return;
+    openingRef.current = true;
+    const value = pickerValue(draft, field);
+    if (!Number.isFinite(value.getTime())) {
+      openingRef.current = false;
+      return;
+    }
+    setIosTemp(value);
+    setActivePicker(field);
+    openingRef.current = false;
   };
+
   const commitPicker = (date: Date) => {
-    if (!activePicker) return;
+    if (!activePicker || !Number.isFinite(date.getTime())) {
+      dismissPicker();
+      return;
+    }
     setDraft((prev) => applyPickerDate(prev, activePicker, date));
     dismissPicker();
   };
+
   const onNativeChange = (event: DateTimePickerEvent, date?: Date) => {
     if (event.type === "dismissed") {
       dismissPicker();
       return;
     }
-    if (!date || !activePicker) return;
+    if (!date || !Number.isFinite(date.getTime()) || !activePicker) return;
     if (Platform.OS === "android") {
       commitPicker(date);
       return;
@@ -243,25 +256,33 @@ export function CameraFilterSheet({
     setIosTemp(date);
   };
 
+  const interceptClose = useCallback(() => {
+    if (activePicker) {
+      dismissPicker();
+      return true;
+    }
+    return false;
+  }, [activePicker, dismissPicker]);
+
   return (
-    <>
-      <StaticBackdropSheet
-        visible={visible}
-        onClose={onClose}
-        scrimAccessibilityLabel="Close filters"
-        scrimTestID="camera-filter-scrim"
-        sheetTestID="camera-filter-sheet"
-        sheetStyle={{
-          backgroundColor: colors.surfaceElevated,
-          borderColor: colors.border,
-          borderTopLeftRadius: MEDIA_SHEET_RADIUS,
-          borderTopRightRadius: MEDIA_SHEET_RADIUS,
-          paddingBottom: Math.max(insets.bottom, 12),
-          maxHeight: "88%",
-        }}
-      >
-        {({ requestClose }) => (
-          <>
+    <StaticBackdropSheet
+      visible={visible}
+      onClose={onClose}
+      interceptClose={interceptClose}
+      scrimAccessibilityLabel="Close filters"
+      scrimTestID="camera-filter-scrim"
+      sheetTestID="camera-filter-sheet"
+      sheetStyle={{
+        backgroundColor: colors.surfaceElevated,
+        borderColor: colors.border,
+        borderTopLeftRadius: MEDIA_SHEET_RADIUS,
+        borderTopRightRadius: MEDIA_SHEET_RADIUS,
+        paddingBottom: Math.max(insets.bottom, 12),
+        maxHeight: "88%",
+      }}
+    >
+      {({ requestClose }) => (
+        <>
             <View style={styles.handleRow}>
               <View style={[styles.handle, { backgroundColor: colors.border }]} />
             </View>
@@ -290,7 +311,13 @@ export function CameraFilterSheet({
               </Text>
               <View style={[styles.headerSide, styles.headerSideRight]}>
                 <Pressable
-                  onPress={requestClose}
+                  onPress={() => {
+                    if (activePicker) {
+                      dismissPicker();
+                      return;
+                    }
+                    requestClose();
+                  }}
                   accessibilityRole="button"
                   accessibilityLabel="Close filters"
                   hitSlop={HitSlop44}
@@ -546,50 +573,83 @@ export function CameraFilterSheet({
                 Show {draftCount} results
               </Text>
             </Pressable>
-          </>
-        )}
-      </StaticBackdropSheet>
 
-      {activePicker && Platform.OS === "android" ? (
-        <DateTimePicker
-          value={pickerValue(draft, activePicker)}
-          mode={pickerMode}
-          display="default"
-          onChange={onNativeChange}
-        />
-      ) : null}
-      {activePicker && Platform.OS === "ios" ? (
-        <Modal transparent animationType="none" visible onRequestClose={dismissPicker}>
-          <Pressable style={styles.pickerBackdrop} onPress={dismissPicker} />
-          <View style={[styles.pickerSheet, { backgroundColor: colors.surfaceElevated }]}>
-            <View style={styles.pickerHeader}>
-              <Pressable
-                onPress={dismissPicker}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-                style={styles.headerHit}
+            {/* Same picker UX as LocalFilterSheet: Android dialog / iOS overlay Modal */}
+            {activePicker && Platform.OS === "android" ? (
+              <DateTimePicker
+                value={pickerValue(draft, activePicker)}
+                mode={pickerMode}
+                display="default"
+                minuteInterval={1}
+                is24Hour
+                onChange={onNativeChange}
+                testID="camera-filter-android-picker"
+              />
+            ) : null}
+
+            {activePicker && Platform.OS === "ios" ? (
+              <Modal
+                transparent
+                animationType="fade"
+                visible
+                onRequestClose={dismissPicker}
+                testID="camera-filter-ios-picker"
               >
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi }}>Cancel</Text>
-              </Pressable>
-              <Pressable
-                onPress={() => iosTemp && commitPicker(iosTemp)}
-                accessibilityRole="button"
-                accessibilityLabel="Done"
-                style={styles.headerHit}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Done</Text>
-              </Pressable>
-            </View>
-            <DateTimePicker
-              value={iosTemp ?? pickerValue(draft, activePicker)}
-              mode={pickerMode}
-              display="spinner"
-              onChange={onNativeChange}
-            />
-          </View>
-        </Modal>
-      ) : null}
-    </>
+                <Pressable
+                  style={styles.pickerBackdrop}
+                  onPress={dismissPicker}
+                  accessibilityLabel="Cancel"
+                />
+                <View
+                  style={[
+                    styles.iosPickerSheet,
+                    {
+                      backgroundColor: colors.surfaceElevated,
+                      paddingBottom: Math.max(insets.bottom, 12),
+                      borderTopLeftRadius: radius.lg,
+                      borderTopRightRadius: radius.lg,
+                    },
+                  ]}
+                >
+                  <View style={styles.iosPickerHeader}>
+                    <Pressable
+                      onPress={dismissPicker}
+                      accessibilityRole="button"
+                      accessibilityLabel="Cancel"
+                      hitSlop={HitSlop44}
+                      style={styles.headerHit}
+                    >
+                      <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                        Cancel
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => commitPicker(iosTemp ?? pickerValue(draft, activePicker))}
+                      accessibilityRole="button"
+                      accessibilityLabel="Done"
+                      hitSlop={HitSlop44}
+                      style={styles.headerHit}
+                    >
+                      <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                        Done
+                      </Text>
+                    </Pressable>
+                  </View>
+                  <DateTimePicker
+                    value={iosTemp ?? pickerValue(draft, activePicker)}
+                    mode={pickerMode}
+                    display="spinner"
+                    minuteInterval={1}
+                    is24Hour
+                    onChange={onNativeChange}
+                    style={{ alignSelf: "center" }}
+                  />
+                </View>
+              </Modal>
+            ) : null}
+          </>
+      )}
+    </StaticBackdropSheet>
   );
 }
 
@@ -646,12 +706,14 @@ const styles = StyleSheet.create({
   issue: { fontSize: 12, fontFamily: Type.font, marginBottom: 6 },
   applyBtn: { alignItems: "center", justifyContent: "center", marginTop: 4, borderRadius: 12 },
   applyText: { fontSize: 15, fontFamily: Type.fontSemi },
-  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.42)" },
-  pickerSheet: { marginTop: "auto", paddingBottom: 24 },
-  pickerHeader: {
+  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  iosPickerSheet: { marginTop: "auto", width: "100%", paddingTop: 4 },
+  iosPickerHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    minHeight: LOCAL_ACTION_HIT,
+    alignItems: "center",
   },
 });

@@ -27,6 +27,8 @@ type StaticBackdropSheetProps = {
   readonly scrimTestID?: string;
   readonly scrimAccessibilityLabel?: string;
   readonly slideDistance?: number;
+  /** Return true to consume the close (e.g. dismiss an inline picker first). */
+  readonly interceptClose?: () => boolean;
 };
 
 /**
@@ -42,6 +44,7 @@ export function StaticBackdropSheet({
   scrimTestID = "static-backdrop-scrim",
   scrimAccessibilityLabel = "Close",
   slideDistance = 420,
+  interceptClose,
 }: StaticBackdropSheetProps) {
   const [mounted, setMounted] = useState(false);
   const translateY = useRef(new Animated.Value(slideDistance)).current;
@@ -49,6 +52,8 @@ export function StaticBackdropSheet({
   const reduceMotionRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const interceptCloseRef = useRef(interceptClose);
+  interceptCloseRef.current = interceptClose;
 
   useEffect(() => {
     let alive = true;
@@ -73,6 +78,7 @@ export function StaticBackdropSheet({
 
   const animateClosed = useCallback(() => {
     if (closingRef.current) return;
+    if (interceptCloseRef.current?.()) return;
     closingRef.current = true;
     if (reduceMotionRef.current) {
       translateY.setValue(slideDistance);

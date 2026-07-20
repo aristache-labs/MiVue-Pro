@@ -7,22 +7,24 @@ import {
   type MediaTypeFilter,
   type TimeFilterMode,
 } from "@/components/local/localLibraryFilters";
+import {
+  formatDateRange,
+  formatDateSeparator,
+  formatRecordingDate,
+  formatRecordingDateTime,
+  formatTimeRange,
+  getRecordingSearchIndexMap,
+  matchesRecordingSearch,
+  matchesRecordingSearchIndex,
+  RECORDING_UI_LOCALE,
+} from "@/components/media/recordingDateTime";
 
 /** App UI copy is English — Camera Library uses this locale consistently. */
-export const CAMERA_UI_LOCALE = "en-GB";
+export const CAMERA_UI_LOCALE = RECORDING_UI_LOCALE;
 
 export function formatCameraSectionHeading(dayKey: string): string {
   if (dayKey === "unknown" || dayKey === "all") return "UNKNOWN DATE";
-  const d = new Date(`${dayKey}T12:00:00`);
-  if (!Number.isFinite(d.getTime())) return "UNKNOWN DATE";
-  return d
-    .toLocaleDateString(CAMERA_UI_LOCALE, {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    })
-    .toUpperCase();
+  return formatDateSeparator(dayKey);
 }
 
 export function formatCameraCountLabel(count: number): string {
@@ -187,6 +189,9 @@ export function cameraFilterDraftIssue(filters: CameraLibraryFilters): string | 
   if (filters.dateMode === "range") {
     if (!isValidDayKey(filters.rangeStart) || !isValidDayKey(filters.rangeEnd)) {
       return "Choose a start and end date.";
+    }
+    if (filters.rangeStart! > filters.rangeEnd!) {
+      return "From must be on or before To.";
     }
   }
   if (filters.timeMode === "single" && parseMinutesOfDay(filters.singleTime) === undefined) {
@@ -358,51 +363,9 @@ export function remoteMatchesFilters(
   return true;
 }
 
-function normalizeSearchText(raw: string): string {
-  return raw
-    .normalize("NFD")
-    .replace(/\p{M}/gu, "")
-    .toLowerCase()
-    .replace(/[./\-_:]+/gu, " ")
-    .replace(/\s+/gu, " ")
-    .trim();
-}
-
-function searchHaystacks(file: RemoteFile): string[] {
-  const name = file.name.toLowerCase();
-  const base = name.replace(/\.[^.]+$/u, "");
-  const recorded = file.recordedAt.toLowerCase();
-  const day = recorded.slice(0, 10);
-  const time = recorded.slice(11, 16);
-  const timeCompact = time.replace(":", "");
-  const d = new Date(recorded.includes("T") ? recorded : recorded.replace(" ", "T"));
-  const hay: string[] = [
-    name,
-    base,
-    file.category.toLowerCase(),
-    recorded,
-    day,
-    day.replace(/-/gu, "."),
-    day.replace(/-/gu, "/"),
-    time,
-    timeCompact,
-  ];
-  if (Number.isFinite(d.getTime())) {
-    hay.push(
-      d.toLocaleDateString(CAMERA_UI_LOCALE, { day: "numeric", month: "short", year: "numeric" }).toLowerCase(),
-      d.toLocaleDateString("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).toLowerCase(),
-    );
-  }
-  if (file.category === "photo") hay.push("photos", "photo", "image");
-  return hay.map(normalizeSearchText);
-}
-
 /** Local AND-token search over name, category, date, and time — no camera I/O. */
 export function matchesSearch(file: RemoteFile, query: string): boolean {
-  const tokens = normalizeSearchText(query).split(" ").filter(Boolean);
-  if (tokens.length === 0) return true;
-  const hay = searchHaystacks(file);
-  return tokens.every((token) => hay.some((h) => h.includes(token)));
+  return matchesRecordingSearch(file, query);
 }
 
 export function filterAndSortRemoteFiles(options: {
@@ -424,10 +387,11 @@ export function filterAndSortRemoteFiles(options: {
     queuedNames = new Set(),
   } = options;
   const scoped = sanitizeFiltersForCategoryScope(filters, category);
+  const searchIndex = getRecordingSearchIndexMap(files);
   const out: RemoteFile[] = [];
   for (const file of files) {
     if (category !== "all" && file.category !== category) continue;
-    if (!matchesSearch(file, search)) continue;
+    if (!matchesRecordingSearchIndex(searchIndex.get(file.name) ?? "", search)) continue;
     if (!remoteMatchesFilters(file, scoped, downloadedNames, queuedNames)) continue;
     out.push(file);
   }
@@ -494,21 +458,19 @@ export function buildCameraLibrarySections(
   });
 }
 
-function formatDayChip(day: string): string {
-  const d = new Date(`${day}T12:00:00`);
-  if (!Number.isFinite(d.getTime())) return day;
-  return d.toLocaleDateString(CAMERA_UI_LOCALE, { day: "numeric", month: "short" });
-}
-
 export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFilterChip[] {
   const chips: CameraFilterChip[] = [];
   if (filters.dateMode === "single" && filters.singleDay) {
-    chips.push({ id: "date", group: "date", label: formatDayChip(filters.singleDay) });
+    chips.push({
+      id: "date",
+      group: "date",
+      label: formatRecordingDate(`${filters.singleDay} 12:00:00`),
+    });
   } else if (filters.dateMode === "range" && filters.rangeStart && filters.rangeEnd) {
     chips.push({
       id: "date",
       group: "date",
-      label: `${formatDayChip(filters.rangeStart)}–${formatDayChip(filters.rangeEnd)}`,
+      label: formatDateRange(filters.rangeStart, filters.rangeEnd),
     });
   }
   if (filters.timeMode === "single" && filters.singleTime) {
@@ -517,7 +479,7 @@ export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFil
     chips.push({
       id: "time",
       group: "time",
-      label: `${filters.timeFrom}–${filters.timeTo}`,
+      label: formatTimeRange(filters.timeFrom, filters.timeTo),
     });
   }
   for (const cat of filters.categories) {
@@ -654,37 +616,11 @@ export function libraryEmptyInstruction(linkState: CameraLinkState): string | un
 }
 
 export function formatRemoteDateTime(recordedAt: string): string {
-  const iso = recordedAt.includes("T") ? recordedAt : recordedAt.replace(" ", "T");
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) {
-    const date = recordedAt.slice(0, 10);
-    const time = recordedAt.slice(11, 16);
-    return time ? `${date} · ${time}` : date;
-  }
-  const date = d.toLocaleDateString(CAMERA_UI_LOCALE, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  const time = d.toLocaleTimeString(CAMERA_UI_LOCALE, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${date} · ${time}`;
+  return formatRecordingDateTime(recordedAt);
 }
 
 export function formatCameraTimestamp(iso: string): string {
-  const d = new Date(iso);
-  if (!Number.isFinite(d.getTime())) return iso;
-  return d.toLocaleString(CAMERA_UI_LOCALE, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return formatRecordingDateTime(iso.includes("T") ? iso.replace("T", " ") : iso);
 }
 
 /** Visible UI must never leak Expo Router group names. */
