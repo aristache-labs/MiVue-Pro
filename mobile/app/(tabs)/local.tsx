@@ -262,7 +262,7 @@ export default function LocalLibraryScreen() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
   const [deleting, setDeleting] = useState(false);
-  const [selectionActionsOpen, setSelectionActionsOpen] = useState(false);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const refreshBusyRef = useRef(false);
   const actionGateRef = useRef(createUiActionGate());
@@ -318,7 +318,7 @@ export default function LocalLibraryScreen() {
   const exitSelection = useCallback(() => {
     setSelecting(false);
     setSelected(new Set());
-    setSelectionActionsOpen(false);
+    setDeleteConfirmOpen(false);
   }, []);
 
   const applyFilters = useCallback(
@@ -352,19 +352,17 @@ export default function LocalLibraryScreen() {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
       else next.add(uri);
-      setSelectionActionsOpen(next.size > 0);
       return next;
     });
   }, []);
 
   const selectAllFiltered = useCallback(() => {
     setSelected(new Set(filteredFiles.map((f) => f.uri)));
-    setSelectionActionsOpen(true);
   }, [filteredFiles]);
 
   const deselectAll = useCallback(() => {
     setSelected(new Set());
-    setSelectionActionsOpen(false);
+    setDeleteConfirmOpen(false);
   }, []);
 
   const confirmSingleDelete = useCallback(
@@ -387,39 +385,27 @@ export default function LocalLibraryScreen() {
   const confirmBatchDelete = useCallback(() => {
     const n = selectedFiles.length;
     if (n === 0 || deleting) return;
-    const size = formatSelectionSize(selectedBytes);
-    Alert.alert(
-      `Delete ${n} local files?`,
-      `This will remove ${size} from this device.\nFiles on the camera will not be deleted.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete local files",
-          style: "destructive",
-          onPress: () => {
-            void actionGateRef.current(async () => {
-              setDeleting(true);
-              try {
-                const result = await deleteLocalFilesBatch(selectedFiles);
-                exitSelection();
-                const msg =
-                  result.failed === 0
-                    ? `${result.deleted} local files deleted`
-                    : `${result.deleted} deleted · ${result.failed} could not be deleted`;
-                setStatusMessage(msg);
-                void AccessibilityInfo.announceForAccessibility(msg);
-              } finally {
-                setDeleting(false);
-              }
-            });
-          },
-        },
-      ],
-    );
-  }, [selectedFiles, selectedBytes, deleting, deleteLocalFilesBatch, exitSelection]);
+    setDeleteConfirmOpen(false);
+    void actionGateRef.current(async () => {
+      setDeleting(true);
+      try {
+        const result = await deleteLocalFilesBatch(selectedFiles);
+        exitSelection();
+        const msg =
+          result.failed === 0
+            ? `${result.deleted} local files deleted`
+            : `${result.deleted} deleted · ${result.failed} could not be deleted`;
+        setStatusMessage(msg);
+        void AccessibilityInfo.announceForAccessibility(msg);
+      } finally {
+        setDeleting(false);
+      }
+    });
+  }, [selectedFiles, deleting, deleteLocalFilesBatch, exitSelection]);
 
   useLayoutEffect(() => {
     if (selecting) {
+      const allSelected = selected.size === filteredFiles.length && filteredFiles.length > 0;
       navigation.setOptions({
         headerTitle: () => (
           <Text style={[styles.navCenterTitle, { color: colors.text }]}>
@@ -438,26 +424,38 @@ export default function LocalLibraryScreen() {
           </Pressable>
         ),
         headerRight: () => (
-          <Pressable
-            onPress={() => {
-              if (selected.size === filteredFiles.length && filteredFiles.length > 0) deselectAll();
-              else selectAllFiltered();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              selected.size === filteredFiles.length && filteredFiles.length > 0
-                ? "Deselect all"
-                : `Select all ${filteredFiles.length} results`
-            }
-            hitSlop={HitSlop44}
-            style={styles.headerSideBtn}
-          >
-            <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }} numberOfLines={1}>
-              {selected.size === filteredFiles.length && filteredFiles.length > 0
-                ? "Deselect all"
-                : `Select all results (${filteredFiles.length})`}
-            </Text>
-          </Pressable>
+          <View style={styles.headerRightRow}>
+            {selected.size > 0 ? (
+              <Pressable
+                onPress={() => setDeleteConfirmOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={`Delete ${selected.size} local files`}
+                hitSlop={HitSlop44}
+                style={styles.headerIconBtn}
+              >
+                <Ionicons name="trash-outline" size={22} color={colors.danger} />
+              </Pressable>
+            ) : null}
+            <Pressable
+              onPress={() => {
+                if (allSelected) deselectAll();
+                else selectAllFiltered();
+              }}
+              accessibilityRole="button"
+              accessibilityLabel={
+                allSelected ? "Deselect all" : `Select all ${filteredFiles.length} results`
+              }
+              hitSlop={HitSlop44}
+              style={styles.headerSideBtn}
+            >
+              <Text
+                style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
+                numberOfLines={1}
+              >
+                {allSelected ? "Deselect all" : "Select all"}
+              </Text>
+            </Pressable>
+          </View>
         ),
         headerTitleAlign: "center",
       });
@@ -690,34 +688,12 @@ export default function LocalLibraryScreen() {
         }}
       />
 
-      {selecting && selected.size > 0 && !selectionActionsOpen ? (
-        <Pressable
-          onPress={() => setSelectionActionsOpen(true)}
-          accessibilityRole="button"
-          accessibilityLabel={`Delete ${selected.size} local files`}
-          style={({ pressed }) => [
-            styles.selectionFab,
-            {
-              backgroundColor: colors.danger,
-              bottom: tabBarHeight + 16,
-              opacity: pressed ? 0.85 : 1,
-              borderRadius: radius.lg,
-            },
-          ]}
-        >
-          <Ionicons name="trash-outline" size={18} color="#ffffff" style={{ marginRight: 8 }} />
-          <Text style={{ color: "#ffffff", fontFamily: Type.fontBold, fontSize: 15 }}>
-            Delete local · {selected.size}
-          </Text>
-        </Pressable>
-      ) : null}
-
       <Modal
         transparent
         animationType="fade"
-        visible={selecting && selected.size > 0 && selectionActionsOpen}
+        visible={deleteConfirmOpen && selecting && selected.size > 0}
         statusBarTranslucent
-        onRequestClose={() => setSelectionActionsOpen(false)}
+        onRequestClose={() => setDeleteConfirmOpen(false)}
       >
         <View style={styles.selectionOverlay}>
           {Platform.OS === "ios" ? (
@@ -725,8 +701,8 @@ export default function LocalLibraryScreen() {
           ) : null}
           <Pressable
             style={[StyleSheet.absoluteFill, { backgroundColor: "rgba(8,12,20,0.55)" }]}
-            onPress={() => setSelectionActionsOpen(false)}
-            accessibilityLabel="Keep selecting"
+            onPress={() => setDeleteConfirmOpen(false)}
+            accessibilityLabel="Cancel delete"
           />
           <View
             style={[
@@ -740,13 +716,13 @@ export default function LocalLibraryScreen() {
             accessibilityViewIsModal
           >
             <Text style={[styles.selectionTitle, { color: colors.text }]}>
-              {selected.size} selected
+              Delete {selected.size} local files?
             </Text>
             <Text style={[styles.selectionSub, { color: colors.textMuted }]}>
-              {formatSelectionSize(selectedBytes)} on this device
+              This will remove {formatSelectionSize(selectedBytes)} from this device.
             </Text>
             <Text style={[styles.selectionHint, { color: colors.textFaint }]}>
-              Camera files will not be deleted.
+              Files on the camera will not be deleted.
             </Text>
             <Pressable
               onPress={confirmBatchDelete}
@@ -770,39 +746,24 @@ export default function LocalLibraryScreen() {
                 <>
                   <Ionicons name="trash-outline" size={18} color={colors.danger} style={{ marginRight: 8 }} />
                   <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 16 }}>
-                    Delete local
+                    Delete local files
                   </Text>
                 </>
               )}
             </Pressable>
             <Pressable
-              onPress={() => setSelectionActionsOpen(false)}
+              onPress={() => setDeleteConfirmOpen(false)}
               disabled={deleting}
               accessibilityRole="button"
-              accessibilityLabel="Keep selecting"
+              accessibilityLabel="Cancel"
               hitSlop={8}
               style={({ pressed }) => [
                 styles.selectionSecondary,
                 { opacity: pressed ? 0.65 : 1, minHeight: LOCAL_ACTION_HIT },
               ]}
             >
-              <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
-                Keep selecting
-              </Text>
-            </Pressable>
-            <Pressable
-              onPress={deselectAll}
-              disabled={deleting}
-              accessibilityRole="button"
-              accessibilityLabel="Deselect all"
-              hitSlop={8}
-              style={({ pressed }) => [
-                styles.selectionSecondary,
-                { opacity: pressed ? 0.65 : 1, minHeight: 40 },
-              ]}
-            >
-              <Text style={{ color: colors.textMuted, fontFamily: Type.font, fontSize: 14 }}>
-                Deselect all
+              <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                Cancel
               </Text>
             </Pressable>
           </View>
@@ -981,27 +942,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignSelf: "stretch",
     marginTop: 4,
-  },
-  selectionFab: {
-    position: "absolute",
-    alignSelf: "center",
-    left: 24,
-    right: 24,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: LOCAL_ACTION_HIT,
-    paddingHorizontal: 18,
-    zIndex: 5,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.35,
-        shadowRadius: 12,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 8 },
-      default: {},
-    }),
   },
 });
