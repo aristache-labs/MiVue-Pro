@@ -40,7 +40,7 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-        tabBarInactiveTintColor: colors.textFaint,
+        tabBarInactiveTintColor: colors.textMuted,
         tabBarLabelStyle: { fontFamily: Type.fontSemi, fontSize: 11 },
         headerShown: useClientOnlyValue(false, true),
         headerStyle: { backgroundColor: colors.bg },

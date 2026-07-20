@@ -66,3 +66,24 @@ test("cached thumb skips generator entirely", async () => {
   assert.equal(calls, 0);
   assert.equal(result, "file:///cache/DONE.jpg");
 });
+
+test("Library and Queue share the same basename cache entry", () => {
+  clearVideoThumbCache();
+  rememberVideoThumb("file:///local-library/CLIP.MP4", "file:///cache/CLIP.jpg");
+  assert.equal(peekVideoThumbCache("file:///queue-path/CLIP.MP4"), "file:///cache/CLIP.jpg");
+  assert.equal(peekVideoThumbCache("CLIP.MP4"), "file:///cache/CLIP.jpg");
+});
+
+test("progress-style rerenders do not re-request a cached thumb", async () => {
+  clearVideoThumbCache();
+  rememberVideoThumb("file:///docs/PROG.MP4", "file:///cache/PROG.jpg");
+  let calls = 0;
+  const generate = async () => {
+    calls += 1;
+    return "file:///cache/new.jpg";
+  };
+  for (let i = 0; i < 20; i += 1) {
+    await loadVideoThumb("file:///docs/PROG.MP4", generate);
+  }
+  assert.equal(calls, 0);
+});

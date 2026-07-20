@@ -141,6 +141,29 @@ export function formatEtaRemaining(remainingSec: number): string {
   return `${m} min ${s} sec remaining`;
 }
 
+/**
+ * ETA only for an active transfer with enough stable samples.
+ * Returns `undefined` to hide, `"Calculating…"` while warming up, or a formatted ETA.
+ */
+export function resolveEtaDisplay(input: {
+  readonly status: string;
+  readonly percent: number;
+  readonly rateBps: number;
+  readonly remainingSec: number;
+}): string | undefined {
+  if (input.status !== "active") return undefined;
+  if (!Number.isFinite(input.percent) || input.percent < 0) return undefined;
+  if (!Number.isFinite(input.rateBps) || input.rateBps <= 0) {
+    return input.percent > 0 ? "Calculating…" : undefined;
+  }
+  if (input.percent < 2) return "Calculating…";
+  if (!Number.isFinite(input.remainingSec) || input.remainingSec <= 0) return "Calculating…";
+  // Guard against absurd outliers (e.g. rate collapse → days of ETA).
+  if (input.remainingSec > 24 * 3600) return "Calculating…";
+  const label = formatEtaRemaining(input.remainingSec);
+  return label === "" ? undefined : label;
+}
+
 export function formatCompactDateTime(name: string, parseParts: (n: string) => { isoLocal: string; date: string; time: string } | undefined): string | undefined {
   const parts = parseParts(name);
   if (!parts) return undefined;
@@ -163,18 +186,28 @@ export function smoothRate(previous: number, instant: number, alpha = 0.25): num
   return previous * (1 - alpha) + instant * alpha;
 }
 
-/** FlatList bottom inset so the last card clears the tab bar. */
+/** FlatList bottom inset so the last card clears the tab bar (+ home indicator). */
 export const QUEUE_LIST_BOTTOM_PADDING = 96;
 
 /** Visual control height; pair with hitSlop so the real target stays ≥44. */
 export const QUEUE_ACTION_VISUAL_HEIGHT = 36;
-export const QUEUE_ACTION_HIT_SLOP = { top: 6, bottom: 6, left: 4, right: 4 } as const;
+export const QUEUE_ACTION_MIN_WIDTH = 72;
+/** Keep horizontal slop small so Pause/Cancel hit areas do not overlap (gap ≥ 8). */
+export const QUEUE_ACTION_HIT_SLOP = { top: 4, bottom: 4, left: 2, right: 2 } as const;
+export const QUEUE_ACTION_GAP = 8;
 
 export function queueActionHitHeight(
   visualHeight = QUEUE_ACTION_VISUAL_HEIGHT,
   hitSlop = QUEUE_ACTION_HIT_SLOP,
 ): number {
   return visualHeight + hitSlop.top + hitSlop.bottom;
+}
+
+export function queueActionHitWidth(
+  visualWidth = QUEUE_ACTION_MIN_WIDTH,
+  hitSlop = QUEUE_ACTION_HIT_SLOP,
+): number {
+  return visualWidth + hitSlop.left + hitSlop.right;
 }
 
 /** Serializes UI actions so double-taps do not fire twice. */
@@ -189,4 +222,27 @@ export function createQueueActionGate() {
       busy = false;
     }
   };
+}
+
+/** Shared alias for Local Library / other screens. */
+export const createUiActionGate = createQueueActionGate;
+
+/** Accessibility announcement when queue item status changes (not on percent ticks). */
+export function queueStatusAnnouncement(
+  localName: string,
+  previous: string | undefined,
+  next: string,
+): string | undefined {
+  if (previous === next) return undefined;
+  if (previous === undefined && next === "queued") return undefined;
+  if (next === "active") {
+    return previous === "paused"
+      ? `Download resumed for ${localName}`
+      : `Download started for ${localName}`;
+  }
+  if (next === "paused") return `Download paused for ${localName}`;
+  if (next === "failed") return `Download failed for ${localName}`;
+  if (next === "cancelled") return `Download cancelled for ${localName}`;
+  if (next === "completed") return `Download completed for ${localName}`;
+  return undefined;
 }

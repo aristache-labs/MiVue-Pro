@@ -18,15 +18,19 @@ import { formatDuration } from "@/components/mediaMeta";
 import {
   buildLocalLibrarySections,
   formatCompactDateTime,
+  LOCAL_ACTION_HIT,
+  LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
 } from "@/components/local/localLibrarySections";
+import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { VideoThumbnail } from "@/components/VideoThumbnail";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
-import { Type, useAppTheme } from "@/constants/Theme";
+import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const THUMB_W = 84;
 const THUMB_H = 63;
@@ -43,12 +47,15 @@ function openLocalMedia(item: LocalMediaFile): void {
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius, scheme } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const { localFiles, refreshLocalFiles, shareLocalFile, deleteLocalFile, lastError, demoMode, files } =
     useDemoMode();
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshBusyRef = useRef(false);
+  const actionGateRef = useRef(createUiActionGate());
+  const listBottomPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 64 + insets.bottom);
 
   const metaByName = useMemo(() => {
     const map = new Map<string, { durationSeconds?: number; category: FileCategory }>();
@@ -87,10 +94,14 @@ export default function LocalLibraryScreen() {
           accessibilityRole="button"
           accessibilityLabel="Refresh local library"
           accessibilityState={{ busy: refreshing, disabled: refreshing }}
-          hitSlop={8}
+          hitSlop={HitSlop44}
           style={({ pressed }) => [
             styles.headerRefresh,
-            { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
+            {
+              width: LOCAL_ACTION_HIT,
+              height: LOCAL_ACTION_HIT,
+              opacity: refreshing ? 0.5 : pressed ? 0.65 : 1,
+            },
           ]}
         >
           {refreshing ? (
@@ -128,7 +139,7 @@ export default function LocalLibraryScreen() {
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: 96,
+          paddingBottom: listBottomPad,
           flexGrow: 1,
         }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -167,7 +178,7 @@ export default function LocalLibraryScreen() {
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
               {section.title}
             </Text>
-            <Text style={[styles.sectionCount, { color: colors.textFaint }]}>{section.countLabel}</Text>
+            <Text style={[styles.sectionCount, { color: colors.textMuted }]}>{section.countLabel}</Text>
           </View>
         )}
         renderItem={({ item }) => {
@@ -248,20 +259,42 @@ export default function LocalLibraryScreen() {
                   </View>
                   <View style={styles.actions}>
                     <Pressable
-                      onPress={() => void shareLocalFile(item)}
+                      onPress={() =>
+                        void actionGateRef.current(async () => {
+                          await shareLocalFile(item);
+                        })
+                      }
                       accessibilityRole="button"
                       accessibilityLabel={`Share ${item.name}`}
                       hitSlop={4}
-                      style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
+                      style={({ pressed }) => [
+                        styles.iconHit,
+                        {
+                          width: LOCAL_ACTION_HIT,
+                          height: LOCAL_ACTION_HIT,
+                          opacity: pressed ? 0.6 : 1,
+                        },
+                      ]}
                     >
                       <Ionicons name="share-outline" size={22} color={colors.textMuted} />
                     </Pressable>
                     <Pressable
-                      onPress={() => confirmDelete(item)}
+                      onPress={() =>
+                        void actionGateRef.current(async () => {
+                          confirmDelete(item);
+                        })
+                      }
                       accessibilityRole="button"
                       accessibilityLabel={`Delete ${item.name}`}
                       hitSlop={4}
-                      style={({ pressed }) => [styles.iconHit, { opacity: pressed ? 0.6 : 1 }]}
+                      style={({ pressed }) => [
+                        styles.iconHit,
+                        {
+                          width: LOCAL_ACTION_HIT,
+                          height: LOCAL_ACTION_HIT,
+                          opacity: pressed ? 0.6 : 1,
+                        },
+                      ]}
                     >
                       <Ionicons name="trash-outline" size={22} color={colors.danger} />
                     </Pressable>
@@ -376,10 +409,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 4,
   },
   iconHit: {
-    width: 44,
-    height: 44,
+    width: LOCAL_ACTION_HIT,
+    height: LOCAL_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
   },

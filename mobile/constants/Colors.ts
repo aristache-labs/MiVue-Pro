@@ -9,14 +9,14 @@ export default {
     text: Palette.light.text,
     background: Palette.light.bg,
     tint: Palette.light.brand,
-    tabIconDefault: Palette.light.textFaint,
+    tabIconDefault: Palette.light.textMuted,
     tabIconSelected: Palette.light.brand,
   },
   dark: {
     text: Palette.dark.text,
     background: Palette.dark.bg,
     tint: Palette.dark.brand,
-    tabIconDefault: Palette.dark.textFaint,
+    tabIconDefault: Palette.dark.textMuted,
     tabIconSelected: Palette.dark.brand,
   },
 };

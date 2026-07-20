@@ -11,6 +11,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
 import {
@@ -18,15 +19,18 @@ import {
   createQueueActionGate,
   filterVisibleQueueItems,
   formatCompactDateTime,
-  formatEtaRemaining,
   formatQueueSummary,
   formatSizeMb,
   isExpandedCard,
+  QUEUE_ACTION_GAP,
   QUEUE_ACTION_HIT_SLOP,
+  QUEUE_ACTION_MIN_WIDTH,
   QUEUE_ACTION_VISUAL_HEIGHT,
   QUEUE_LIST_BOTTOM_PADDING,
   queueDisplayPosition,
+  queueStatusAnnouncement,
   queueThumbSize,
+  resolveEtaDisplay,
   smoothRate,
   sortQueueForDisplay,
   type QueueAction,
@@ -64,6 +68,7 @@ function statusLabel(status: QueueItem["status"]): string {
 
 export default function QueueScreen() {
   const { colors, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const {
     demoMode,
@@ -112,19 +117,17 @@ export default function QueueScreen() {
   }, [visibleItems]);
 
   useEffect(() => {
-    for (const item of visibleItems) {
+    for (const item of queueItems) {
+      if (/\.nmea$/i.test(item.localName)) continue;
       const prev = lastAnnouncedRef.current.get(item.id);
       if (prev === item.status) continue;
       lastAnnouncedRef.current.set(item.id, item.status);
-      if (prev === undefined && item.status === "queued") continue;
-      let message: string | undefined;
-      if (item.status === "active") message = `Download started for ${item.localName}`;
-      else if (item.status === "paused") message = `Download paused for ${item.localName}`;
-      else if (item.status === "failed") message = `Download failed for ${item.localName}`;
-      else if (item.status === "cancelled") message = `Download cancelled for ${item.localName}`;
+      const message = queueStatusAnnouncement(item.localName, prev, item.status);
       if (message) void AccessibilityInfo.announceForAccessibility(message);
     }
-  }, [visibleItems]);
+  }, [queueItems]);
+
+  const listBottomPad = Math.max(QUEUE_LIST_BOTTOM_PADDING, 64 + insets.bottom);
 
   const durationByName = useMemo(() => {
     const map = new Map<string, number>();
@@ -231,6 +234,7 @@ export default function QueueScreen() {
                   backgroundColor: bg,
                   borderRadius: radius.sm,
                   minHeight: QUEUE_ACTION_VISUAL_HEIGHT,
+                  minWidth: QUEUE_ACTION_MIN_WIDTH,
                   opacity: pressed || actionBusy ? 0.7 : 1,
                 },
               ]}
@@ -259,7 +263,7 @@ export default function QueueScreen() {
       <FlatList
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: QUEUE_LIST_BOTTOM_PADDING }}
+        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: listBottomPad }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
           <EmptyState
@@ -296,22 +300,26 @@ export default function QueueScreen() {
           const startedAt = startedAtRef.current.get(item.id);
           let rateLabel: string | undefined;
           let etaLabel: string | undefined;
+          let smoothedBps = 0;
           if (item.status === "active" && startedAt !== undefined && received > 0 && total > 0) {
             const instant = transferRateBps(received, startedAt);
             if (instant !== undefined) {
               const prev = smoothedRateRef.current.get(item.id) ?? 0;
-              const smoothed = smoothRate(prev, instant);
-              smoothedRateRef.current.set(item.id, smoothed);
-              const mib = smoothed / (1024 * 1024);
+              smoothedBps = smoothRate(prev, instant);
+              smoothedRateRef.current.set(item.id, smoothedBps);
+              const mib = smoothedBps / (1024 * 1024);
               rateLabel =
                 mib >= 0.1
                   ? `${mib.toFixed(1).replace(".", ",")} MB/s`
-                  : `${(smoothed / 1024).toFixed(0)} KB/s`;
-              const remaining = (total - received) / smoothed;
-              if (Number.isFinite(remaining) && remaining > 0 && received / total > 0.02) {
-                etaLabel = formatEtaRemaining(remaining);
-              }
+                  : `${(smoothedBps / 1024).toFixed(0)} KB/s`;
             }
+            const remaining = smoothedBps > 0 ? (total - received) / smoothedBps : Number.NaN;
+            etaLabel = resolveEtaDisplay({
+              status: item.status,
+              percent,
+              rateBps: smoothedBps,
+              remainingSec: remaining,
+            });
           }
 
           // Size stays in progress (active/paused). Queued/failed still show size in meta.
@@ -343,8 +351,11 @@ export default function QueueScreen() {
                   borderRadius: radius.md,
                 },
               ]}
-              accessibilityLabel={a11yStatus}
+              accessible={false}
             >
+              <Text style={styles.a11yOnly} accessibilityLabel={a11yStatus}>
+                {a11yStatus}
+              </Text>
               <View style={styles.row}>
                 <View
                   style={[styles.thumbWrap, { width: thumb.width, height: thumb.height }]}
@@ -530,7 +541,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 8,
+    gap: QUEUE_ACTION_GAP,
     marginTop: 8,
     flexWrap: "wrap",
   },
@@ -546,8 +557,13 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
     paddingHorizontal: 12,
     minHeight: QUEUE_ACTION_VISUAL_HEIGHT,
-    // Visual ~36; hitSlop keeps the real target ≥44pt.
-    minWidth: 72,
+    minWidth: QUEUE_ACTION_MIN_WIDTH,
   },
   actionLabel: { fontSize: 12, fontFamily: Type.fontSemi },
+  a11yOnly: {
+    position: "absolute",
+    width: 1,
+    height: 1,
+    opacity: 0,
+  },
 });

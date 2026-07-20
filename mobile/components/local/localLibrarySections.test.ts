@@ -8,6 +8,8 @@ import {
   formatCompactDateTime,
   formatCountLabel,
   formatSectionHeading,
+  LOCAL_ACTION_HIT,
+  LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
 } from "./localLibrarySections";
 
@@ -87,4 +89,27 @@ test("section keys are stable day keys", () => {
 
 test("sticky headers flag is enabled for Local Library", () => {
   assert.equal(LOCAL_LIBRARY_STICKY_HEADERS, true);
+});
+
+test("local action hit boxes are at least 44pt", () => {
+  assert.ok(LOCAL_ACTION_HIT >= 44);
+});
+
+test("local list bottom padding clears tab bar", () => {
+  assert.ok(LOCAL_LIBRARY_LIST_BOTTOM_PADDING >= 80);
+});
+
+test("refresh rebuilds the same section keys without duplication", () => {
+  const files = [
+    file("FILE260719-100000F.MP4"),
+    file("FILE260719-110000F.MP4"),
+    file("FILE260718-100000F.MP4"),
+  ];
+  const a = buildLocalLibrarySections(files);
+  const b = buildLocalLibrarySections(files);
+  assert.deepEqual(
+    a.map((s) => s.key),
+    b.map((s) => s.key),
+  );
+  assert.equal(a.length, new Set(a.map((s) => s.key)).size);
 });

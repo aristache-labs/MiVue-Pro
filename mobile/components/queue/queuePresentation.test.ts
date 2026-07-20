@@ -8,10 +8,15 @@ import {
   filterVisibleQueueItems,
   formatQueueSummary,
   isExpandedCard,
+  QUEUE_ACTION_GAP,
+  QUEUE_ACTION_HIT_SLOP,
   QUEUE_LIST_BOTTOM_PADDING,
   queueActionHitHeight,
+  queueActionHitWidth,
   queueDisplayPosition,
+  queueStatusAnnouncement,
   queueThumbSize,
+  resolveEtaDisplay,
   resolveQueueThumbnailUri,
   showsProgress,
   sortQueueForDisplay,
@@ -124,8 +129,13 @@ test("queued does not show empty progress helpers", () => {
   assert.equal(isExpandedCard("queued"), false);
 });
 
-test("action hit target stays at least 44pt tall", () => {
+test("action hit target stays at least 44pt tall and wide", () => {
   assert.ok(queueActionHitHeight() >= 44);
+  assert.ok(queueActionHitWidth() >= 44);
+});
+
+test("adjacent action hitSlop does not exceed action gap", () => {
+  assert.ok(QUEUE_ACTION_HIT_SLOP.left + QUEUE_ACTION_HIT_SLOP.right <= QUEUE_ACTION_GAP);
 });
 
 test("list bottom padding clears tab bar", () => {
@@ -159,4 +169,82 @@ test("long filename still maps to a single Remove action when queued", () => {
   const row = item("long", "queued", long);
   assert.deepEqual(actionsForStatus(row.status), ["remove"]);
   assert.ok(row.localName.length > 80);
+});
+
+test("ETA hidden for non-active statuses", () => {
+  for (const status of ["paused", "queued", "failed", "completed", "cancelled"]) {
+    assert.equal(
+      resolveEtaDisplay({ status, percent: 50, rateBps: 1_000_000, remainingSec: 30 }),
+      undefined,
+    );
+  }
+});
+
+test("ETA calculating at start and with unstable rate", () => {
+  assert.equal(
+    resolveEtaDisplay({ status: "active", percent: 1, rateBps: 2_000_000, remainingSec: 120 }),
+    "Calculating…",
+  );
+  assert.equal(
+    resolveEtaDisplay({ status: "active", percent: 10, rateBps: 0, remainingSec: 120 }),
+    "Calculating…",
+  );
+  assert.equal(
+    resolveEtaDisplay({ status: "active", percent: 10, rateBps: Number.NaN, remainingSec: 120 }),
+    "Calculating…",
+  );
+});
+
+test("ETA shown when rate and progress are stable", () => {
+  const label = resolveEtaDisplay({
+    status: "active",
+    percent: 10,
+    rateBps: 2_000_000,
+    remainingSec: 42,
+  });
+  assert.equal(label, "42 sec remaining");
+});
+
+test("ETA rejects absurd remaining and unknown total path", () => {
+  assert.equal(
+    resolveEtaDisplay({
+      status: "active",
+      percent: 5,
+      rateBps: 100,
+      remainingSec: 48 * 3600,
+    }),
+    "Calculating…",
+  );
+  assert.equal(
+    resolveEtaDisplay({
+      status: "active",
+      percent: 5,
+      rateBps: 1_000_000,
+      remainingSec: Number.POSITIVE_INFINITY,
+    }),
+    "Calculating…",
+  );
+});
+
+test("status announcements cover start pause resume complete fail", () => {
+  assert.equal(queueStatusAnnouncement("A.MP4", undefined, "queued"), undefined);
+  assert.equal(queueStatusAnnouncement("A.MP4", "queued", "active"), "Download started for A.MP4");
+  assert.equal(queueStatusAnnouncement("A.MP4", "paused", "active"), "Download resumed for A.MP4");
+  assert.equal(queueStatusAnnouncement("A.MP4", "active", "paused"), "Download paused for A.MP4");
+  assert.equal(queueStatusAnnouncement("A.MP4", "active", "completed"), "Download completed for A.MP4");
+  assert.equal(queueStatusAnnouncement("A.MP4", "active", "failed"), "Download failed for A.MP4");
+  assert.equal(queueStatusAnnouncement("A.MP4", "active", "active"), undefined);
+});
+
+test("sort order is stable and unchanged by presentation helpers", () => {
+  const ordered = sortQueueForDisplay([
+    item("q2", "queued"),
+    item("a", "active"),
+    item("q1", "queued"),
+    item("p", "paused"),
+  ]);
+  assert.deepEqual(
+    ordered.map((i) => i.id),
+    ["a", "p", "q2", "q1"],
+  );
 });

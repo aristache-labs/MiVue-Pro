@@ -13,6 +13,12 @@ export interface LocalLibrarySection {
 /** Contract: Local Library SectionList must enable sticky section headers. */
 export const LOCAL_LIBRARY_STICKY_HEADERS = true;
 
+/** Bottom inset so the last card clears the tab bar (+ home indicator). */
+export const LOCAL_LIBRARY_LIST_BOTTOM_PADDING = 96;
+
+/** Share / Delete visual hit box (already ≥44). */
+export const LOCAL_ACTION_HIT = 44;
+
 export function dayKeyFromName(name: string): string {
   const parts = parseRecordedParts(name);
   if (!parts) return "unknown";
