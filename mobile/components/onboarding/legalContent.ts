@@ -382,8 +382,8 @@ export const PRIVACY_POLICY_DOCUMENT: LegalDocument = Object.freeze({
 
 function flattenDocument(doc: LegalDocument): string {
   const parts: string[] = [
-    LEGAL_DRAFT_BANNER,
-    "",
+  LEGAL_DRAFT_BANNER,
+  "",
     doc.title,
     `Status: ${doc.status}`,
     `Version: ${doc.version}`,

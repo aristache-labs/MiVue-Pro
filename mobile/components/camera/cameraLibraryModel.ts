@@ -102,6 +102,15 @@ export interface CameraLibrarySection {
   readonly data: readonly RemoteFile[];
 }
 
+/** FlatList row for Camera Library — section metadata travels with each file. */
+export interface CameraLibraryFileRow {
+  readonly key: string;
+  readonly sectionKey: string;
+  readonly sectionTitle: string;
+  readonly sectionCountLabel: string;
+  readonly file: RemoteFile;
+}
+
 export interface CameraFilterChip {
   readonly id: string;
   readonly label: string;
@@ -457,6 +466,28 @@ export function buildCameraLibrarySections(
       data,
     };
   });
+}
+
+/**
+ * Flatten sections into file rows for FlatList.
+ * Avoids SectionList sticky-header virtualization bugs on iOS.
+ */
+export function buildCameraLibraryFileRows(
+  sections: readonly CameraLibrarySection[],
+): CameraLibraryFileRow[] {
+  const rows: CameraLibraryFileRow[] = [];
+  for (const section of sections) {
+    for (const file of section.data) {
+      rows.push({
+        key: file.path,
+        sectionKey: section.key,
+        sectionTitle: section.title,
+        sectionCountLabel: section.countLabel,
+        file,
+      });
+    }
+  }
+  return rows;
 }
 
 export function buildCameraFilterChips(filters: CameraLibraryFilters): CameraFilterChip[] {

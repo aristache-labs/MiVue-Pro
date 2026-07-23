@@ -87,7 +87,7 @@ test("library index wires RemoteDetailSheet and does not slide-detail Modal", ()
   const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
   assert.match(index, /RemoteDetailSheet/);
   assert.equal(index.includes("animationType=\"slide\""), false);
-  assert.match(index, /stickySectionHeadersEnabled=\{LOCAL_LIBRARY_STICKY_HEADERS\}/);
+  assert.match(index, /styles\.stickyOverlay/);
   assert.match(index, /onOpenDetail=\{setDetailFile\}/);
   assert.match(index, /shouldEnqueueOnDownloadPress/);
 });

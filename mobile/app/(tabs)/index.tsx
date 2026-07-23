@@ -7,7 +7,7 @@ import {
   Pressable,
   RefreshControl,
   ScrollView,
-  SectionList,
+  FlatList,
   StyleSheet,
   Text,
   TextInput,
@@ -21,6 +21,7 @@ import { CameraConnectionSheet } from "@/components/camera/CameraConnectionSheet
 import { CameraFilterSheet } from "@/components/camera/CameraFilterSheet";
 import {
   buildCameraFilterChips,
+  buildCameraLibraryFileRows,
   buildCameraLibrarySections,
   cameraSortOptionsForCategory,
   clearCameraFilterGroup,
@@ -37,6 +38,7 @@ import {
   librarySubtitle,
   sanitizeFiltersForCategoryScope,
   sumRemoteBytes,
+  type CameraLibraryFileRow,
   type CameraLibraryFilters,
   type CameraLibrarySort,
   type CategoryFilter,
@@ -46,6 +48,7 @@ import {
   LIBRARY_THUMB_VIEWABILITY,
   pathsFromViewableItems,
   samePathSet,
+  stickySectionKeyFromViewableItems,
 } from "@/components/camera/cameraLibraryViewability";
 import { RemoteDetailSheet } from "@/components/camera/RemoteDetailSheet";
 import { RemoteRecordingCard } from "@/components/camera/RemoteRecordingCard";
@@ -53,10 +56,7 @@ import {
   resolveRemoteDownloadState,
   shouldEnqueueOnDownloadPress,
 } from "@/components/camera/remoteDownloadState";
-import {
-  LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
-  LOCAL_LIBRARY_STICKY_HEADERS,
-} from "@/components/local/localLibrarySections";
+import { LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -191,14 +191,34 @@ export default function LibraryScreen() {
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
+  const listRows = useMemo(() => buildCameraLibraryFileRows(sections), [sections]);
   const [activeThumbnailPaths, setActiveThumbnailPaths] = useState(() => new Set<string>());
+  const [stickySectionKey, setStickySectionKey] = useState<string | null>(null);
   const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
       const next = pathsFromViewableItems(viewableItems);
       setActiveThumbnailPaths((prev) => (samePathSet(prev, next) ? prev : next));
+      const nextSticky = stickySectionKeyFromViewableItems(viewableItems);
+      if (nextSticky) {
+        setStickySectionKey((prev) => (prev === nextSticky ? prev : nextSticky));
+      }
     },
   ).current;
+
+  useEffect(() => {
+    const first = sections[0]?.key ?? null;
+    setStickySectionKey((prev) => {
+      if (prev && sections.some((s) => s.key === prev)) return prev;
+      return first;
+    });
+  }, [sections]);
+
+  const stickySection = useMemo(() => {
+    if (sections.length === 0) return null;
+    return sections.find((s) => s.key === stickySectionKey) ?? sections[0] ?? null;
+  }, [sections, stickySectionKey]);
+
   const listItemSeparator = useCallback(
     () => <View style={{ height: spacing.sm }} />,
     [spacing.sm],
@@ -341,8 +361,8 @@ export default function LibraryScreen() {
     [localFiles],
   );
 
-  const renderSectionHeader = useCallback(
-    ({ section }: { section: (typeof sections)[number] }) => (
+  const renderSectionBreak = useCallback(
+    (row: CameraLibraryFileRow) => (
       <View
         collapsable={false}
         style={[
@@ -351,10 +371,10 @@ export default function LibraryScreen() {
         ]}
       >
         <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {section.title}
+          {row.sectionTitle}
         </Text>
         <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-          {section.countLabel}
+          {row.sectionCountLabel}
         </Text>
       </View>
     ),
@@ -362,26 +382,33 @@ export default function LibraryScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: RemoteFile }) => {
+    ({ item, index }: { item: CameraLibraryFileRow; index: number }) => {
       const downloadState = resolveRemoteDownloadState({
-        file: item,
+        file: item.file,
         queueItems,
         localNames,
         queuePosition,
       });
+      const prev = index > 0 ? listRows[index - 1] : undefined;
+      const showSectionBreak = Boolean(prev && prev.sectionKey !== item.sectionKey);
       return (
-        <RemoteRecordingCard
-          file={item}
-          downloadState={downloadState}
-          thumbActive={activeThumbnailPaths.has(item.path)}
-          onDownload={onDownload}
-          onResume={onResume}
-          onOpenDownloaded={openDownloaded}
-          onOpenDetail={setDetailFile}
-        />
+        <View collapsable={false}>
+          {showSectionBreak ? renderSectionBreak(item) : null}
+          {showSectionBreak ? <View style={{ height: spacing.sm }} /> : null}
+          <RemoteRecordingCard
+            file={item.file}
+            downloadState={downloadState}
+            thumbActive={activeThumbnailPaths.has(item.file.path)}
+            onDownload={onDownload}
+            onResume={onResume}
+            onOpenDownloaded={openDownloaded}
+            onOpenDetail={setDetailFile}
+          />
+        </View>
       );
     },
     [
+      listRows,
       activeThumbnailPaths,
       queueItems,
       localNames,
@@ -389,12 +416,14 @@ export default function LibraryScreen() {
       onDownload,
       onResume,
       openDownloaded,
+      renderSectionBreak,
+      spacing.sm,
     ],
   );
 
   const listExtraData = useMemo(
-    () => ({ queueItems, localNames, queuePosition, activeThumbnailPaths }),
-    [queueItems, localNames, queuePosition, activeThumbnailPaths],
+    () => ({ queueItems, localNames, queuePosition, activeThumbnailPaths, stickySectionKey }),
+    [queueItems, localNames, queuePosition, activeThumbnailPaths, stickySectionKey],
   );
 
   const detailDownloadState = useMemo(() => {
@@ -621,46 +650,64 @@ export default function LibraryScreen() {
           <SkeletonRow />
         </View>
       ) : (
-        <SectionList
-          style={styles.list}
-          sections={sections}
-          keyExtractor={(item) => item.path}
-          stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
-          removeClippedSubviews={false}
-          initialNumToRender={LIBRARY_LIST_VIRTUALIZATION.initialNumToRender}
-          maxToRenderPerBatch={LIBRARY_LIST_VIRTUALIZATION.maxToRenderPerBatch}
-          updateCellsBatchingPeriod={LIBRARY_LIST_VIRTUALIZATION.updateCellsBatchingPeriod}
-          windowSize={LIBRARY_LIST_VIRTUALIZATION.windowSize}
-          viewabilityConfig={viewabilityConfig}
-          onViewableItemsChanged={onViewableItemsChanged}
-          extraData={listExtraData}
-          scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
-          alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
-          bounces={listBounceEnabled(canPullToRefresh)}
-          overScrollMode={listOverScrollMode(canPullToRefresh)}
-          showsVerticalScrollIndicator={hasOverflow}
-          onLayout={onViewportLayout}
-          onContentSizeChange={onContentSizeChange}
-          refreshControl={
-            canPullToRefresh ? (
-              <RefreshControl
-                refreshing={isRefreshingCamera}
-                onRefresh={() => void runRefresh()}
-                tintColor={colors.brand}
-              />
-            ) : undefined
-          }
-          contentContainerStyle={{
-            paddingHorizontal: spacing.lg,
-            paddingBottom: listPadBottom,
-            paddingTop: spacing.sm,
-            ...(filtered.length === 0 ? { flexGrow: 1 } : null),
-          }}
-          ListEmptyComponent={listEmpty}
-          renderSectionHeader={renderSectionHeader}
-          ItemSeparatorComponent={listItemSeparator}
-          renderItem={renderItem}
-        />
+        <View style={styles.list}>
+          {stickySection && filtered.length > 0 ? (
+            <View
+              collapsable={false}
+              pointerEvents="none"
+              style={[
+                styles.sectionHeader,
+                styles.stickyOverlay,
+                { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
+              ]}
+            >
+              <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
+                {stickySection.title}
+              </Text>
+              <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+                {stickySection.countLabel}
+              </Text>
+            </View>
+          ) : null}
+          <FlatList
+            style={styles.list}
+            data={listRows}
+            keyExtractor={(item) => item.key}
+            removeClippedSubviews={false}
+            initialNumToRender={LIBRARY_LIST_VIRTUALIZATION.initialNumToRender}
+            maxToRenderPerBatch={LIBRARY_LIST_VIRTUALIZATION.maxToRenderPerBatch}
+            updateCellsBatchingPeriod={LIBRARY_LIST_VIRTUALIZATION.updateCellsBatchingPeriod}
+            windowSize={LIBRARY_LIST_VIRTUALIZATION.windowSize}
+            viewabilityConfig={viewabilityConfig}
+            onViewableItemsChanged={onViewableItemsChanged}
+            extraData={listExtraData}
+            scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
+            alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
+            bounces={listBounceEnabled(canPullToRefresh)}
+            overScrollMode={listOverScrollMode(canPullToRefresh)}
+            showsVerticalScrollIndicator={hasOverflow}
+            onLayout={onViewportLayout}
+            onContentSizeChange={onContentSizeChange}
+            refreshControl={
+              canPullToRefresh ? (
+                <RefreshControl
+                  refreshing={isRefreshingCamera}
+                  onRefresh={() => void runRefresh()}
+                  tintColor={colors.brand}
+                />
+              ) : undefined
+            }
+            contentContainerStyle={{
+              paddingHorizontal: spacing.lg,
+              paddingBottom: listPadBottom,
+              paddingTop: spacing.sm,
+              ...(filtered.length === 0 ? { flexGrow: 1 } : null),
+            }}
+            ListEmptyComponent={listEmpty}
+            ItemSeparatorComponent={listItemSeparator}
+            renderItem={renderItem}
+          />
+        </View>
       )}
 
       <CameraConnectionSheet
@@ -854,6 +901,15 @@ const styles = StyleSheet.create({
   },
   summaryText: { fontSize: 11, fontFamily: Type.font, flexShrink: 0 },
   list: { flex: 1 },
+  stickyOverlay: {
+    zIndex: 20,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      android: { elevation: 12 },
+      ios: {},
+      default: {},
+    }),
+  },
   sectionHeader: {
     minHeight: 36,
     flexDirection: "row",

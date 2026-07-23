@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 
 import {
   buildCameraLibrarySections,
+  buildCameraLibraryFileRows,
   countCategories,
   filterAndSortRemoteFiles,
   isCameraFiltersEmpty,
@@ -196,6 +197,26 @@ describe("cameraLibraryModel", () => {
       sections.reduce((sum, s) => sum + s.data.length, 0),
       379,
     );
+
+    const rows = buildCameraLibraryFileRows(sections);
+    assert.equal(rows.length, 379);
+    assert.equal(new Set(rows.map((r) => r.key)).size, 379);
+    const row19 = rows.filter((r) => r.sectionKey === "2026-07-19");
+    const row17 = rows.filter((r) => r.sectionKey === "2026-07-17");
+    assert.equal(row19.length, 22);
+    assert.equal(row17.length, 18);
+    const last19 = rows.findIndex((r) => r.sectionKey === "2026-07-19");
+    // last 19 row is immediately followed by first 17 row
+    let boundary = -1;
+    for (let i = 0; i < rows.length - 1; i += 1) {
+      if (rows[i]?.sectionKey === "2026-07-19" && rows[i + 1]?.sectionKey === "2026-07-17") {
+        boundary = i;
+        break;
+      }
+    }
+    assert.ok(boundary >= 0, "19 July rows must be adjacent to 17 July rows");
+    assert.equal(rows.some((r) => r.sectionKey === "2026-07-18"), false);
+    void last19;
   });
 
   it("filters downloaded state", () => {

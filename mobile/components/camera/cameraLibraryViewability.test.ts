@@ -8,6 +8,7 @@ import {
   LIBRARY_THUMB_VIEWABILITY,
   pathsFromViewableItems,
   samePathSet,
+  stickySectionKeyFromViewableItems,
 } from "./cameraLibraryViewability";
 
 describe("cameraLibraryViewability", () => {
@@ -16,10 +17,22 @@ describe("cameraLibraryViewability", () => {
       { item: { path: "/SD/A.MP4", name: "A.MP4" } },
       { item: { title: "Sunday, 19 July", key: "2026-07-19" } },
       { item: { path: "/SD/B.MP4" } },
+      { item: { file: { path: "/SD/C.MP4" }, sectionKey: "2026-07-19" } },
       { item: null },
       { item: "skip" },
     ]);
-    assert.deepEqual([...paths].sort(), ["/SD/A.MP4", "/SD/B.MP4"]);
+    assert.deepEqual([...paths].sort(), ["/SD/A.MP4", "/SD/B.MP4", "/SD/C.MP4"]);
+  });
+
+  it("sticky section key follows first viewable file row", () => {
+    assert.equal(
+      stickySectionKeyFromViewableItems([
+        { item: { file: { path: "/SD/A.MP4" }, sectionKey: "2026-07-19" } },
+        { item: { file: { path: "/SD/B.MP4" }, sectionKey: "2026-07-17" } },
+      ]),
+      "2026-07-19",
+    );
+    assert.equal(stickySectionKeyFromViewableItems([{ item: { title: "header only" } }]), undefined);
   });
 
   it("samePathSet compares set membership without order", () => {
@@ -60,7 +73,7 @@ describe("Library SectionList virtualization wiring", () => {
   it("gates thumbnails via viewability and keeps placeholder geometry", () => {
     assert.match(src, /viewabilityConfig=\{viewabilityConfig\}/);
     assert.match(src, /onViewableItemsChanged=\{onViewableItemsChanged\}/);
-    assert.match(src, /thumbActive=\{activeThumbnailPaths\.has\(item\.path\)\}/);
+    assert.match(src, /thumbActive=\{activeThumbnailPaths\.has\(item\.file\.path\)\}/);
     assert.match(cardSrc, /active=\{thumbActive\}/);
     assert.match(thumbSrc, /if \(!active\) return;/);
     assert.match(mediaCardSrc, /width: MEDIA_THUMB_W/);
@@ -75,10 +88,16 @@ describe("Library SectionList virtualization wiring", () => {
 
   it("memoizes list render callbacks and keeps stable sections under queue progress", () => {
     assert.match(src, /const renderItem = useCallback/);
-    assert.match(src, /const renderSectionHeader = useCallback/);
     assert.match(src, /const listItemSeparator = useCallback/);
     assert.match(src, /stableQueuedNames/);
-    assert.match(src, /sections=\{sections\}/);
+    assert.match(src, /data=\{listRows\}/);
     assert.doesNotMatch(src, /sections=\{sections\.map\(/);
+  });
+
+  it("uses sticky overlay instead of native SectionList sticky headers", () => {
+    assert.match(src, /stickySectionKeyFromViewableItems/);
+    assert.match(src, /styles\.stickyOverlay/);
+    assert.doesNotMatch(src, /stickySectionHeadersEnabled/);
+    assert.doesNotMatch(src, /<SectionList/);
   });
 });
