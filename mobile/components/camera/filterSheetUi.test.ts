@@ -152,7 +152,9 @@ test("Cancel dismisses without applying; Done commits once", () => {
   assert.match(src, /onPress=\{dismissPicker\}/);
   assert.match(src, /commitPicker\(iosTemp/);
   assert.match(src, /setDraft\(\(prev\) => applyPickerDate/);
-  assert.match(src, /event\.type === "dismissed"/);
+  assert.match(src, /onValueChange=\{onPickerValueChange\}/);
+  assert.match(src, /onDismiss=\{onPickerDismiss\}/);
+  assert.match(src, /onPickerDismiss = \(\) => \{\s*dismissPicker\(\);/);
 });
 
 test("backdrop is sibling of sheet host — not nested inside animated tree as only child wrapper for both", () => {

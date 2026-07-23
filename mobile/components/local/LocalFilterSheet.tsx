@@ -1,5 +1,5 @@
 import DateTimePicker, {
-  type DateTimePickerEvent,
+  type DateTimePickerChangeEvent,
 } from "@react-native-community/datetimepicker";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -238,17 +238,17 @@ export function LocalFilterSheet({
     dismissPicker();
   };
 
-  const onNativeChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type === "dismissed") {
-      dismissPicker();
-      return;
-    }
+  const onPickerValueChange = (_event: DateTimePickerChangeEvent, date: Date) => {
     if (!date || !activePicker) return;
     if (Platform.OS === "android") {
       commitPicker(date);
       return;
     }
     setIosTemp(date);
+  };
+
+  const onPickerDismiss = () => {
+    dismissPicker();
   };
 
   const interceptClose = useCallback(() => {
@@ -564,7 +564,8 @@ export function LocalFilterSheet({
               display="default"
               minuteInterval={1}
               is24Hour
-              onChange={onNativeChange}
+              onValueChange={onPickerValueChange}
+              onDismiss={onPickerDismiss}
               testID="local-filter-android-picker"
             />
           ) : null}
@@ -629,7 +630,8 @@ export function LocalFilterSheet({
                   display="spinner"
                   minuteInterval={1}
                   is24Hour
-                  onChange={onNativeChange}
+                  onValueChange={onPickerValueChange}
+              onDismiss={onPickerDismiss}
                   style={{ alignSelf: "center" }}
                 />
               </View>

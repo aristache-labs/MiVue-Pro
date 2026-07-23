@@ -12,6 +12,7 @@ import {
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
 import { OnboardingCard, OnboardingScreen, StatusBadge } from "@/components/onboarding/OnboardingUi";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { safeRouterBack } from "@/components/navigation/safeRouterBack";
 import { PrimaryButton } from "@/components/ui";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
@@ -25,7 +26,7 @@ export default function OnboardingTermsScreen() {
     <OnboardingScreen
       title="Terms & Privacy"
       subtitle="Local-first access to recordings from a dashcam you own."
-      onBack={fromSettings ? () => router.back() : undefined}
+      onBack={fromSettings ? () => safeRouterBack("/(tabs)/settings") : undefined}
       backLabel="Cancel"
     >
       <StatusBadge label={LEGAL_DRAFT_BANNER} tone="warn" />

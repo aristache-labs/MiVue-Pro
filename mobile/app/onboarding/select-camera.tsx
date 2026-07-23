@@ -11,6 +11,7 @@ import {
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
 import { OnboardingScreen, StatusBadge } from "@/components/onboarding/OnboardingUi";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { safeRouterBack } from "@/components/navigation/safeRouterBack";
 import {
   canContinueWithCameraIpv4,
   parseCameraIpv4Input,
@@ -71,7 +72,7 @@ export default function OnboardingSelectCameraScreen() {
       subtitle="Choose a verified camera profile."
       onBack={() => {
         if (fromSettings) {
-          router.back();
+          safeRouterBack("/(tabs)/settings");
           return;
         }
         void setStep("cameraSetup").then(() => {

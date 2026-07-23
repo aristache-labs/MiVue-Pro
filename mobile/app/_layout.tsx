@@ -10,7 +10,7 @@ import {
 } from "@expo-google-fonts/source-sans-3";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Redirect, Stack, useSegments, type Href } from "expo-router";
+import { router, Stack, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
 import "react-native-reanimated";
@@ -99,13 +99,21 @@ function RootLayoutNav() {
     }
   }, [bootReady]);
 
+  // Prefer imperative replace over focus Redirect — on Android, focus Redirect
+  // can race the root stack and surface unhandled GO_BACK in Expo Go.
+  useEffect(() => {
+    if (!bootReady) return;
+    if (gateActive && !allowOutsideOnboarding) {
+      router.replace("/onboarding" as Href);
+    }
+  }, [bootReady, gateActive, allowOutsideOnboarding]);
+
   if (!bootReady) {
     return null;
   }
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? LaneoryDark : LaneoryLight}>
-      {gateActive && !allowOutsideOnboarding ? <Redirect href={"/onboarding" as Href} /> : null}
       <Stack
         screenOptions={{
           headerTitleStyle: { fontFamily: Type.fontSemi },

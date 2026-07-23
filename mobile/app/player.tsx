@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as FileSystem from "expo-file-system/legacy";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -28,6 +28,7 @@ import {
   zoomForSpeedKmh,
 } from "@/components/gps";
 import { HeaderDivider } from "@/components/navigation/HeaderDivider";
+import { safeRouterBack } from "@/components/navigation/safeRouterBack";
 import {
   gpsStatusA11yLabel,
   gpsStatusLabel,
@@ -116,7 +117,7 @@ export default function PlayerScreen() {
   const title = truncatePlayerFilename(name);
 
   const close = useCallback(() => {
-    router.back();
+    safeRouterBack("/(tabs)");
   }, []);
 
   return (
@@ -490,7 +491,6 @@ function VideoWithGps({
         <VideoView
           style={styles.videoView}
           player={player}
-          allowsFullscreen
           allowsPictureInPicture
           nativeControls
           contentFit="contain"

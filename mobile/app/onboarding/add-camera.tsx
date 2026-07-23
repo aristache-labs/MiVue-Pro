@@ -5,6 +5,7 @@ import { StyleSheet, Text, View } from "react-native";
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
 import { OnboardingCard, OnboardingScreen, StatusBadge } from "@/components/onboarding/OnboardingUi";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { safeRouterBack } from "@/components/navigation/safeRouterBack";
 import { PrimaryButton } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 
@@ -18,7 +19,7 @@ export default function OnboardingAddCameraScreen() {
       title="Add your camera"
       onBack={
         fromSettings
-          ? () => router.back()
+          ? () => safeRouterBack("/(tabs)/settings")
           : () => {
               void setStep("terms").then(() => {
                 router.replace("/onboarding/terms" as Parameters<typeof router.replace>[0]);

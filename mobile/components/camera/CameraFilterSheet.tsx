@@ -1,5 +1,5 @@
 import DateTimePicker, {
-  type DateTimePickerEvent,
+  type DateTimePickerChangeEvent,
 } from "@react-native-community/datetimepicker";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -250,17 +250,17 @@ export function CameraFilterSheet({
     dismissPicker();
   };
 
-  const onNativeChange = (event: DateTimePickerEvent, date?: Date) => {
-    if (event.type === "dismissed") {
-      dismissPicker();
-      return;
-    }
-    if (!date || !Number.isFinite(date.getTime()) || !activePicker) return;
+  const onPickerValueChange = (_event: DateTimePickerChangeEvent, date: Date) => {
+    if (!Number.isFinite(date.getTime()) || !activePicker) return;
     if (Platform.OS === "android") {
       commitPicker(date);
       return;
     }
     setIosTemp(date);
+  };
+
+  const onPickerDismiss = () => {
+    dismissPicker();
   };
 
   const interceptClose = useCallback(() => {
@@ -586,7 +586,8 @@ export function CameraFilterSheet({
                 display="default"
                 minuteInterval={1}
                 is24Hour
-                onChange={onNativeChange}
+                onValueChange={onPickerValueChange}
+                onDismiss={onPickerDismiss}
                 testID="camera-filter-android-picker"
               />
             ) : null}
@@ -651,7 +652,8 @@ export function CameraFilterSheet({
                     display="spinner"
                     minuteInterval={1}
                     is24Hour
-                    onChange={onNativeChange}
+                    onValueChange={onPickerValueChange}
+                onDismiss={onPickerDismiss}
                     style={{ alignSelf: "center" }}
                   />
                 </View>
