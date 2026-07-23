@@ -201,6 +201,10 @@ export default function LibraryScreen() {
   }, [refreshFiles]);
 
   useEffect(() => {
+    if (cameraLinkState === "connected") {
+      setErrorBanner(undefined);
+      return;
+    }
     if (lastError && (cameraLinkState === "unstable" || cameraLinkState === "connection_lost")) {
       setErrorBanner(friendlyConnectionError(lastError));
     }

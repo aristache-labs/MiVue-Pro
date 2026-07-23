@@ -343,7 +343,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     let dropDetail: string | undefined;
     for (const item of queueItems) {
       const prev = queueStatusRef.current.get(item.id);
-      if (item.status === "failed" && prev !== "failed" && isConnectionDropError(item.errorMessage)) {
+      // Only live transitions (queued/active/… → failed). Skip hydration of
+      // already-failed rows so reconnect is not overwritten by stale queue state.
+      if (
+        item.status === "failed" &&
+        prev !== undefined &&
+        prev !== "failed" &&
+        isConnectionDropError(item.errorMessage)
+      ) {
         sawDrop = true;
         dropDetail = item.errorMessage;
       }

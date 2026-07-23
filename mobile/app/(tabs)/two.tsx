@@ -81,6 +81,7 @@ export default function QueueScreen() {
     removeFromQueue,
     enqueueDownload,
     lastError,
+    cameraLinkState,
     files,
   } = useDemoMode();
 
@@ -111,8 +112,12 @@ export default function QueueScreen() {
     setErrorDismissed(false);
   }, [lastError]);
 
+  const showConnectionError =
+    cameraLinkState === "unstable" || cameraLinkState === "connection_lost";
   const queueErrorBanner =
-    hasQueueWork && !errorDismissed ? friendlyConnectionError(lastError) : undefined;
+    hasQueueWork && showConnectionError && !errorDismissed
+      ? friendlyConnectionError(lastError)
+      : undefined;
 
   useEffect(() => {
     navigation.setOptions({
