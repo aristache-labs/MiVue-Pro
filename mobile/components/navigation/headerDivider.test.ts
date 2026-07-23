@@ -42,49 +42,55 @@ describe("HeaderDivider system", () => {
   });
 
   it("SheetHeader keeps compact padding above the sheet divider", () => {
-    assert.match(sheetHeaderSrc, /paddingBottom:\s*8/);
-    assert.doesNotMatch(sheetHeaderSrc, /titleRow:[\s\S]*?paddingBottom:\s*1[4-9]/);
+    assert.match(sheetHeaderSrc, /SHEET_HEADER_TO_DIVIDER\s*=\s*2/);
+    assert.match(sheetHeaderSrc, /compact\s*=\s*SHEET_HEADER_COMPACT/);
+    assert.match(sheetHeaderSrc, /marginTop:\s*toDivider/);
   });
 
   it("TabScreenHeader and SettingsChromeHeader render screen divider", () => {
     assert.match(tabSrc, /HeaderDivider/);
     assert.match(tabSrc, /variant="screen"/);
-    assert.doesNotMatch(tabSrc, /styles\.divider|backgroundColor:\s*colors\.border\s*\}\]/);
+    assert.doesNotMatch(tabSrc, /styles\.divider|backgroundColor:\s*colors\.border\s*\}\,/);
     assert.match(chromeSrc, /HeaderDivider/);
     assert.match(chromeSrc, /variant="screen"/);
     assert.doesNotMatch(chromeSrc, /borderBottomWidth/);
   });
 
-  it("Library and Local Filters share SheetHeader with divider outside ScrollView", () => {
+  it("Library and Local Filters share CompactSheetHeader with divider outside ScrollView", () => {
     for (const src of [cameraFilter, localFilter]) {
-      assert.match(src, /SheetHeader/);
+      assert.match(src, /CompactSheetHeader/);
       assert.match(src, /dividerInset=\{MEDIA_SHEET_PAD_H\}/);
-      const headerIdx = src.indexOf("<SheetHeader");
+      assert.match(src, /SHEET_BODY_PAD_TOP/);
+      const headerIdx = src.indexOf("<CompactSheetHeader");
       const scrollIdx = src.indexOf("<ScrollView");
       assert.ok(headerIdx >= 0 && scrollIdx > headerIdx);
     }
   });
 
-  it("Library and Local Sort use SheetHeader divider", () => {
-    assert.match(library, /SheetHeader/);
-    assert.match(local, /SheetHeader/);
+  it("Library and Local Sort use CompactSheetHeader divider", () => {
+    assert.match(library, /CompactSheetHeader/);
+    assert.match(local, /CompactSheetHeader/);
     assert.match(library, /title="Sort"/);
     assert.match(local, /title="Sort"/);
+    assert.match(library, /SHEET_BODY_PAD_TOP/);
+    assert.match(local, /SHEET_BODY_PAD_TOP/);
     assert.doesNotMatch(library, /sortHeader:/);
     assert.doesNotMatch(local, /sortHeader:/);
   });
 
   it("Camera connection and setting sheets render divider", () => {
-    assert.match(connection, /HeaderDivider/);
-    assert.match(connection, /camera-connection-header-divider/);
-    assert.match(setting, /SheetHeader/);
+    assert.match(connection, /CompactSheetHeader/);
+    assert.match(connection, /camera-connection-header/);
+    assert.match(setting, /CompactSheetHeader/);
     assert.match(setting, /dividerInset=\{0\}/);
+    assert.match(setting, /SHEET_BODY_PAD_TOP/);
   });
 
   it("Legal sheets place divider below draft notice", () => {
-    assert.match(legal, /SheetHeader/);
+    assert.match(legal, /CompactSheetHeader/);
     assert.match(legal, /belowTitle/);
     assert.match(legal, /ABOUT_LEGAL_REVIEW_NOTE/);
+    assert.match(legal, /SHEET_BODY_PAD_TOP/);
     const below = legal.indexOf("belowTitle");
     const draft = legal.indexOf("ABOUT_LEGAL_REVIEW_NOTE", below);
     assert.ok(below >= 0 && draft > below);
@@ -93,6 +99,7 @@ describe("HeaderDivider system", () => {
   it("Remote detail, player, and legal-document use dividers", () => {
     assert.match(detail, /HeaderDivider/);
     assert.match(detail, /SheetCloseButton/);
+    assert.match(detail, /SHEET_BODY_PAD_TOP/);
     assert.match(player, /HeaderDivider/);
     assert.match(player, /player-header-divider/);
     assert.match(legalDoc, /SettingsChromeHeader/);
@@ -111,9 +118,9 @@ describe("HeaderDivider system", () => {
     assert.doesNotMatch(shell, /HeaderDivider/);
   });
 
-  it("SheetHeader keeps title geometrically centered and divider decorative", () => {
-    assert.match(sheetHeaderSrc, /styles\.side/);
-    assert.match(sheetHeaderSrc, /textAlign:\s*"center"/);
+  it("CompactSheetHeader keeps title geometrically centered and divider decorative", () => {
+    assert.match(sheetHeaderSrc, /sideSlot/);
+    assert.match(sheetHeaderSrc, /titleAbsolute/);
     assert.match(sheetHeaderSrc, /HeaderDivider/);
     assert.match(sheetHeaderSrc, /showDivider/);
   });

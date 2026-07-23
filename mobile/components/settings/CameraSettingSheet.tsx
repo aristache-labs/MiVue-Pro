@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
-import { SheetHeader } from "@/components/sheets/SheetHeader";
+import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
@@ -87,28 +87,48 @@ export function CameraSettingSheet({
     >
       {(api) => (
         <View style={styles.root}>
-          <SheetHeader
+          <CompactSheetHeader
             title={title}
-            showDragHandle={false}
+            showHandle={false}
+            compact
             dividerInset={0}
             dragHandleProps={api.dragHandleProps}
             onClose={api.requestClose}
             closeDisabled={applying}
           />
 
+          <View style={styles.content}>
           {description ? (
-            <Text style={[styles.description, { color: colors.textMuted }]}>{description}</Text>
+            <Text
+              style={[
+                styles.description,
+                { color: colors.textMuted },
+              ]}
+            >
+              {description}
+            </Text>
           ) : null}
 
           {applyDisabledReason ? (
-            <Text style={[styles.banner, { color: colors.warn, backgroundColor: colors.warnSoft }]}>
+            <Text
+              style={[
+                styles.banner,
+                {
+                  color: colors.warn,
+                  backgroundColor: colors.warnSoft,
+                  marginTop: description ? 8 : 0,
+                },
+              ]}
+            >
               {applyDisabledReason}
             </Text>
           ) : null}
 
           <ScrollView
             style={styles.list}
-            contentContainerStyle={{ paddingTop: 8 }}
+            contentContainerStyle={{
+              paddingTop: description || applyDisabledReason ? 8 : 0,
+            }}
             onLayout={onViewportLayout}
             onContentSizeChange={onContentSizeChange}
             scrollEnabled={hasOverflow}
@@ -220,6 +240,7 @@ export function CameraSettingSheet({
               )}
             </Pressable>
           </View>
+          </View>
         </View>
       )}
     </StaticBackdropSheet>
@@ -227,7 +248,8 @@ export function CameraSettingSheet({
 }
 
 const styles = StyleSheet.create({
-  root: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
+  root: { paddingHorizontal: 16, paddingTop: 0 },
+  content: { paddingTop: SHEET_BODY_PAD_TOP },
   description: {
     fontFamily: Type.font,
     fontSize: 13,

@@ -20,6 +20,12 @@ import {
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import { HeaderDivider } from "@/components/navigation/HeaderDivider";
+import {
+  SHEET_BODY_PAD_TOP,
+  SHEET_HEADER_HANDLE_TO_ROW,
+  SHEET_HEADER_HANDLE_TOP,
+  SHEET_HEADER_TO_DIVIDER,
+} from "@/components/sheets/SheetHeader";
 import { PrimaryButton } from "@/components/ui";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -65,9 +71,8 @@ export function RemoteDetailSheet({
         borderTopLeftRadius: MEDIA_SHEET_RADIUS,
         borderTopRightRadius: MEDIA_SHEET_RADIUS,
         paddingHorizontal: MEDIA_SHEET_PAD_H,
-        paddingTop: 8,
+        paddingTop: SHEET_HEADER_HANDLE_TOP,
         paddingBottom: Math.max(insets.bottom, 16),
-        gap: 12,
       }}
     >
       {({ requestClose }) => {
@@ -102,8 +107,13 @@ export function RemoteDetailSheet({
 
         return (
           <>
-            <View style={[styles.handle, { backgroundColor: colors.border }]} />
-            <View style={styles.headerRow}>
+            <View
+              style={[
+                styles.handle,
+                { backgroundColor: colors.border, marginBottom: SHEET_HEADER_HANDLE_TO_ROW },
+              ]}
+            />
+            <View style={[styles.headerRow, { paddingBottom: SHEET_HEADER_TO_DIVIDER }]}>
               <CameraThumb
                 remotePath={file.path}
                 category={file.category}
@@ -130,7 +140,7 @@ export function RemoteDetailSheet({
             </View>
             <HeaderDivider variant="sheet" inset={0} testID="remote-detail-header-divider" />
 
-            <View style={styles.metaBlock}>
+            <View style={[styles.metaBlock, { marginTop: SHEET_BODY_PAD_TOP }]}>
               <View style={styles.metaCols}>
                 <View style={styles.metaCol}>
                   <Text style={[styles.metaLabel, { color: colors.textMuted }]}>Size</Text>
@@ -188,7 +198,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 4,
     borderRadius: 2,
-    marginBottom: 8,
   },
   headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
   headerBody: { flex: 1, minWidth: 0, gap: 6 },
@@ -201,7 +210,7 @@ const styles = StyleSheet.create({
   },
   catText: { fontSize: 10, fontFamily: Type.fontSemi },
   when: { fontSize: 13, fontFamily: Type.font },
-  metaBlock: { marginTop: 12, marginBottom: 4 },
+  metaBlock: { marginBottom: 12 },
   metaCols: { flexDirection: "row", gap: 16 },
   metaCol: { flex: 1, gap: 2 },
   metaLabel: { fontSize: 12, fontFamily: Type.font },

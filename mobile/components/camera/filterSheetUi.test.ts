@@ -53,7 +53,7 @@ test("header is Reset / Filters / X without Close text", () => {
   const src = readFileSync(join(__dirname, "CameraFilterSheet.tsx"), "utf8");
   assert.match(src, /Reset filters/);
   assert.match(src, /Close filters/);
-  assert.match(src, /SheetHeader/);
+  assert.match(src, /CompactSheetHeader/);
   assert.equal(src.includes(">Close<"), false);
   assert.match(src, /title="Filters"/);
 });

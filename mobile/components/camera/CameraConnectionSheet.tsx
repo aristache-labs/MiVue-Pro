@@ -18,8 +18,10 @@ import {
   type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
-import { SheetCloseButton } from "@/components/media/SheetCloseButton";
-import { HeaderDivider } from "@/components/navigation/HeaderDivider";
+import {
+  CompactSheetHeader,
+  SHEET_BODY_PAD_TOP_CONNECTION,
+} from "@/components/sheets/SheetHeader";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 interface CameraConnectionSheetProps {
@@ -158,169 +160,167 @@ export function CameraConnectionSheet({
         const title = showConnectedUi ? "Camera connection" : "Connect camera";
         return (
           <>
-            <View style={styles.dragRegion} {...dragHandleProps}>
-              <View style={styles.handleWrap}>
-                <View style={[styles.handle, { backgroundColor: colors.border }]} />
-              </View>
-              <View style={styles.titleRow}>
-                <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-                  {title}
-                </Text>
-                <SheetCloseButton
-                  onPress={requestClose}
-                  accessibilityLabel="Close camera connection"
-                />
-              </View>
-              <HeaderDivider variant="sheet" inset={0} testID="camera-connection-header-divider" />
-            </View>
+            <CompactSheetHeader
+              title={title}
+              titleAlign="start"
+              compact
+              showHandle
+              dividerInset={0}
+              dragHandleProps={dragHandleProps}
+              onClose={requestClose}
+              closeAccessibilityLabel="Close camera connection"
+              testID="camera-connection-header"
+            />
 
-            {showConnectedUi ? (
-              <>
-                <Text
-                  style={[styles.status, { color: colors.brand }]}
-                  accessibilityLiveRegion="polite"
-                >
-                  Connected
-                </Text>
+            <View style={styles.content}>
+              {showConnectedUi ? (
+                <>
+                  <Text
+                    style={[styles.status, { color: colors.brand }]}
+                    accessibilityLiveRegion="polite"
+                  >
+                    Connected
+                  </Text>
 
-                <View style={{ marginTop: spacing.md, gap: 10 }}>
-                  {cameraModel ? <Row label="Model" value={cameraModel} /> : null}
-                  <Row label="Camera IP" value={cameraHost} />
-                  {lastConnectedAt ? (
-                    <Row label="Last refresh" value={formatCameraTimestamp(lastConnectedAt)} />
+                  <View style={{ marginTop: spacing.md, gap: 10 }}>
+                    {cameraModel ? <Row label="Model" value={cameraModel} /> : null}
+                    <Row label="Camera IP" value={cameraHost} />
+                    {lastConnectedAt ? (
+                      <Row label="Last refresh" value={formatCameraTimestamp(lastConnectedAt)} />
+                    ) : null}
+                    <Row label="Recordings" value={String(recordingCount)} />
+                  </View>
+
+                  {sheetError ? (
+                    <Text style={[styles.error, { color: colors.danger }]}>{sheetError}</Text>
                   ) : null}
-                  <Row label="Recordings" value={String(recordingCount)} />
-                </View>
 
-                {sheetError ? (
-                  <Text style={[styles.error, { color: colors.danger }]}>{sheetError}</Text>
-                ) : null}
-
-                <Pressable
-                  onPress={() => void runRefresh()}
-                  disabled={working}
-                  accessibilityRole="button"
-                  accessibilityLabel="Refresh connection"
-                  accessibilityState={{ busy: working, disabled: working }}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    {
-                      backgroundColor: colors.brandSoft,
-                      borderColor: colors.brand,
-                      opacity: working ? 0.5 : pressed ? 0.75 : 1,
-                    },
-                  ]}
-                >
-                  {working ? (
-                    <ActivityIndicator size="small" color={colors.brand} />
-                  ) : (
-                    <Ionicons name="refresh" size={18} color={colors.brand} />
-                  )}
-                  <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>
-                    Refresh connection
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={openHelp}
-                  accessibilityRole="button"
-                  accessibilityLabel="Connection help"
-                  hitSlop={HitSlop44}
-                  style={styles.secondaryBtn}
-                >
-                  <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
-                    Connection help
-                  </Text>
-                </Pressable>
-              </>
-            ) : (
-              <>
-                <Text style={[styles.lead, { color: colors.textMuted }]}>
-                  Use the camera’s Wi‑Fi hotspot, then return to Laneory.
-                </Text>
-
-                <View style={{ marginTop: spacing.md, gap: 12 }}>
-                  {[
-                    "Enable Wi‑Fi connection mode on the camera.",
-                    "Connect this phone to the camera Wi‑Fi network.",
-                    "Return to Laneory and try the connection.",
-                  ].map((step, i) => (
-                    <View key={step} style={styles.stepRow}>
-                      <View style={[styles.stepBadge, { backgroundColor: colors.brandSoft }]}>
-                        <Text style={{ color: colors.brand, fontFamily: Type.fontBold, fontSize: 13 }}>
-                          {i + 1}
-                        </Text>
-                      </View>
-                      <Text style={[styles.stepText, { color: colors.text }]}>{step}</Text>
-                    </View>
-                  ))}
-                </View>
-
-                {sheetError ? (
-                  <Text style={[styles.error, { color: colors.danger }]}>{sheetError}</Text>
-                ) : null}
-
-                <Pressable
-                  onPress={() => void runConnect()}
-                  disabled={working}
-                  accessibilityRole="button"
-                  accessibilityLabel={sheetError ? "Try again" : "Try connection"}
-                  accessibilityState={{ busy: working, disabled: working }}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    {
-                      backgroundColor: colors.brand,
-                      borderColor: colors.brand,
-                      opacity: working ? 0.5 : pressed ? 0.85 : 1,
-                      marginTop: spacing.lg,
-                    },
-                  ]}
-                >
-                  {working ? (
-                    <ActivityIndicator size="small" color={colors.onBrand} />
-                  ) : (
-                    <Ionicons name="wifi" size={18} color={colors.onBrand} />
-                  )}
-                  <Text style={{ color: colors.onBrand, fontFamily: Type.fontSemi }}>
-                    {sheetError ? "Try again" : "Try connection"}
-                  </Text>
-                </Pressable>
-
-                <Pressable
-                  onPress={openHelp}
-                  accessibilityRole="button"
-                  accessibilityLabel="Connection help"
-                  hitSlop={HitSlop44}
-                  style={styles.secondaryBtn}
-                >
-                  <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
-                    Connection help
-                  </Text>
-                </Pressable>
-
-                {CAN_OPEN_SYSTEM_SETTINGS ? (
                   <Pressable
-                    onPress={() => void Linking.openSettings()}
+                    onPress={() => void runRefresh()}
+                    disabled={working}
                     accessibilityRole="button"
-                    accessibilityLabel="Open phone settings"
-                    accessibilityHint="Opens this app’s page in system Settings. It does not select a Wi‑Fi network for you."
-                    hitSlop={HitSlop44}
+                    accessibilityLabel="Refresh connection"
+                    accessibilityState={{ busy: working, disabled: working }}
                     style={({ pressed }) => [
-                      styles.settingsBtn,
+                      styles.primaryBtn,
                       {
-                        borderColor: colors.border,
-                        opacity: pressed ? 0.75 : 1,
+                        backgroundColor: colors.brandSoft,
+                        borderColor: colors.brand,
+                        opacity: working ? 0.5 : pressed ? 0.75 : 1,
                       },
                     ]}
                   >
-                    <Ionicons name="settings-outline" size={16} color={colors.text} />
-                    <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
-                      Open phone settings
+                    {working ? (
+                      <ActivityIndicator size="small" color={colors.brand} />
+                    ) : (
+                      <Ionicons name="refresh" size={18} color={colors.brand} />
+                    )}
+                    <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>
+                      Refresh connection
                     </Text>
                   </Pressable>
-                ) : null}
-              </>
-            )}
+
+                  <Pressable
+                    onPress={openHelp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Connection help"
+                    hitSlop={HitSlop44}
+                    style={styles.secondaryBtn}
+                  >
+                    <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
+                      Connection help
+                    </Text>
+                  </Pressable>
+                </>
+              ) : (
+                <>
+                  <Text style={[styles.lead, { color: colors.textMuted }]}>
+                    Use the camera’s Wi‑Fi hotspot, then return to Laneory.
+                  </Text>
+
+                  <View style={{ marginTop: spacing.md, gap: 12 }}>
+                    {[
+                      "Enable Wi‑Fi connection mode on the camera.",
+                      "Connect this phone to the camera Wi‑Fi network.",
+                      "Return to Laneory and try the connection.",
+                    ].map((step, i) => (
+                      <View key={step} style={styles.stepRow}>
+                        <View style={[styles.stepBadge, { backgroundColor: colors.brandSoft }]}>
+                          <Text style={{ color: colors.brand, fontFamily: Type.fontBold, fontSize: 13 }}>
+                            {i + 1}
+                          </Text>
+                        </View>
+                        <Text style={[styles.stepText, { color: colors.text }]}>{step}</Text>
+                      </View>
+                    ))}
+                  </View>
+
+                  {sheetError ? (
+                    <Text style={[styles.error, { color: colors.danger }]}>{sheetError}</Text>
+                  ) : null}
+
+                  <Pressable
+                    onPress={() => void runConnect()}
+                    disabled={working}
+                    accessibilityRole="button"
+                    accessibilityLabel={sheetError ? "Try again" : "Try connection"}
+                    accessibilityState={{ busy: working, disabled: working }}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      {
+                        backgroundColor: colors.brand,
+                        borderColor: colors.brand,
+                        opacity: working ? 0.5 : pressed ? 0.85 : 1,
+                        marginTop: spacing.lg,
+                      },
+                    ]}
+                  >
+                    {working ? (
+                      <ActivityIndicator size="small" color={colors.onBrand} />
+                    ) : (
+                      <Ionicons name="wifi" size={18} color={colors.onBrand} />
+                    )}
+                    <Text style={{ color: colors.onBrand, fontFamily: Type.fontSemi }}>
+                      {sheetError ? "Try again" : "Try connection"}
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    onPress={openHelp}
+                    accessibilityRole="button"
+                    accessibilityLabel="Connection help"
+                    hitSlop={HitSlop44}
+                    style={styles.secondaryBtn}
+                  >
+                    <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
+                      Connection help
+                    </Text>
+                  </Pressable>
+
+                  {CAN_OPEN_SYSTEM_SETTINGS ? (
+                    <Pressable
+                      onPress={() => void Linking.openSettings()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open phone settings"
+                      accessibilityHint="Opens this app’s page in system Settings. It does not select a Wi‑Fi network for you."
+                      hitSlop={HitSlop44}
+                      style={({ pressed }) => [
+                        styles.settingsBtn,
+                        {
+                          borderColor: colors.border,
+                          opacity: pressed ? 0.75 : 1,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="settings-outline" size={16} color={colors.text} />
+                      <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>
+                        Open phone settings
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </>
+              )}
+            </View>
           </>
         );
       }}
@@ -331,28 +331,13 @@ export function CameraConnectionSheet({
 const styles = StyleSheet.create({
   sheet: {
     paddingHorizontal: 20,
-    paddingTop: 8,
+    paddingTop: 0,
   },
-  dragRegion: {
-    paddingBottom: 4,
+  content: {
+    paddingTop: SHEET_BODY_PAD_TOP_CONNECTION,
   },
-  handleWrap: { alignItems: "center", paddingTop: 4, paddingBottom: 8 },
-  handle: { width: 36, height: 4, borderRadius: 2 },
-  titleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 44,
-    gap: 8,
-    paddingBottom: 8,
-  },
-  title: {
-    flex: 1,
-    fontSize: 18,
-    fontFamily: Type.fontBold,
-    minWidth: 0,
-  },
-  status: { fontSize: 14, fontFamily: Type.fontSemi, marginTop: 16 },
-  lead: { fontSize: 14, fontFamily: Type.font, marginTop: 16, lineHeight: 20 },
+  status: { fontSize: 14, fontFamily: Type.fontSemi },
+  lead: { fontSize: 14, fontFamily: Type.font, lineHeight: 20 },
   metaRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   metaLabel: { fontSize: 13, fontFamily: Type.font },
   metaValue: { fontSize: 13, fontFamily: Type.fontSemi, flexShrink: 1, textAlign: "right" },

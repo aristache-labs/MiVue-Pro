@@ -11,8 +11,7 @@ export const HEADER_DIVIDER_SHEET_INSET = 24;
 export const HEADER_DIVIDER_OPACITY = 0.85;
 
 /**
- * Sheet surfaces need a stronger token — borderSoft disappears on dark elevated sheets.
- * Use colors.border at this opacity for readable contrast without a hard rule.
+ * Sheet hairlines — readable on elevated surfaces (Filters / Sort / settings).
  */
 export const HEADER_DIVIDER_SHEET_OPACITY = 0.9;
 
@@ -46,6 +45,7 @@ export function HeaderDivider({
       style={[
         styles.line,
         {
+          // Screen: soft token. Sheet: border token @ low opacity (still discrete, readable on elevated).
           backgroundColor: isSheet ? colors.border : colors.borderSoft,
           opacity: isSheet ? HEADER_DIVIDER_SHEET_OPACITY : HEADER_DIVIDER_OPACITY,
           marginHorizontal: horizontal,

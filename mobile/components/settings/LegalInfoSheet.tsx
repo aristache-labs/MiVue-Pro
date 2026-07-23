@@ -22,7 +22,7 @@ import {
 } from "@/components/settings/aboutLegalContent";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
-import { SheetHeader } from "@/components/sheets/SheetHeader";
+import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { Type, useAppTheme } from "@/constants/Theme";
 import {
   thirdPartyLicenses,
@@ -187,8 +187,10 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
     >
       {({ requestClose }) => (
         <View style={styles.sheetInner}>
-          <SheetHeader
+          <CompactSheetHeader
             title={title}
+            compact
+            showHandle
             dividerInset={0}
             onClose={requestClose}
             closeAccessibilityLabel="Close"
@@ -273,7 +275,7 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
               style={styles.scroll}
               contentContainerStyle={{
                 paddingHorizontal: 16,
-                paddingTop: 8,
+                paddingTop: SHEET_BODY_PAD_TOP,
                 paddingBottom: Math.max(insets.bottom, 20),
                 gap: 4,
               }}
@@ -310,7 +312,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 15, fontFamily: Type.fontSemi, marginBottom: 6 },
   sectionBody: { fontSize: 14, fontFamily: Type.font, lineHeight: 20, marginBottom: 6 },
   metaLine: { fontSize: 12, fontFamily: Type.mono, marginTop: 8, marginBottom: 4 },
-  licensesBody: { flex: 1, paddingHorizontal: 16, gap: 8, paddingTop: 8 },
+  licensesBody: { flex: 1, paddingHorizontal: 16, gap: 8, paddingTop: SHEET_BODY_PAD_TOP },
   search: {
     minHeight: 44,
     borderWidth: StyleSheet.hairlineWidth,

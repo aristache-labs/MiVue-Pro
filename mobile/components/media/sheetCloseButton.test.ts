@@ -28,17 +28,17 @@ describe("shared sheet close wiring", () => {
   const library = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
   const shell = readFileSync(join(__dirname, "StaticBackdropSheet.tsx"), "utf8");
 
-  it("Camera connection uses SheetCloseButton with requestClose", () => {
-    assert.match(connection, /SheetCloseButton/);
-    assert.match(connection, /accessibilityLabel="Close camera connection"/);
-    assert.match(connection, /onPress=\{requestClose\}/);
+  it("Camera connection uses CompactSheetHeader close wiring with requestClose", () => {
+    assert.match(connection, /CompactSheetHeader/);
+    assert.match(connection, /closeAccessibilityLabel="Close camera connection"/);
+    assert.match(connection, /onClose=\{requestClose\}/);
     assert.doesNotMatch(connection, /name="close"/);
     assert.match(connection, /enableSwipeToDismiss/);
   });
 
-  it("Camera and Local Filters share SheetHeader close wiring", () => {
-    assert.match(cameraFilter, /SheetHeader/);
-    assert.match(localFilter, /SheetHeader/);
+  it("Camera and Local Filters share CompactSheetHeader close wiring", () => {
+    assert.match(cameraFilter, /CompactSheetHeader/);
+    assert.match(localFilter, /CompactSheetHeader/);
     assert.match(cameraFilter, /accessibilityLabel="Close filters"|closeAccessibilityLabel="Close filters"/);
     assert.match(localFilter, /closeAccessibilityLabel="Close filters"/);
     assert.doesNotMatch(cameraFilter, /name="close"/);
@@ -49,7 +49,7 @@ describe("shared sheet close wiring", () => {
     assert.match(library, /StaticBackdropSheet/);
     assert.match(library, /sheetTestID="sort-sheet"/);
     assert.match(library, /scrimTestID="sort-scrim"/);
-    assert.match(library, /SheetHeader/);
+    assert.match(library, /CompactSheetHeader/);
     assert.match(library, /title="Sort"/);
     assert.match(library, /closeAccessibilityLabel="Close sort"/);
     assert.match(library, /setSort\(opt\.id\);\s*requestClose\(\)/);

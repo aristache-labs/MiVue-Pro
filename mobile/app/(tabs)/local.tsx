@@ -78,7 +78,7 @@ import {
   SELECTION_ACTION_BAND_H,
 } from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
-import { SheetHeader } from "@/components/sheets/SheetHeader";
+import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -891,16 +891,17 @@ export default function LocalLibraryScreen() {
       >
         {({ requestClose }) => (
           <View style={styles.sortBody}>
-            <SheetHeader
+            <CompactSheetHeader
               title="Sort"
-              showDragHandle={false}
+              showHandle={false}
+              compact
               dividerInset={0}
               onClose={requestClose}
               closeAccessibilityLabel="Close sort"
             />
             <ScrollView
               style={styles.sortScroll}
-              contentContainerStyle={{ paddingTop: 8 }}
+              contentContainerStyle={{ paddingTop: SHEET_BODY_PAD_TOP }}
               scrollEnabled={sortHasOverflow}
               alwaysBounceVertical={false}
               bounces={false}
@@ -979,7 +980,7 @@ const styles = StyleSheet.create({
   },
   sortSheet: {
     paddingHorizontal: 16,
-    paddingTop: 8,
+    paddingTop: 0,
   },
   sortBody: { flexShrink: 1 },
   sortScroll: { flexShrink: 1 },

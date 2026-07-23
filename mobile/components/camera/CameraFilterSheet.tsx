@@ -38,7 +38,7 @@ import { datePreset, localTodayKey } from "@/components/local/localLibraryFilter
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
-import { SheetHeader } from "@/components/sheets/SheetHeader";
+import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
@@ -285,8 +285,10 @@ export function CameraFilterSheet({
     >
       {({ requestClose }) => (
         <View style={styles.sheetBody}>
-            <SheetHeader
+            <CompactSheetHeader
               title="Filters"
+              compact
+              showHandle
               dividerInset={MEDIA_SHEET_PAD_H}
               onClose={() => {
                 if (activePicker) {
@@ -318,7 +320,7 @@ export function CameraFilterSheet({
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{
                 paddingHorizontal: MEDIA_SHEET_PAD_H,
-                paddingTop: 16,
+                paddingTop: SHEET_BODY_PAD_TOP,
                 paddingBottom: 12,
               }}
               scrollEnabled={hasOverflow}

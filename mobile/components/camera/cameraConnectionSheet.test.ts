@@ -29,20 +29,18 @@ describe("CameraConnectionSheet static backdrop", () => {
     assert.match(src, /scrimAccessibilityLabel="Close camera connection"/);
   });
 
-  it("adds close X in both title states via SheetCloseButton", () => {
+  it("adds close X in both title states via CompactSheetHeader / SheetCloseButton", () => {
     assert.match(src, /Camera connection/);
     assert.match(src, /Connect camera/);
-    assert.match(src, /SheetCloseButton/);
-    assert.match(src, /accessibilityLabel="Close camera connection"/);
-    assert.match(src, /onPress=\{requestClose\}/);
-    assert.match(src, /titleRow/);
+    assert.match(src, /CompactSheetHeader/);
+    assert.match(src, /closeAccessibilityLabel="Close camera connection"/);
+    assert.match(src, /onClose=\{requestClose\}/);
     assert.doesNotMatch(src, /closeButton/);
   });
 
   it("enables swipe-down only for Camera connection; Filters stay off", () => {
     assert.match(src, /enableSwipeToDismiss/);
     assert.match(src, /dragHandleProps/);
-    assert.match(src, /dragRegion/);
     assert.doesNotMatch(filter, /enableSwipeToDismiss/);
     assert.doesNotMatch(localFilter, /enableSwipeToDismiss/);
   });
@@ -55,14 +53,14 @@ describe("CameraConnectionSheet static backdrop", () => {
     assert.doesNotMatch(src, /onClose\(\);\s*router\.push/);
   });
 
-  it("keeps Refresh and Connection help outside the drag region", () => {
-    const dragStart = src.indexOf("styles.dragRegion");
-    const dragEnd = src.indexOf("</View>", src.indexOf("titleRow"));
+  it("keeps Refresh and Connection help outside the CompactSheetHeader chrome", () => {
+    const headerIdx = src.indexOf("<CompactSheetHeader");
+    const headerEnd = src.indexOf("/>", headerIdx);
     const refreshIdx = src.indexOf('accessibilityLabel="Refresh connection"');
     const helpIdx = src.indexOf('accessibilityLabel="Connection help"');
-    assert.ok(dragStart >= 0 && dragEnd > dragStart);
-    assert.ok(refreshIdx > dragEnd);
-    assert.ok(helpIdx > dragEnd);
+    assert.ok(headerIdx >= 0 && headerEnd > headerIdx);
+    assert.ok(refreshIdx > headerEnd);
+    assert.ok(helpIdx > headerEnd);
   });
 
   it("StaticBackdropSheet keeps static scrim, sheet-only translateY, shared close paths", () => {
