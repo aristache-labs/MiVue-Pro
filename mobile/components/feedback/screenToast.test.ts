@@ -12,18 +12,19 @@ describe("ScreenToast + camera settings toast placement", () => {
   );
   const shellSrc = readFileSync(join(__dirname, "../media/StaticBackdropSheet.tsx"), "utf8");
 
-  it("ScreenToast is full-width bottom snackbar with safe-area padding", () => {
+  it("ScreenToast is floating bottom snackbar with safe-area inset", () => {
     assert.match(toastSrc, /position:\s*"absolute"/);
-    assert.match(toastSrc, /left:\s*0/);
-    assert.match(toastSrc, /right:\s*0/);
-    assert.match(toastSrc, /bottom:\s*0/);
+    assert.match(toastSrc, /left:\s*Spacing\.md/);
+    assert.match(toastSrc, /right:\s*Spacing\.md/);
     assert.match(toastSrc, /useSafeAreaInsets/);
-    assert.match(toastSrc, /paddingBottom:\s*padBottom|Math\.max\(insets\.bottom/);
-    assert.match(toastSrc, /width:\s*"100%"/);
+    assert.match(toastSrc, /Math\.max\(insets\.bottom/);
+    assert.match(toastSrc, /borderRadius:\s*Radius\.xl/);
+    assert.match(toastSrc, /surfaceElevated/);
+    assert.match(toastSrc, /iconChip/);
     assert.match(toastSrc, /zIndex:\s*40/);
     assert.match(toastSrc, /pointerEvents="none"/);
     assert.doesNotMatch(toastSrc, /readonly top: number/);
-    assert.doesNotMatch(toastSrc, /left:\s*Spacing\.xl/);
+    assert.doesNotMatch(toastSrc, /width:\s*"100%"/);
     assert.match(toastSrc, /checkmark-circle|alert-circle/);
     assert.match(toastSrc, /successSoft|dangerSoft/);
     assert.match(toastSrc, /announceForAccessibility/);

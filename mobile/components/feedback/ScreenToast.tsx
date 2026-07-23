@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Spacing, Type, useAppTheme } from "@/constants/Theme";
+import { Radius, Spacing, Type, useAppTheme } from "@/constants/Theme";
 
 export type ScreenToastTone = "success" | "danger";
 
@@ -30,13 +30,11 @@ export interface ScreenToastProps {
 
 const ENTER_MS = 200;
 const EXIT_MS = 160;
-const ROW_MIN_H = 52;
-const ROW_MAX_H = 58;
-const SLIDE_DISTANCE = 72;
+const SLIDE_DISTANCE = 28;
 
 /**
- * Full-width bottom snackbar — sibling of scroll content, not inside it.
- * Parent owns message state; clear `message` after onDismiss to hide.
+ * Floating bottom confirmation snackbar — sibling of scroll content, not inside it.
+ * Matches Laneory cards: elevated surface, soft icon chip, readable primary text.
  */
 export function ScreenToast({
   message,
@@ -46,7 +44,7 @@ export function ScreenToast({
   durationMs,
   onDismiss,
 }: ScreenToastProps) {
-  const { colors } = useAppTheme();
+  const { colors, scheme } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [rendered, setRendered] = useState<string | undefined>(undefined);
   const [renderedTone, setRenderedTone] = useState<ScreenToastTone>(tone);
@@ -162,16 +160,31 @@ export function ScreenToast({
 
   if (!rendered) return null;
 
-  const fg = renderedTone === "danger" ? colors.danger : colors.success;
+  const accent = renderedTone === "danger" ? colors.danger : colors.success;
   const soft = renderedTone === "danger" ? colors.dangerSoft : colors.successSoft;
-  const bg = soft.startsWith("rgba") ? colors.surfaceElevated : soft;
   const icon = renderedTone === "danger" ? "alert-circle" : "checkmark-circle";
-  const padBottom = Math.max(insets.bottom, 10);
+  const bottom = Math.max(insets.bottom, Spacing.sm) + Spacing.sm;
+
+  // Elevated card + soft tint — readable over dark settings cards.
+  const cardBg =
+    scheme === "dark"
+      ? colors.surfaceElevated
+      : soft.startsWith("rgba")
+        ? colors.surfaceElevated
+        : soft;
+  const borderColor =
+    scheme === "dark"
+      ? renderedTone === "danger"
+        ? "rgba(248, 113, 113, 0.42)"
+        : "rgba(74, 222, 128, 0.38)"
+      : renderedTone === "danger"
+        ? colors.danger
+        : colors.success;
 
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.host, style]}
+      style={[styles.host, { bottom }, style]}
       testID={`${testID}-host`}
     >
       <Animated.View
@@ -183,30 +196,29 @@ export function ScreenToast({
         style={[
           styles.toast,
           {
-            backgroundColor: bg,
-            borderTopColor: fg,
-            paddingBottom: padBottom,
+            backgroundColor: cardBg,
+            borderColor,
             opacity,
             transform: [{ translateY }],
             ...Platform.select({
               ios: {
-                shadowColor: "#000",
-                shadowOpacity: 0.12,
-                shadowRadius: 6,
-                shadowOffset: { width: 0, height: -2 },
+                shadowColor: "#0f172a",
+                shadowOpacity: scheme === "dark" ? 0.45 : 0.16,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 6 },
               },
-              android: { elevation: 8 },
+              android: { elevation: 10 },
               default: {},
             }),
           },
         ]}
       >
-        <View style={styles.row}>
-          <Ionicons name={icon} size={20} color={fg} style={styles.icon} />
-          <Text style={[styles.message, { color: fg }]} numberOfLines={2}>
-            {rendered}
-          </Text>
+        <View style={[styles.iconChip, { backgroundColor: soft }]}>
+          <Ionicons name={icon} size={18} color={accent} />
         </View>
+        <Text style={[styles.message, { color: colors.text }]} numberOfLines={2}>
+          {rendered}
+        </Text>
       </Animated.View>
     </View>
   );
@@ -215,30 +227,32 @@ export function ScreenToast({
 const styles = StyleSheet.create({
   host: {
     position: "absolute",
-    left: 0,
-    right: 0,
-    bottom: 0,
+    left: Spacing.md,
+    right: Spacing.md,
     zIndex: 40,
-    elevation: 8,
+    elevation: 12,
   },
   toast: {
-    width: "100%",
-    borderTopWidth: 1,
-    borderTopLeftRadius: 2,
-    borderTopRightRadius: 2,
-  },
-  row: {
-    minHeight: ROW_MIN_H,
-    maxHeight: ROW_MAX_H,
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: Spacing.lg,
-    paddingTop: 10,
-    gap: 10,
+    gap: 12,
+    minHeight: 52,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: Radius.xl,
   },
-  icon: { flexShrink: 0 },
+  iconChip: {
+    width: 32,
+    height: 32,
+    borderRadius: Radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
   message: {
     flex: 1,
     ...Type.bodyStrong,
+    letterSpacing: -0.1,
   },
 });
