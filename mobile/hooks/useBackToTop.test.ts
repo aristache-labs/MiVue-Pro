@@ -20,14 +20,14 @@ describe("backToTopShowThreshold", () => {
 
 describe("backToTopListBottomPadding", () => {
   it("does not inflate padding for empty or non-overflowing lists", () => {
-    assert.equal(backToTopListBottomPadding(0, true, 80, 96), 96);
-    assert.equal(backToTopListBottomPadding(10, false, 80, 96), 96);
+    assert.equal(backToTopListBottomPadding(0, true, 96), 96);
+    assert.equal(backToTopListBottomPadding(10, false, 96), 96);
   });
 
-  it("raises padding when overflowing so the pill clears the last card", () => {
-    const next = backToTopListBottomPadding(10, true, 80, 96);
-    assert.ok(next >= 80 + 44 + 26);
-    assert.ok(next >= 96);
+  it("raises padding for the circular control without re-adding tabBarHeight", () => {
+    const next = backToTopListBottomPadding(10, true, 40);
+    assert.equal(next, 48 + 10 + 12);
+    assert.ok(next < 40 + 48 + 26);
   });
 });
 

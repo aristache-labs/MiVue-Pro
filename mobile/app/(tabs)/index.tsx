@@ -281,7 +281,6 @@ export default function LibraryScreen() {
   const listPadBottom = backToTopListBottomPadding(
     filtered.length,
     hasOverflow,
-    tabBarHeight,
     listPadBottomBase,
   );
 
@@ -763,7 +762,6 @@ export default function LibraryScreen() {
 
       <FloatingBackToTop
         visible={backToTopVisible && backToTopEnabled}
-        tabBarHeight={tabBarHeight}
         onPress={onBackToTopPress}
       />
 

@@ -16,8 +16,8 @@ describe("FloatingBackToTop wiring", () => {
     assert.match(pill, /accessibilityLabel="Back to top"/);
     assert.match(pill, /accessibilityHint="Scrolls to the beginning of the list"/);
     assert.match(pill, /arrow-up/);
-    assert.match(pill, /surfaceElevated/);
-    assert.match(pill, /radius\.pill/);
+    assert.doesNotMatch(pill, /Back to top<\/Text>/);
+    assert.doesNotMatch(pill, /<Text/);
   });
 
   it("all three attach a FlatList ref and useBackToTop", () => {
@@ -27,11 +27,16 @@ describe("FloatingBackToTop wiring", () => {
     assert.match(library, /useBackToTop/);
     assert.match(local, /useBackToTop/);
     assert.match(queue, /useBackToTop/);
-    assert.match(library, /useBottomTabBarHeight/);
-    assert.match(local, /useBottomTabBarHeight/);
-    assert.match(queue, /useBottomTabBarHeight/);
-    assert.match(pill, /tabBarHeight \+ 12/);
-    assert.doesNotMatch(pill, /bottom:\s*80/);
+  });
+
+  it("positions with bottom gap only — tabBarHeight is not added to absolute bottom", () => {
+    assert.match(pill, /BACK_TO_TOP_TAB_GAP/);
+    assert.match(pill, /bottom: BACK_TO_TOP_TAB_GAP/);
+    assert.doesNotMatch(pill, /bottom:\s*tabBarHeight/);
+    assert.doesNotMatch(pill, /tabBarHeight \+/);
+    assert.match(pill, /width: SIZE/);
+    assert.match(pill, /height: SIZE/);
+    assert.match(pill, /hitSlop=\{6\}/);
   });
 
   it("Library and Local keep pull-to-refresh; Queue does not", () => {

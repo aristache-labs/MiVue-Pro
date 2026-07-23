@@ -10,10 +10,12 @@ export const BACK_TO_TOP_JITTER_PX = 4;
 export const BACK_TO_TOP_HIDE_UP_PX = 68;
 /** Treat offsets at or below this as “near top”. */
 export const BACK_TO_TOP_NEAR_TOP_PX = 48;
-/** Floating pill height used for list bottom clearance. */
-export const BACK_TO_TOP_BUTTON_HEIGHT = 44;
-/** Gap between pill and last list card (above tab bar clearance). */
-export const BACK_TO_TOP_LIST_GAP = 26;
+/** Floating circular control height used for list bottom clearance. */
+export const BACK_TO_TOP_BUTTON_HEIGHT = 48;
+/** Gap between the control and the tab-bar top edge (matches FloatingBackToTop bottom inset). */
+export const BACK_TO_TOP_EDGE_GAP = 10;
+/** Extra space so the last card clears above the control. */
+export const BACK_TO_TOP_LIST_GAP = 12;
 
 export function backToTopShowThreshold(viewportHeight: number): number {
   const fromViewport =
@@ -21,15 +23,17 @@ export function backToTopShowThreshold(viewportHeight: number): number {
   return Math.max(BACK_TO_TOP_MIN_OFFSET_FLOOR, fromViewport);
 }
 
-/** Extra bottom padding so the last item clears the floating pill — only when the list already overflows. */
+/**
+ * Extra bottom padding so the last item clears the floating control — only when the list already overflows.
+ * Does not add tabBarHeight: tab scenes already end above the tab bar; baseFilledPad covers tab clearance.
+ */
 export function backToTopListBottomPadding(
   itemCount: number,
   hasOverflow: boolean,
-  tabBarHeight: number,
   baseFilledPad: number,
 ): number {
   if (itemCount <= 0 || !hasOverflow) return baseFilledPad;
-  const clearance = tabBarHeight + BACK_TO_TOP_BUTTON_HEIGHT + BACK_TO_TOP_LIST_GAP;
+  const clearance = BACK_TO_TOP_BUTTON_HEIGHT + BACK_TO_TOP_EDGE_GAP + BACK_TO_TOP_LIST_GAP;
   return Math.max(baseFilledPad, clearance);
 }
 

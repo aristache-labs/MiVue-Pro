@@ -1,5 +1,4 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -167,7 +166,6 @@ export default function QueueScreen() {
     Math.max(insets.bottom, spacing.lg),
   );
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
-  const tabBarHeight = useBottomTabBarHeight();
 
   const backToTopEnabled = visibleItems.length > 0 && !actionBusy;
   const {
@@ -186,7 +184,6 @@ export default function QueueScreen() {
   const listPadBottom = backToTopListBottomPadding(
     visibleItems.length,
     hasOverflow,
-    tabBarHeight,
     listPadBottomBase,
   );
 
@@ -608,7 +605,6 @@ export default function QueueScreen() {
 
       <FloatingBackToTop
         visible={backToTopVisible && backToTopEnabled}
-        tabBarHeight={tabBarHeight}
         onPress={onBackToTopPress}
       />
     </View>
