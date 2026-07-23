@@ -1,465 +1,105 @@
 import Constants from "expo-constants";
 import { router } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useMemo } from "react";
 
-import {
-  formatMediaSizeMbGb,
-  sanitizeDiagnosticLine,
-} from "@/components/camera/cameraLibraryModel";
-import { getCameraProfile, LEGAL_DRAFT_BANNER } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
-import { SettingsRow } from "@/components/settings/SettingsRow";
-import { Card } from "@/components/ui";
 import {
-  APP_NAME,
-  APP_SHORT_DESCRIPTION,
-  APP_SUBTITLE,
-  DISCLAIMER_EN,
-} from "@/constants/Brand";
-import { Type, useAppTheme } from "@/constants/Theme";
-import { useDemoMode, type MapPreference } from "@/context/DemoModeContext";
-import { isPrivateIpv4 } from "@/packages/camera-transport/src/index";
+  SettingsCategoryRow,
+  SettingsSection,
+  aboutVersionSummary,
+  cameraConnectionSummary,
+  diagnosticsSummary,
+  legalSummary,
+  mapsPreferenceSummary,
+  storageSummary,
+} from "@/components/settings";
+import { SettingsScroll } from "@/components/settings/SettingsScroll";
+import { useDemoMode } from "@/context/DemoModeContext";
 
-function Section({
-  title,
-  children,
-}: {
-  readonly title: string;
-  readonly children: React.ReactNode;
-}) {
-  const { colors, radius } = useAppTheme();
-  return (
-    <View style={{ marginBottom: 16 }}>
-      <Text style={[styles.sectionTitle, { color: colors.textMuted }]}>{title}</Text>
-      <Card style={{ padding: 0, overflow: "hidden", borderRadius: radius.md }}>{children}</Card>
-    </View>
-  );
-}
-
-export default function SettingsScreen() {
-  const { colors, spacing } = useAppTheme();
-  const insets = useSafeAreaInsets();
+export default function SettingsHubScreen() {
   const {
-    cameraHost,
-    setCameraHost,
     cameraLinkState,
     cameraModel,
     lastConnectedAt,
-    cameraProperties,
     lastError,
-    nativeTcpReady,
-    isExpoGo,
-    refreshFiles,
-    isRefreshingCamera,
     localFiles,
     mapPreference,
-    setMapPreference,
-    clearThumbCache,
-    downloadDir,
   } = useDemoMode();
-  const {
-    state: onboardingState,
-    startChangeCamera,
-    reopenCameraSetup,
-    resetOnboardingDev,
-  } = useOnboarding();
-
-  const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
-
-  const [hostDraft, setHostDraft] = useState(cameraHost);
-  const [editingHost, setEditingHost] = useState(false);
+  const { state: onboardingState } = useOnboarding();
 
   const downloadedBytes = useMemo(
     () => localFiles.reduce((sum, f) => sum + (f.sizeBytes > 0 ? f.sizeBytes : 0), 0),
     [localFiles],
   );
 
-  const connectionLabel =
-    cameraLinkState === "connected"
-      ? "Connected"
-      : cameraLinkState === "connecting"
-        ? "Connecting…"
-        : cameraLinkState === "unstable"
-          ? "Unstable"
-          : cameraLinkState === "connection_lost"
-            ? "Connection lost"
-            : "Not connected";
-
   const version =
-    Constants.expoConfig?.version ??
-    Constants.nativeAppVersion ??
-    "0.1.0";
-  const build =
-    Constants.nativeBuildVersion ??
-    Constants.expoConfig?.ios?.buildNumber ??
-    Constants.expoConfig?.android?.versionCode?.toString() ??
-    undefined;
+    Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "0.1.0";
 
-  const saveHost = useCallback(() => {
-    const trimmed = hostDraft.trim();
-    if (!isPrivateIpv4(trimmed)) {
-      Alert.alert("Invalid IP", "Enter a private IPv4 address such as 192.72.1.1.");
-      return;
-    }
-    setCameraHost(trimmed);
-    setEditingHost(false);
-  }, [hostDraft, setCameraHost]);
+  const hasEverTested = Boolean(lastConnectedAt || lastError);
 
-  const exportDiagnostics = useCallback(async () => {
-    const lines = [
-      `${APP_NAME} diagnostics`,
-      `version=${version}`,
-      build ? `build=${build}` : undefined,
-      `linkState=${cameraLinkState}`,
-      `host=${cameraHost}`,
-      `nativeTcp=${nativeTcpReady}`,
-      `expoGo=${isExpoGo}`,
-      lastConnectedAt ? `lastConnected=${lastConnectedAt}` : undefined,
-      lastError ? `lastError=${sanitizeDiagnosticLine(lastError)}` : undefined,
-      `localFiles=${localFiles.length}`,
-      `mapPreference=${mapPreference}`,
-    ].filter(Boolean) as string[];
-
-    const body = lines.map(sanitizeDiagnosticLine).join("\n");
-    Alert.alert("Sanitized diagnostics", body, [{ text: "OK" }]);
-  }, [
-    version,
-    build,
-    cameraLinkState,
-    cameraHost,
-    nativeTcpReady,
-    isExpoGo,
-    lastConnectedAt,
-    lastError,
-    localFiles.length,
-    mapPreference,
-  ]);
-
-  const onChangeCamera = useCallback(() => {
-    Alert.alert(
-      "Change camera",
-      "Local downloads and the download queue are kept. You will pick a camera profile again.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Change",
-          onPress: () => {
-            void startChangeCamera().then(() => {
-              router.push("/onboarding/select-camera" as Parameters<typeof router.push>[0]);
-            });
-          },
-        },
-      ],
-    );
-  }, [startChangeCamera]);
-
-  const onClearCache = useCallback(() => {
-    Alert.alert(
-      "Clear thumbnail cache",
-      "Removes cached camera thumbnails only. Downloaded recordings are kept.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Clear",
-          style: "destructive",
-          onPress: () => void clearThumbCache(),
-        },
-      ],
-    );
-  }, [clearThumbCache]);
+  const push = (href: string) => {
+    router.push(href as Parameters<typeof router.push>[0]);
+  };
 
   return (
-    <ScrollView
-      style={{ flex: 1, backgroundColor: colors.bg }}
-      contentContainerStyle={{
-        padding: spacing.lg,
-        paddingBottom: Math.max(insets.bottom, 24) + 72,
-      }}
-    >
-      <Section title="Camera">
-        <SettingsRow
-          icon="wifi"
-          title="Connection status"
-          value={connectionLabel}
-          accessibilityLabel={`Connection status ${connectionLabel}`}
-        />
-        {cameraModel ? (
-          <SettingsRow icon="videocam-outline" title="Camera model" value={cameraModel} />
-        ) : null}
-        <SettingsRow
-          icon="globe-outline"
-          title="Camera IP"
-          value={editingHost ? undefined : cameraHost}
-          description={editingHost ? undefined : "Private Wi‑Fi address of the camera"}
-          onPress={() => {
-            setHostDraft(cameraHost);
-            setEditingHost(true);
-          }}
-          accessibilityLabel="Edit camera IP"
-        />
-        {editingHost ? (
-          <View style={styles.hostEdit}>
-            <TextInput
-              value={hostDraft}
-              onChangeText={setHostDraft}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-              style={[styles.hostInput, { color: colors.text, borderColor: colors.border }]}
-              accessibilityLabel="Camera IP address"
-            />
-            <View style={styles.hostActions}>
-              <Pressable onPress={() => setEditingHost(false)} hitSlop={8}>
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi }}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={saveHost} hitSlop={8}>
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Save</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
-        {lastConnectedAt ? (
-          <SettingsRow
-            icon="time-outline"
-            title="Last successful connection"
-            value={new Date(lastConnectedAt).toLocaleString()}
-          />
-        ) : null}
-        {/* Firmware / SD / Wi‑Fi rows omitted unless present in read-only properties */}
-        {cameraProperties["Camera.Menu.VideoRes"] ? (
-          <SettingsRow
-            icon="film-outline"
-            title="Video resolution"
-            value={cameraProperties["Camera.Menu.VideoRes"]}
-          />
-        ) : null}
-        <SettingsRow
-          icon="refresh"
-          title="Refresh camera information"
-          description={isRefreshingCamera ? "Refreshing…" : "Read-only status and library metadata"}
-          onPress={() => void refreshFiles()}
-          accessibilityLabel="Refresh camera information"
-        />
-        <SettingsRow
-          icon="checkmark-circle-outline"
-          title="Compatibility"
-          description="Confirmed read-only with Mio MiVue 866. Independent app — not affiliated with Mio or MiTAC."
-        />
-      </Section>
-
-      <Section title="Camera setup">
-        <SettingsRow
+    <SettingsScroll>
+      <SettingsSection title="Device">
+        <SettingsCategoryRow
           icon="videocam-outline"
-          title="Selected model"
-          value={selectedProfile?.displayName ?? cameraModel ?? "Not set"}
+          title="Camera & Connection"
+          summary={cameraConnectionSummary(cameraLinkState, cameraModel)}
+          onPress={() => push("/settings/camera")}
+          accessibilityLabel="Camera and Connection"
         />
-        <SettingsRow
-          icon="wifi"
-          title="Connection"
-          value={connectionLabel}
-        />
-        <SettingsRow
-          icon="refresh"
-          title="Reconnect camera"
-          description="Read-only status and library refresh"
-          onPress={() => void refreshFiles()}
-          accessibilityLabel="Reconnect camera"
-        />
-        <SettingsRow
-          icon="swap-horizontal-outline"
-          title="Change camera"
-          description="Does not delete local recordings or clear the queue"
-          onPress={onChangeCamera}
-        />
-        <SettingsRow
-          icon="construct-outline"
-          title="Run camera setup"
-          description="Reopen Wi‑Fi connection guide"
-          onPress={() => {
-            void reopenCameraSetup().then(() => {
-              router.push("/onboarding" as Parameters<typeof router.push>[0]);
-            });
-          }}
-        />
-        <SettingsRow
-          icon="help-circle-outline"
-          title="Connection help"
-          onPress={() => router.push("/connection-help" as Parameters<typeof router.push>[0])}
-        />
-        <SettingsRow
-          icon="document-text-outline"
-          title="Accepted terms"
-          value={onboardingState.acceptedTermsVersion ?? "Not accepted"}
-          description={
-            onboardingState.acceptedTermsAt
-              ? `Accepted ${new Date(onboardingState.acceptedTermsAt).toLocaleString()}`
-              : LEGAL_DRAFT_BANNER
-          }
-        />
-        <SettingsRow
-          icon="book-outline"
-          title="Terms and Conditions"
-          description={LEGAL_DRAFT_BANNER}
-          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
-        />
-        <SettingsRow
-          icon="shield-outline"
-          title="Privacy Policy"
-          description={LEGAL_DRAFT_BANNER}
-          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
-        />
-        <SettingsRow
-          icon="refresh-circle-outline"
-          title="Reset onboarding"
-          description="Clears setup progress and shows Terms again"
-          destructive
-          onPress={() => {
-            Alert.alert(
-              "Reset onboarding?",
-              "Returns to Terms & Privacy. Local downloads and the queue are kept.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Reset",
-                  style: "destructive",
-                  onPress: () => {
-                    void resetOnboardingDev().then(() => {
-                      router.replace("/onboarding" as Parameters<typeof router.replace>[0]);
-                    });
-                  },
-                },
-              ],
-            );
-          }}
-        />
-      </Section>
+      </SettingsSection>
 
-      <Section title="App">
-        <SettingsRow
+      <SettingsSection title="App">
+        <SettingsCategoryRow
           icon="folder-outline"
-          title="Downloaded recordings"
-          value={`${localFiles.length} · ${formatMediaSizeMbGb(downloadedBytes)}`}
+          title="Downloads & Storage"
+          summary={storageSummary(localFiles.length, downloadedBytes)}
+          onPress={() => push("/settings/storage")}
+          accessibilityLabel="Downloads and Storage"
         />
-        <SettingsRow
+        <SettingsCategoryRow
           icon="map-outline"
-          title="Map preference"
-          value={mapPreference === "online" ? "Online map" : "Local schematic"}
-          onPress={() => {
-            const next: MapPreference = mapPreference === "online" ? "schematic" : "online";
-            setMapPreference(next);
-          }}
-          accessibilityLabel="Toggle map preference"
+          title="Maps & Privacy"
+          summary={mapsPreferenceSummary(mapPreference)}
+          onPress={() => push("/settings/maps-privacy")}
+          accessibilityLabel="Maps and Privacy"
         />
-        <SettingsRow
-          icon="trash-outline"
-          title="Clear thumbnail cache"
-          description="Does not delete downloaded recordings"
-          onPress={onClearCache}
-          destructive
-        />
-        <SettingsRow
-          icon="information-circle-outline"
-          title="App version"
-          value={build ? `${version} (${build})` : version}
-        />
-      </Section>
+      </SettingsSection>
 
-      <Section title="Privacy & data">
-        <SettingsRow
-          icon="shield-checkmark-outline"
-          title="Local-first"
-          description="Recordings and queue state stay on this device. Laneory does not upload your media to a cloud account."
-        />
-        <SettingsRow
-          icon="map-outline"
-          title="Online map privacy"
-          description="Online map loads OpenStreetMap tiles only when you choose Online map. Local schematic stays offline."
-        />
-        <SettingsRow
-          icon="wifi-outline"
-          title="Camera Wi‑Fi"
-          description="Join the camera’s Wi‑Fi network to browse and download. Communication is GET/HEAD read-only."
-        />
-        <SettingsRow
-          icon="document-text-outline"
-          title="Privacy Policy"
-          description={LEGAL_DRAFT_BANNER}
-          onPress={() => router.push("/onboarding/terms" as Parameters<typeof router.push>[0])}
-        />
-      </Section>
-
-      <Section title="Diagnostics">
-        <SettingsRow
+      <SettingsSection title="Support">
+        <SettingsCategoryRow
           icon="pulse-outline"
-          title="Connectivity test"
-          description="Runs the same read-only status and file list refresh"
-          onPress={() => void refreshFiles()}
+          title="Diagnostics"
+          summary={diagnosticsSummary({
+            hasEverTested,
+            lastError,
+            linkState: cameraLinkState,
+          })}
+          onPress={() => push("/settings/diagnostics")}
+          accessibilityLabel="Diagnostics"
         />
-        <SettingsRow
-          icon="alert-circle-outline"
-          title="Last request status"
-          value={lastError ? "Error" : cameraLinkState === "connected" ? "OK" : "—"}
-          description={lastError ? sanitizeDiagnosticLine(lastError) : undefined}
+        <SettingsCategoryRow
+          icon="document-text-outline"
+          title="Legal & Onboarding"
+          summary={legalSummary({
+            acceptedTermsVersion: onboardingState.acceptedTermsVersion,
+            termsAccepted: Boolean(onboardingState.acceptedTermsVersion),
+          })}
+          onPress={() => push("/settings/legal")}
+          accessibilityLabel="Legal and Onboarding"
         />
-        <SettingsRow
-          icon="hardware-chip-outline"
-          title="Transport"
-          value={nativeTcpReady ? "Native TCP" : isExpoGo ? "Expo Go" : "Fallback"}
+        <SettingsCategoryRow
+          icon="ribbon-outline"
+          title="About Laneory"
+          summary={aboutVersionSummary(version)}
+          onPress={() => push("/settings/about")}
+          accessibilityLabel="About Laneory"
         />
-        <SettingsRow
-          icon="share-outline"
-          title="Export sanitized diagnostics"
-          onPress={() => void exportDiagnostics()}
-        />
-        <SettingsRow
-          icon="folder-open-outline"
-          title="Download folder"
-          description="Managed app storage (path not shown)"
-          value={downloadDir ? "On device" : "Unavailable"}
-        />
-      </Section>
-
-      <Section title="About">
-        <SettingsRow icon="ribbon-outline" title={APP_NAME} description={APP_SUBTITLE} value={version} />
-        <SettingsRow icon="book-outline" title="About" description={APP_SHORT_DESCRIPTION} />
-        <SettingsRow icon="warning-outline" title="Disclaimer" description={DISCLAIMER_EN} />
-        <SettingsRow
-          icon="code-slash-outline"
-          title="Open-source licences"
-          description="Third-party notices ship with the release build."
-        />
-      </Section>
-    </ScrollView>
+      </SettingsSection>
+    </SettingsScroll>
   );
 }
-
-const styles = StyleSheet.create({
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: Type.fontSemi,
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-    marginBottom: 8,
-    marginLeft: 4,
-  },
-  hostEdit: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
-  hostInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontFamily: Type.mono,
-  },
-  hostActions: { flexDirection: "row", justifyContent: "flex-end", gap: 16, minHeight: 44, alignItems: "center" },
-});

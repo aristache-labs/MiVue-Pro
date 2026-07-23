@@ -1,47 +1,70 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
-interface SettingsRowProps {
+export interface SettingsRowBaseProps {
   readonly icon: keyof typeof Ionicons.glyphMap;
   readonly title: string;
-  readonly description?: string;
+  readonly subtitle?: string;
   readonly value?: string;
   readonly onPress?: () => void;
   readonly destructive?: boolean;
+  readonly loading?: boolean;
+  readonly disabled?: boolean;
   readonly accessibilityLabel?: string;
+  /** Hub category rows use taller min height. */
+  readonly variant?: "default" | "category";
 }
 
+/**
+ * Shared settings row — chevron only when interactive.
+ * Prefer SettingsValueRow / SettingsActionRow / SettingsDangerRow / SettingsCategoryRow wrappers.
+ */
 export function SettingsRow({
   icon,
   title,
-  description,
+  subtitle,
   value,
   onPress,
   destructive,
+  loading = false,
+  disabled = false,
   accessibilityLabel,
-}: SettingsRowProps) {
+  variant = "default",
+}: SettingsRowBaseProps) {
   const { colors, radius } = useAppTheme();
   const titleColor = destructive ? colors.danger : colors.text;
-  const interactive = Boolean(onPress);
+  const interactive = Boolean(onPress) && !disabled && !loading;
+  const tall = variant === "category";
 
   const content = (
     <View style={styles.row}>
-      <View style={[styles.iconWrap, { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm }]}>
-        <Ionicons name={icon} size={18} color={destructive ? colors.danger : colors.brand} />
+      <View
+        style={[
+          styles.iconWrap,
+          { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm },
+        ]}
+      >
+        <Ionicons
+          name={icon}
+          size={18}
+          color={destructive ? colors.danger : colors.brand}
+        />
       </View>
       <View style={styles.body}>
         <Text style={[styles.title, { color: titleColor }]} numberOfLines={2}>
           {title}
         </Text>
-        {description ? (
-          <Text style={[styles.desc, { color: colors.textMuted }]} numberOfLines={3}>
-            {description}
+        {subtitle ? (
+          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={tall ? 2 : 3}>
+            {subtitle}
           </Text>
         ) : null}
       </View>
-      {value ? (
+      {loading ? (
+        <ActivityIndicator size="small" color={colors.brand} accessibilityLabel="Loading" />
+      ) : value ? (
         <Text style={[styles.value, { color: colors.textMuted }]} numberOfLines={1}>
           {value}
         </Text>
@@ -52,11 +75,18 @@ export function SettingsRow({
     </View>
   );
 
-  if (!interactive) {
+  const wrapStyle = [
+    styles.wrap,
+    tall ? styles.wrapCategory : null,
+    { borderBottomColor: colors.borderSoft, opacity: disabled ? 0.45 : 1 },
+  ];
+
+  if (!onPress || disabled) {
     return (
       <View
-        style={[styles.wrap, { borderBottomColor: colors.borderSoft }]}
+        style={wrapStyle}
         accessibilityLabel={accessibilityLabel ?? title}
+        accessibilityState={{ disabled: true }}
       >
         {content}
       </View>
@@ -66,17 +96,37 @@ export function SettingsRow({
   return (
     <Pressable
       onPress={onPress}
+      disabled={!interactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityState={{ disabled: !interactive, busy: loading }}
       hitSlop={HitSlop44}
-      style={({ pressed }) => [
-        styles.wrap,
-        { borderBottomColor: colors.borderSoft, opacity: pressed ? 0.75 : 1 },
-      ]}
+      style={({ pressed }) => [...wrapStyle, { opacity: pressed ? 0.75 : disabled ? 0.45 : 1 }]}
     >
       {content}
     </Pressable>
   );
+}
+
+export function SettingsValueRow(props: Omit<SettingsRowBaseProps, "onPress" | "variant">) {
+  return <SettingsRow {...props} />;
+}
+
+export function SettingsActionRow(props: SettingsRowBaseProps) {
+  return <SettingsRow {...props} />;
+}
+
+export function SettingsDangerRow(props: Omit<SettingsRowBaseProps, "destructive">) {
+  return <SettingsRow {...props} destructive />;
+}
+
+export function SettingsCategoryRow(
+  props: Omit<SettingsRowBaseProps, "variant" | "destructive" | "loading"> & {
+    readonly summary: string;
+  },
+) {
+  const { summary, ...rest } = props;
+  return <SettingsRow {...rest} subtitle={summary} variant="category" />;
 }
 
 const styles = StyleSheet.create({
@@ -87,6 +137,10 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
   },
+  wrapCategory: {
+    minHeight: 76,
+    paddingVertical: 14,
+  },
   row: { flexDirection: "row", alignItems: "center", gap: 12 },
   iconWrap: {
     width: 32,
@@ -96,6 +150,6 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, minWidth: 0 },
   title: { fontSize: 15, fontFamily: Type.fontSemi },
-  desc: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
-  value: { fontSize: 13, fontFamily: Type.font, maxWidth: 120, textAlign: "right" },
+  subtitle: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
+  value: { fontSize: 13, fontFamily: Type.font, maxWidth: 130, textAlign: "right" },
 });

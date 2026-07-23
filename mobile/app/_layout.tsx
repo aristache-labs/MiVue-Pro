@@ -138,6 +138,10 @@ function RootLayoutNav() {
           }}
         />
         <Stack.Screen
+          name="settings"
+          options={{ headerShown: false, headerBackTitle: CONNECTION_HELP_BACK_TITLE }}
+        />
+        <Stack.Screen
           name="player"
           options={{ presentation: "fullScreenModal", headerShown: false, title: "Player" }}
         />
