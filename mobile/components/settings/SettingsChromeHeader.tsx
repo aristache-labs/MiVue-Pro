@@ -8,21 +8,25 @@ interface SettingsChromeHeaderProps {
   readonly title: string;
   /** When omitted, no back control is shown (title stays centered). */
   readonly onBack?: () => void;
-  /** Label after the chevron. Defaults to “Back”. */
+  /** Label after the chevron. Defaults to “Back”. Ignored when `showBackLabel` is false. */
   readonly backLabel?: string;
+  /** When false, only the chevron is shown (no “Back” text). */
+  readonly showBackLabel?: boolean;
 }
 
 /**
- * Shared stack header — chevron + label (e.g. “‹ Back”), no native iOS capsule.
+ * Shared stack header — chevron (+ optional label), no native iOS capsule.
  * Title is centered on full screen width.
  */
 export function SettingsChromeHeader({
   title,
   onBack,
   backLabel = "Back",
+  showBackLabel = true,
 }: SettingsChromeHeaderProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
+  const a11yLabel = showBackLabel ? backLabel : "Back";
 
   return (
     <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
@@ -38,9 +42,9 @@ export function SettingsChromeHeader({
           <Pressable
             onPress={onBack}
             accessibilityRole="button"
-            accessibilityLabel={backLabel}
+            accessibilityLabel={a11yLabel}
             hitSlop={HitSlop44}
-            style={styles.backHit}
+            style={showBackLabel ? styles.backHitLabeled : styles.backHitIcon}
           >
             <Ionicons
               name="chevron-back"
@@ -48,16 +52,18 @@ export function SettingsChromeHeader({
               color={colors.text}
               style={styles.headerBackIcon}
             />
-            <Text style={[styles.backText, { color: colors.text }]} numberOfLines={1}>
-              {backLabel}
-            </Text>
+            {showBackLabel ? (
+              <Text style={[styles.backText, { color: colors.text }]} numberOfLines={1}>
+                {backLabel}
+              </Text>
+            ) : null}
           </Pressable>
         ) : (
-          <View style={styles.sideSpacer} />
+          <View style={showBackLabel ? styles.sideSpacerWide : styles.sideSpacerIcon} />
         )}
         <View style={styles.headerFlex} />
         <View
-          style={styles.sideSpacer}
+          style={showBackLabel ? styles.sideSpacerWide : styles.sideSpacerIcon}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
@@ -75,7 +81,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     position: "relative",
   },
-  backHit: {
+  backHitLabeled: {
     minHeight: 44,
     minWidth: 72,
     paddingRight: 8,
@@ -84,8 +90,19 @@ const styles = StyleSheet.create({
     gap: 2,
     backgroundColor: "transparent",
   },
-  sideSpacer: {
+  backHitIcon: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+  },
+  sideSpacerWide: {
     minWidth: 72,
+    height: 44,
+  },
+  sideSpacerIcon: {
+    width: 44,
     height: 44,
   },
   headerFlex: { flex: 1 },

@@ -34,6 +34,13 @@ export {
 } from "./cameraIp";
 export { CameraIpSheet } from "./CameraIpSheet";
 export { SettingsChromeHeader } from "./SettingsChromeHeader";
+export { LegalInfoSheet } from "./LegalInfoSheet";
+export type { LegalInfoSheetKind } from "./LegalInfoSheet";
+export {
+  ABOUT_LEGAL_REVIEW_NOTE,
+  ABOUT_SHEET_SECTIONS,
+  DISCLAIMER_SHEET_SECTIONS,
+} from "./aboutLegalContent";
 export {
   aggregateStorageBreakdown,
   formatStorageStatLine,
