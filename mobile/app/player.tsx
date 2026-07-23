@@ -23,6 +23,8 @@ import {
   TelemetryPanel,
   interpolateGpsAtVideoTime,
   loadSiblingNmea,
+  mapPreferenceToPlayerMode,
+  playerModeToMapPreference,
   zoomForSpeedKmh,
 } from "@/components/gps";
 import {
@@ -42,7 +44,6 @@ import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { FileCategory, GpsSample } from "@/packages/parsers/src/index";
 
-type MapMode = "local" | "online";
 type PlaybackUiStatus = "loading" | "ready" | "buffering" | "error" | "unsupported";
 
 export default function PlayerScreen() {
@@ -267,6 +268,8 @@ function VideoWithGps({
   readonly onDuration: (seconds: number) => void;
 }) {
   const { colors, spacing } = useAppTheme();
+  const { mapPreference, setMapPreference } = useDemoMode();
+  const mapMode = mapPreferenceToPlayerMode(mapPreference);
   const player = useVideoPlayer(uri, (instance) => {
     instance.loop = false;
     instance.timeUpdateEventInterval = 0;
@@ -279,7 +282,6 @@ function VideoWithGps({
   const [activeIndex, setActiveIndex] = useState(0);
   const [videoTimeSec, setVideoTimeSec] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<GpsSyncStatus>("waiting");
-  const [mapMode, setMapMode] = useState<MapMode>("local");
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
   const [playStatus, setPlayStatus] = useState<PlaybackUiStatus>("loading");
   const [slowLoad, setSlowLoad] = useState(false);
@@ -618,7 +620,7 @@ function VideoWithGps({
                 pose={mapPose}
                 height={220}
                 following={following}
-                onUseLocalMap={() => setMapMode("local")}
+                onUseLocalMap={() => setMapPreference(playerModeToMapPreference("local"))}
                 onUserMoved={() => setFollowing(false)}
                 onRecenter={() => setFollowing(true)}
               />
@@ -648,7 +650,7 @@ function VideoWithGps({
             label="Online map"
             selected={mapMode === "online"}
             onPress={() => {
-              setMapMode("online");
+              setMapPreference(playerModeToMapPreference("online"));
               setFollowing(true);
               setMapMenuOpen(false);
             }}
@@ -659,7 +661,7 @@ function VideoWithGps({
             label="Local schematic"
             selected={mapMode === "local"}
             onPress={() => {
-              setMapMode("local");
+              setMapPreference(playerModeToMapPreference("local"));
               setMapMenuOpen(false);
             }}
             a11y="Use local schematic map"

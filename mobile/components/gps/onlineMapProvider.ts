@@ -56,3 +56,17 @@ export function buildLeafletBootstrapConfig(
 
 export const MAP_MODE_OPTIONS = ["Online map", "Local schematic"] as const;
 export type MapModeOptionLabel = (typeof MAP_MODE_OPTIONS)[number];
+
+/** Persisted Settings preference (`DemoModeContext.mapPreference`). */
+export type MapPreferenceValue = "online" | "schematic";
+
+/** Player map component mode (`online` WebView vs `local` schematic). */
+export type PlayerMapMode = "online" | "local";
+
+export function mapPreferenceToPlayerMode(preference: MapPreferenceValue): PlayerMapMode {
+  return preference === "online" ? "online" : "local";
+}
+
+export function playerModeToMapPreference(mode: PlayerMapMode): MapPreferenceValue {
+  return mode === "online" ? "online" : "schematic";
+}

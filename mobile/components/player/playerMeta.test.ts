@@ -15,7 +15,11 @@ import {
   formatSpeedParts,
   speedA11yLabel,
 } from "./telemetryFormat";
-import { MAP_MODE_OPTIONS } from "../gps/onlineMapProvider";
+import {
+  MAP_MODE_OPTIONS,
+  mapPreferenceToPlayerMode,
+  playerModeToMapPreference,
+} from "../gps/onlineMapProvider";
 
 test("premium meta labels are exactly DATE TIME SIZE DURATION", () => {
   assert.deepEqual([...PLAYER_META_LABELS], ["DATE", "TIME", "SIZE", "DURATION"]);
@@ -76,7 +80,8 @@ test("map selector has exactly Online map and Local schematic", () => {
   assert.ok(!MAP_MODE_OPTIONS.includes("Map privacy" as never));
 });
 
-test("online map defaults to opt-in local mode semantics", () => {
-  const defaultMode: "local" | "online" = "local";
-  assert.equal(defaultMode, "local");
+test("map preference drives Player map mode (no independent local default)", () => {
+  assert.equal(mapPreferenceToPlayerMode("online"), "online");
+  assert.equal(mapPreferenceToPlayerMode("schematic"), "local");
+  assert.equal(playerModeToMapPreference("local"), "schematic");
 });

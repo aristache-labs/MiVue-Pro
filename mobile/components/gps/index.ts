@@ -22,5 +22,8 @@ export {
   OPENSTREETMAP_TILE_SOURCE,
   MAP_MODE_OPTIONS,
   buildLeafletBootstrapConfig,
+  mapPreferenceToPlayerMode,
+  playerModeToMapPreference,
 } from "./onlineMapProvider";
+export type { MapPreferenceValue, PlayerMapMode } from "./onlineMapProvider";
 export { loadSiblingNmea } from "./loadSiblingNmea";
