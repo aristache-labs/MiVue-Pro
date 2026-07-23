@@ -12,6 +12,7 @@ import {
   Text,
   TextInput,
   View,
+  type ViewToken,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -40,6 +41,12 @@ import {
   type CameraLibrarySort,
   type CategoryFilter,
 } from "@/components/camera/cameraLibraryModel";
+import {
+  LIBRARY_LIST_VIRTUALIZATION,
+  LIBRARY_THUMB_VIEWABILITY,
+  pathsFromViewableItems,
+  samePathSet,
+} from "@/components/camera/cameraLibraryViewability";
 import { RemoteDetailSheet } from "@/components/camera/RemoteDetailSheet";
 import { RemoteRecordingCard } from "@/components/camera/RemoteRecordingCard";
 import {
@@ -184,6 +191,14 @@ export default function LibraryScreen() {
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
+  const [activeThumbnailPaths, setActiveThumbnailPaths] = useState(() => new Set<string>());
+  const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
+      const next = pathsFromViewableItems(viewableItems);
+      setActiveThumbnailPaths((prev) => (samePathSet(prev, next) ? prev : next));
+    },
+  ).current;
   const listItemSeparator = useCallback(
     () => <View style={{ height: spacing.sm }} />,
     [spacing.sm],
@@ -324,6 +339,62 @@ export default function LibraryScreen() {
       setDetailFile(null);
     },
     [localFiles],
+  );
+
+  const renderSectionHeader = useCallback(
+    ({ section }: { section: (typeof sections)[number] }) => (
+      <View
+        collapsable={false}
+        style={[
+          styles.sectionHeader,
+          { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
+        ]}
+      >
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
+          {section.title}
+        </Text>
+        <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+          {section.countLabel}
+        </Text>
+      </View>
+    ),
+    [colors.bg, colors.borderSoft, colors.textMuted],
+  );
+
+  const renderItem = useCallback(
+    ({ item }: { item: RemoteFile }) => {
+      const downloadState = resolveRemoteDownloadState({
+        file: item,
+        queueItems,
+        localNames,
+        queuePosition,
+      });
+      return (
+        <RemoteRecordingCard
+          file={item}
+          downloadState={downloadState}
+          thumbActive={activeThumbnailPaths.has(item.path)}
+          onDownload={onDownload}
+          onResume={onResume}
+          onOpenDownloaded={openDownloaded}
+          onOpenDetail={setDetailFile}
+        />
+      );
+    },
+    [
+      activeThumbnailPaths,
+      queueItems,
+      localNames,
+      queuePosition,
+      onDownload,
+      onResume,
+      openDownloaded,
+    ],
+  );
+
+  const listExtraData = useMemo(
+    () => ({ queueItems, localNames, queuePosition, activeThumbnailPaths }),
+    [queueItems, localNames, queuePosition, activeThumbnailPaths],
   );
 
   const detailDownloadState = useMemo(() => {
@@ -556,6 +627,13 @@ export default function LibraryScreen() {
           keyExtractor={(item) => item.path}
           stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
           removeClippedSubviews={false}
+          initialNumToRender={LIBRARY_LIST_VIRTUALIZATION.initialNumToRender}
+          maxToRenderPerBatch={LIBRARY_LIST_VIRTUALIZATION.maxToRenderPerBatch}
+          updateCellsBatchingPeriod={LIBRARY_LIST_VIRTUALIZATION.updateCellsBatchingPeriod}
+          windowSize={LIBRARY_LIST_VIRTUALIZATION.windowSize}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          extraData={listExtraData}
           scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
           alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
           bounces={listBounceEnabled(canPullToRefresh)}
@@ -576,44 +654,12 @@ export default function LibraryScreen() {
             paddingHorizontal: spacing.lg,
             paddingBottom: listPadBottom,
             paddingTop: spacing.sm,
-            flexGrow: 1,
+            ...(filtered.length === 0 ? { flexGrow: 1 } : null),
           }}
           ListEmptyComponent={listEmpty}
-          renderSectionHeader={({ section }) => (
-            <View
-              collapsable={false}
-              style={[
-                styles.sectionHeader,
-                { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-                {section.title}
-              </Text>
-              <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-                {section.countLabel}
-              </Text>
-            </View>
-          )}
+          renderSectionHeader={renderSectionHeader}
           ItemSeparatorComponent={listItemSeparator}
-          renderItem={({ item }) => {
-            const downloadState = resolveRemoteDownloadState({
-              file: item,
-              queueItems,
-              localNames,
-              queuePosition,
-            });
-            return (
-              <RemoteRecordingCard
-                file={item}
-                downloadState={downloadState}
-                onDownload={onDownload}
-                onResume={onResume}
-                onOpenDownloaded={openDownloaded}
-                onOpenDetail={setDetailFile}
-              />
-            );
-          }}
+          renderItem={renderItem}
         />
       )}
 

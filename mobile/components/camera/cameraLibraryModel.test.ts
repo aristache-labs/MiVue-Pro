@@ -138,6 +138,66 @@ describe("cameraLibraryModel", () => {
     }
   });
 
+  it("keeps non-consecutive calendar days adjacent without empty gap section", () => {
+    const files = [
+      remote({ name: "Sun1.MP4", path: "/SD/Sun1.MP4", recordedAt: "2026-07-19 10:00:00" }),
+      remote({ name: "Fri1.MP4", path: "/SD/Fri1.MP4", recordedAt: "2026-07-17 09:00:00" }),
+    ];
+    const sections = buildCameraLibrarySections(files, "newest");
+    assert.equal(sections.length, 2);
+    assert.equal(sections[0]?.dayKey, "2026-07-19");
+    assert.equal(sections[1]?.dayKey, "2026-07-17");
+    assert.ok(!sections.some((s) => s.dayKey === "2026-07-18"));
+    assert.ok(!sections.some((s) => s.data.length === 0));
+    assert.deepEqual(
+      sections.map((s) => s.key),
+      ["2026-07-19", "2026-07-17"],
+    );
+    assert.equal(new Set(sections.map((s) => s.key)).size, sections.length);
+  });
+
+  it("stress ~379 files with gap on 18 July stays consecutive and complete", () => {
+    const files: RemoteFile[] = [];
+    let n = 0;
+    const pushDay = (day: string, count: number) => {
+      for (let i = 0; i < count; i += 1) {
+        n += 1;
+        const hh = String(10 + Math.floor(i / 60)).padStart(2, "0");
+        const mm = String(i % 60).padStart(2, "0");
+        files.push(
+          remote({
+            name: `F${n}.MP4`,
+            path: `/SD/F${n}.MP4`,
+            recordedAt: `${day} ${hh}:${mm}:00`,
+          }),
+        );
+      }
+    };
+    pushDay("2026-07-22", 80);
+    pushDay("2026-07-21", 80);
+    pushDay("2026-07-20", 80);
+    pushDay("2026-07-19", 22);
+    // no files on 2026-07-18
+    pushDay("2026-07-17", 18);
+    pushDay("2026-07-16", 99);
+    assert.equal(files.length, 379);
+
+    const sections = buildCameraLibrarySections(files, "newest");
+    const keys = sections.map((s) => s.key);
+    assert.equal(keys.filter((k) => k === "2026-07-18").length, 0);
+    const i19 = keys.indexOf("2026-07-19");
+    const i17 = keys.indexOf("2026-07-17");
+    assert.ok(i19 >= 0 && i17 >= 0);
+    assert.equal(i17, i19 + 1);
+    assert.equal(sections[i19]?.data.length, 22);
+    assert.equal(sections[i17]?.data.length, 18);
+    assert.equal(new Set(keys).size, keys.length);
+    assert.equal(
+      sections.reduce((sum, s) => sum + s.data.length, 0),
+      379,
+    );
+  });
+
   it("filters downloaded state", () => {
     const files = [
       remote({ name: "A.MP4", path: "/SD/A.MP4" }),

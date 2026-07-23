@@ -104,8 +104,8 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
 
 const styles = StyleSheet.create({
   hit: {
-    minWidth: MEDIA_ACTION_HIT,
-    minHeight: MEDIA_ACTION_HIT,
+    width: MEDIA_ACTION_HIT,
+    height: MEDIA_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
   },
