@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { CompactDownloadAction } from "@/components/camera/CompactDownloadAction";
 import { CameraThumb } from "@/components/camera/CameraThumb";
 import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
+import { librarySelectionCardA11y } from "@/components/camera/remoteDownloadA11y";
 import type { RemoteDownloadUiState } from "@/components/camera/remoteDownloadState";
 import { shouldEnqueueOnDownloadPress } from "@/components/camera/remoteDownloadState";
 import { formatDuration } from "@/components/mediaMeta";
@@ -57,28 +58,21 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       ? formatDuration(file.durationSeconds)
       : undefined;
   const isDownloaded = downloadState.kind === "downloaded";
+  const isPhoto = file.category === "photo";
 
   const toggle = useCallback(() => {
     onToggleSelect?.(file.path);
   }, [file.path, onToggleSelect]);
 
   const openBody = useCallback(() => {
-    if (selecting) {
-      toggle();
-      return;
-    }
     if (isDownloaded && onOpenDownloaded) {
       onOpenDownloaded(file);
       return;
     }
     onOpenDetail?.(file);
-  }, [selecting, toggle, file, isDownloaded, onOpenDownloaded, onOpenDetail]);
+  }, [file, isDownloaded, onOpenDownloaded, onOpenDetail]);
 
   const onAction = useCallback(() => {
-    if (selecting) {
-      toggle();
-      return;
-    }
     if (downloadState.kind === "downloaded") {
       onOpenDownloaded?.(file);
       return;
@@ -90,7 +84,10 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
     if (shouldEnqueueOnDownloadPress(downloadState)) {
       onDownload(file);
     }
-  }, [selecting, toggle, downloadState, file, onDownload, onOpenDownloaded, onResume]);
+  }, [downloadState, file, onDownload, onOpenDownloaded, onResume]);
+
+  /** Play overlay only for downloaded videos in normal mode — never in selection. */
+  const showPlayOverlay = !selecting && isDownloaded && !isPhoto;
 
   const card = (
     <MediaCard
@@ -102,18 +99,20 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       categoryAccent={catAccent}
       durationLabel={duration}
       selected={selected}
-      onThumbPress={openBody}
+      onThumbPress={selecting ? undefined : openBody}
       thumbAccessibilityLabel={
         selecting
-          ? selected
-            ? `Deselect ${file.name}`
-            : `Select ${file.name}`
+          ? undefined
           : isDownloaded
             ? `Play ${file.name}`
             : `Details for ${file.name}`
       }
-      onBodyPress={openBody}
-      bodyAccessibilityLabel={`${file.name}, ${CATEGORY_LABEL[file.category]}${when ? `, ${when}` : ""}`}
+      onBodyPress={selecting ? undefined : openBody}
+      bodyAccessibilityLabel={
+        selecting
+          ? undefined
+          : `${file.name}, ${CATEGORY_LABEL[file.category]}${when ? `, ${when}` : ""}`
+      }
       thumbnail={
         <CameraThumb
           remotePath={file.path}
@@ -145,13 +144,13 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
               {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
             </View>
           </View>
-        ) : isDownloaded ? (
+        ) : showPlayOverlay ? (
           <>
             <View
               pointerEvents="none"
               style={[styles.thumbScrim, { backgroundColor: colors.bg, opacity: 0.35 }]}
             />
-            <View pointerEvents="none" style={styles.playHit}>
+            <View pointerEvents="none" style={styles.playHit} testID="library-play-overlay">
               <View
                 style={[
                   styles.playGlyph,
@@ -170,13 +169,12 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         ) : null
       }
       actions={
-        !selecting ? (
-          <CompactDownloadAction
-            fileName={file.name}
-            state={downloadState}
-            onPress={onAction}
-          />
-        ) : undefined
+        <CompactDownloadAction
+          fileName={file.name}
+          state={downloadState}
+          onPress={onAction}
+          inert={selecting}
+        />
       }
     />
   );
@@ -187,7 +185,8 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         onPress={toggle}
         accessibilityRole="checkbox"
         accessibilityState={{ checked: selected }}
-        accessibilityLabel={selected ? `Deselect ${file.name}` : `Select ${file.name}`}
+        accessibilityLabel={librarySelectionCardA11y(file.name, downloadState, selected)}
+        testID="library-selection-card"
       >
         {card}
       </Pressable>
@@ -224,6 +223,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  /** Top-left — duration badge stays bottom-leading on MediaCard. */
   selectMarkHit: {
     position: "absolute",
     top: 0,

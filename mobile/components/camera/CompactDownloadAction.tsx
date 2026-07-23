@@ -11,6 +11,11 @@ interface CompactDownloadActionProps {
   readonly fileName: string;
   readonly state: RemoteDownloadUiState;
   readonly onPress: () => void;
+  /**
+   * When true, status remains visible but is not focusable or pressable
+   * (parent selection card owns the tap).
+   */
+  readonly inert?: boolean;
 }
 
 /**
@@ -21,14 +26,16 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
   fileName,
   state,
   onPress,
+  inert = false,
 }: CompactDownloadActionProps) {
   const { colors } = useAppTheme();
   const label = remoteDownloadActionA11y(fileName, state);
   const interactive =
-    state.kind === "available" ||
-    state.kind === "failed" ||
-    state.kind === "downloaded" ||
-    state.kind === "paused";
+    !inert &&
+    (state.kind === "available" ||
+      state.kind === "failed" ||
+      state.kind === "downloaded" ||
+      state.kind === "paused");
 
   const tone =
     state.kind === "downloaded"
@@ -39,23 +46,8 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
           ? colors.warn
           : colors.brand;
 
-  return (
-    <Pressable
-      onPress={(e) => {
-        e?.stopPropagation?.();
-        if (interactive) onPress();
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityState={{ disabled: !interactive }}
-      disabled={!interactive}
-      hitSlop={4}
-      style={({ pressed }) => [
-        styles.hit,
-        { opacity: pressed && interactive ? 0.7 : 1 },
-      ]}
-      testID="compact-download-action"
-    >
+  const content = (
+    <>
       {state.kind === "available" || state.kind === "failed" ? (
         <View
           style={[
@@ -98,6 +90,41 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
           </Text>
         </View>
       ) : null}
+    </>
+  );
+
+  if (inert) {
+    return (
+      <View
+        pointerEvents="none"
+        accessibilityElementsHidden
+        importantForAccessibility="no-hide-descendants"
+        style={styles.hit}
+        testID="compact-download-action"
+      >
+        {content}
+      </View>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={(e) => {
+        e?.stopPropagation?.();
+        if (interactive) onPress();
+      }}
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      accessibilityState={{ disabled: !interactive }}
+      disabled={!interactive}
+      hitSlop={4}
+      style={({ pressed }) => [
+        styles.hit,
+        { opacity: pressed && interactive ? 0.7 : 1 },
+      ]}
+      testID="compact-download-action"
+    >
+      {content}
     </Pressable>
   );
 });

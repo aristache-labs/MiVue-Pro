@@ -79,7 +79,9 @@ export const MediaCard = memo(function MediaCard({
           onPress={onThumbPress}
           disabled={!onThumbPress}
           accessibilityRole={onThumbPress ? "button" : undefined}
-          accessibilityLabel={thumbAccessibilityLabel}
+          accessibilityLabel={onThumbPress ? thumbAccessibilityLabel : undefined}
+          accessible={Boolean(onThumbPress)}
+          importantForAccessibility={onThumbPress ? "yes" : "no-hide-descendants"}
           style={({ pressed }) => [
             styles.thumbPress,
             { opacity: pressed && onThumbPress ? 0.82 : 1 },
@@ -91,6 +93,7 @@ export const MediaCard = memo(function MediaCard({
             <View
               pointerEvents="none"
               style={[styles.durationBadge, { backgroundColor: colors.bg }]}
+              testID="media-card-duration"
             >
               <Text style={[styles.durationText, { color: colors.text }]}>{durationLabel}</Text>
             </View>
@@ -101,7 +104,9 @@ export const MediaCard = memo(function MediaCard({
           onPress={onBodyPress}
           disabled={!onBodyPress}
           accessibilityRole={onBodyPress ? "button" : undefined}
-          accessibilityLabel={bodyAccessibilityLabel}
+          accessibilityLabel={onBodyPress ? bodyAccessibilityLabel : undefined}
+          accessible={Boolean(onBodyPress)}
+          importantForAccessibility={onBodyPress ? "yes" : "no-hide-descendants"}
           style={styles.body}
         >
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>

@@ -48,3 +48,29 @@ export function shouldShowViewInQueue(state: RemoteDownloadUiState): boolean {
     state.kind === "failed"
   );
 }
+
+/** Compact state phrase for Library multi-select card a11y. */
+export function remoteDownloadStatePhrase(state: RemoteDownloadUiState): string {
+  switch (state.kind) {
+    case "downloaded":
+      return "downloaded";
+    case "queued":
+      return state.position > 0 ? `queued at position ${state.position}` : "queued";
+    case "downloading":
+      return `downloading ${state.percent} percent`;
+    case "paused":
+      return "paused";
+    case "failed":
+      return "failed, available to retry";
+    default:
+      return "available to download";
+  }
+}
+
+export function librarySelectionCardA11y(
+  fileName: string,
+  state: RemoteDownloadUiState,
+  selected: boolean,
+): string {
+  return `${fileName}, ${remoteDownloadStatePhrase(state)}, ${selected ? "selected" : "not selected"}`;
+}

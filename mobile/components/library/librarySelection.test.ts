@@ -127,6 +127,9 @@ describe("librarySelection helpers", () => {
     assert.match(card, /selecting/);
     assert.match(card, /accessibilityRole="checkbox"/);
     assert.match(card, /onLongPressSelect/);
+    assert.match(card, /inert=\{selecting\}/);
+    assert.match(card, /CompactDownloadAction/);
+    assert.doesNotMatch(card, /actions=\{!selecting/);
     assert.doesNotMatch(index, /cameraMutate|format SD|del\?/i);
   });
 });
