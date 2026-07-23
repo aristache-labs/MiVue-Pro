@@ -16,16 +16,10 @@ export function userFacingConnectionError(
   switch (state) {
     case "timedOut":
     case "cameraUnreachable":
-      return {
-        title: "Camera not found",
-        message: "Make sure this phone is connected to the camera Wi-Fi, then try again.",
-        tone: "neutral",
-        ...(technical ? { technical } : {}),
-      };
     case "wrongNetwork":
       return {
-        title: "Connect to camera Wi-Fi",
-        message: "Select the camera network on this phone, then try again.",
+        title: "Camera connection unavailable",
+        message: "Join the camera’s Wi-Fi, then try again.",
         tone: "warn",
         ...(technical ? { technical } : {}),
       };
@@ -45,12 +39,19 @@ export function userFacingConnectionError(
       };
     default:
       return {
-        title: "Camera not found",
-        message: "Make sure this phone is connected to the camera Wi-Fi, then try again.",
-        tone: "neutral",
+        title: "Camera connection unavailable",
+        message: "Join the camera’s Wi-Fi, then try again.",
+        tone: "warn",
         ...(technical ? { technical } : {}),
       };
   }
+}
+
+/** Wi-Fi join failures use the compact Connect status card (not InlineMessage). */
+export function isCameraConnectionUnavailableState(
+  state: VerifyUiState | undefined,
+): boolean {
+  return state === "timedOut" || state === "cameraUnreachable" || state === "wrongNetwork";
 }
 
 export function shouldAllowGateBypassSegment(segment: string | undefined): boolean {

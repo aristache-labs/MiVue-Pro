@@ -72,6 +72,7 @@ export {
 } from "./mediaPermissions";
 export {
   userFacingConnectionError,
+  isCameraConnectionUnavailableState,
   shouldAllowGateBypassSegment,
 } from "./connectionErrors";
 export { OnboardingLayout } from "./onboardingLayout";

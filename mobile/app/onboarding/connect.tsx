@@ -3,6 +3,7 @@ import { useIsFocused } from "@react-navigation/native";
 import { router } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   Alert,
   AppState,
   Linking,
@@ -20,7 +21,7 @@ import {
   shouldRunAppStateVerify,
   verifyCameraConnection,
 } from "@/components/onboarding";
-import { userFacingConnectionError } from "@/components/onboarding/connectionErrors";
+import { userFacingConnectionError, isCameraConnectionUnavailableState } from "@/components/onboarding/connectionErrors";
 import { createOnboardingTransport } from "@/components/onboarding/createOnboardingTransport";
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
 import {
@@ -47,7 +48,7 @@ const STEPS: readonly {
   {
     icon: "phone-portrait-outline",
     title: "Join the camera network",
-    body: "In phone Wi-Fi settings, select the network shown on the camera.",
+    body: "Select the network shown on the camera. “No Internet” is expected.",
   },
   {
     icon: "return-down-back-outline",
@@ -257,6 +258,16 @@ export default function OnboardingConnectScreen() {
     } as Parameters<typeof router.push>[0]);
   };
 
+  const showUnavailableStatus =
+    !checking && isCameraConnectionUnavailableState(errorState);
+
+  useEffect(() => {
+    if (!showUnavailableStatus) return;
+    void AccessibilityInfo.announceForAccessibility(
+      "Camera connection unavailable. Join the camera’s Wi-Fi, then try again.",
+    );
+  }, [showUnavailableStatus]);
+
   if (!profile) {
     return (
       <OnboardingScreen
@@ -301,6 +312,7 @@ export default function OnboardingConnectScreen() {
   }
 
   const facing =
+    !checking &&
     errorState &&
     errorState !== "idle" &&
     errorState !== "waitingForWifi" &&
@@ -309,6 +321,8 @@ export default function OnboardingConnectScreen() {
     errorState !== "needsModelConfirm"
       ? userFacingConnectionError(errorState, rawError)
       : undefined;
+
+  const showInlineError = facing !== undefined && !showUnavailableStatus;
 
   return (
     <OnboardingScreen
@@ -334,14 +348,31 @@ export default function OnboardingConnectScreen() {
         </OnboardingCard>
       ))}
 
-      <View style={[styles.pill, { backgroundColor: colors.surfaceMuted, borderColor: colors.border }]}>
-        <Ionicons name="information-circle-outline" size={16} color={colors.textMuted} />
-        <Text style={[styles.pillText, { color: colors.textMuted }]}>
-          No internet on the camera network is normal.
-        </Text>
-      </View>
+      {showUnavailableStatus && facing ? (
+        <View
+          accessible
+          accessibilityRole="text"
+          accessibilityLabel="Camera connection unavailable. Join the camera’s Wi-Fi, then try again."
+          accessibilityLiveRegion="polite"
+          style={[
+            styles.statusCard,
+            {
+              backgroundColor: colors.surfaceElevated,
+              borderColor: colors.border,
+            },
+          ]}
+        >
+          <View style={[styles.statusIcon, { backgroundColor: colors.warnSoft }]}>
+            <Ionicons name="wifi-outline" size={20} color={colors.warn} />
+          </View>
+          <View style={styles.statusCopy}>
+            <Text style={[styles.statusTitle, { color: colors.text }]}>{facing.title}</Text>
+            <Text style={[styles.statusBody, { color: colors.textMuted }]}>{facing.message}</Text>
+          </View>
+        </View>
+      ) : null}
 
-      {facing ? (
+      {showInlineError && facing ? (
         <InlineMessage
           title={facing.title}
           message={facing.message}
@@ -400,17 +431,27 @@ const styles = StyleSheet.create({
   },
   stepTitle: { fontSize: 14, fontFamily: Type.fontSemi },
   stepBody: { fontSize: 13, lineHeight: 18, fontFamily: Type.font },
-  pill: {
+  statusCard: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    gap: 12,
+    paddingVertical: 12,
     paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 999,
+    borderRadius: OnboardingLayout.cardRadius,
     borderWidth: StyleSheet.hairlineWidth,
+    minHeight: 76,
   },
-  pillText: { flex: 1, fontSize: 12, lineHeight: 16, fontFamily: Type.font },
-  hint: { fontSize: 13, lineHeight: 18, fontFamily: Type.font },
+  statusIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  statusCopy: { flex: 1, gap: 2, minWidth: 0 },
+  statusTitle: { fontSize: 14, fontFamily: Type.fontSemi },
+  statusBody: { fontSize: 13, lineHeight: 18, fontFamily: Type.font },
   preIcon: {
     width: 56,
     height: 56,

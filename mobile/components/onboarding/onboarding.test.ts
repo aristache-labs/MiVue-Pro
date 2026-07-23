@@ -266,10 +266,17 @@ describe("legal draft", () => {
 });
 
 describe("connectionErrors", () => {
-  it("maps timeout to Camera not found", () => {
+  it("maps timeout to Camera connection unavailable", () => {
     const e = userFacingConnectionError("timedOut", "FetchTransport timed out after 12000ms");
-    assert.equal(e.title, "Camera not found");
+    assert.equal(e.title, "Camera connection unavailable");
+    assert.equal(e.message, "Join the camera’s Wi-Fi, then try again.");
     assert.doesNotMatch(e.message, /FetchTransport|HTTP\/1\.0|Expo Go/i);
+    assert.doesNotMatch(e.title, /Camera not found/i);
+  });
+
+  it("maps unreachable and wrong network to the same compact status copy", () => {
+    assert.equal(userFacingConnectionError("cameraUnreachable").title, "Camera connection unavailable");
+    assert.equal(userFacingConnectionError("wrongNetwork").title, "Camera connection unavailable");
   });
 
   it("maps permission denied to Settings guidance", () => {
@@ -283,6 +290,42 @@ describe("connectionErrors", () => {
     assert.equal(shouldAllowGateBypassSegment("legal-document"), true);
     assert.equal(shouldAllowGateBypassSegment("onboarding"), true);
     assert.equal(shouldAllowGateBypassSegment("(tabs)"), false);
+  });
+});
+
+describe("Connect camera status copy contract", () => {
+  const connectSrc = readFileSync(join(__dirname, "../../app/onboarding/connect.tsx"), "utf8");
+
+  it("removes the separate No internet pill", () => {
+    assert.doesNotMatch(connectSrc, /No internet on the camera network is normal/);
+  });
+
+  it("puts No Internet expected into Join the camera network step", () => {
+    assert.match(connectSrc, /Join the camera network/);
+    assert.match(connectSrc, /“No Internet” is expected\./);
+  });
+
+  it("shows compact unavailable status after failure with a11y label", () => {
+    assert.match(connectSrc, /Camera connection unavailable/);
+    assert.match(connectSrc, /wifi-outline/);
+    assert.match(
+      connectSrc,
+      /accessibilityLabel="Camera connection unavailable\. Join the camera’s Wi-Fi, then try again\."/,
+    );
+    assert.match(connectSrc, /announceForAccessibility/);
+    assert.match(connectSrc, /!checking && isCameraConnectionUnavailableState/);
+  });
+
+  it("hides status while checking and uses Checking camera loading label", () => {
+    assert.match(connectSrc, /loadingLabel="Checking camera…"/);
+    assert.match(connectSrc, /label=\{facing \? "Try again" : "Verify connection"\}/);
+    assert.match(connectSrc, /loading=\{checking\}/);
+  });
+
+  it("keeps Local Network permission on InlineMessage path", () => {
+    assert.match(connectSrc, /permissionDenied/);
+    assert.match(connectSrc, /InlineMessage/);
+    assert.match(connectSrc, /showInlineError/);
   });
 });
 
