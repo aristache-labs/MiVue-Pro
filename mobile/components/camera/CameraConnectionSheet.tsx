@@ -162,7 +162,6 @@ export function CameraConnectionSheet({
           <>
             <CompactSheetHeader
               title={title}
-              titleAlign="start"
               compact
               showHandle
               dividerInset={0}
