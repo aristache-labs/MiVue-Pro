@@ -113,7 +113,7 @@ export default function LibraryScreen() {
   const [sortOpen, setSortOpen] = useState(false);
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
   const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
-  const [errorBanner, setErrorBanner] = useState<string | undefined>();
+  const [errorDismissed, setErrorDismissed] = useState(false);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
@@ -192,23 +192,20 @@ export default function LibraryScreen() {
   }, [cameraLinkState, isRefreshingCamera]);
 
   const runRefresh = useCallback(async () => {
-    setErrorBanner(undefined);
     const result = await refreshFiles();
-    if (!result.ok) {
-      setErrorBanner(friendlyConnectionError(result.error));
-    }
     return result;
   }, [refreshFiles]);
 
   useEffect(() => {
-    if (cameraLinkState === "connected") {
-      setErrorBanner(undefined);
-      return;
-    }
-    if (lastError && (cameraLinkState === "unstable" || cameraLinkState === "connection_lost")) {
-      setErrorBanner(friendlyConnectionError(lastError));
-    }
+    setErrorDismissed(false);
   }, [lastError, cameraLinkState]);
+
+  const showConnectionError =
+    cameraLinkState === "unstable" || cameraLinkState === "connection_lost";
+  const errorBanner =
+    showConnectionError && !errorDismissed
+      ? friendlyConnectionError(lastError)
+      : undefined;
 
   useLayoutEffect(() => {
     navigation.setOptions({
@@ -223,6 +220,7 @@ export default function LibraryScreen() {
       headerTitleAlign: "center",
       headerRight: () => (
         <CameraConnectionHeaderButton
+          key={`${cameraLinkState}-${isRefreshingCamera ? "1" : "0"}`}
           linkState={cameraLinkState}
           refreshing={isRefreshingCamera}
           onPress={openConnectionSheet}
@@ -338,7 +336,7 @@ export default function LibraryScreen() {
 
         {errorBanner && !showUnavailableBanner ? (
           <Pressable
-            onPress={() => setErrorBanner(undefined)}
+            onPress={() => setErrorDismissed(true)}
             style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
             accessibilityRole="button"
             accessibilityLabel={`Error: ${errorBanner}. Dismiss.`}

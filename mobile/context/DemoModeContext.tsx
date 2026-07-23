@@ -11,7 +11,12 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { Alert } from "react-native";
+import { Alert, AppState, type AppStateStatus } from "react-native";
+
+import {
+  APP_STATE_VERIFY_DEBOUNCE_MS,
+  scheduleOneShotVerify,
+} from "@/components/onboarding/appStateVerify";
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
@@ -56,6 +61,8 @@ const COMPAT_MODEL = "MiVue 866";
 const FETCH_MAX_DOWNLOAD_BYTES = 512 * 1024 * 1024;
 /** Short probe before enqueue so Download does not hang on a dead link. */
 const ENQUEUE_PROBE_TIMEOUT_MS = 8_000;
+/** Cold-start camera probe budget before splash may hide (probe can continue). */
+const BOOTSTRAP_PROBE_BUDGET_MS = 8_000;
 
 export interface LocalMediaFile {
   readonly name: string;
@@ -75,8 +82,12 @@ interface DemoModeContextValue {
   readonly files: readonly RemoteFile[];
   readonly queueItems: readonly QueueItem[];
   readonly localFiles: readonly LocalMediaFile[];
-  readonly refreshFiles: () => Promise<{ ok: boolean; error?: string }>;
+  readonly refreshFiles: (opts?: {
+    readonly host?: string;
+  }) => Promise<{ ok: boolean; error?: string }>;
   readonly refreshLocalFiles: () => Promise<void>;
+  /** True after the first camera reachability check (or budget timeout). */
+  readonly cameraBootstrapDone: boolean;
   /** Clears Laneory camera session only — never mutates the camera. */
   readonly disconnectSession: () => void;
   readonly enqueueDownload: (file: RemoteFile) => Promise<void>;
@@ -180,6 +191,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const [connectionNote, setConnectionNote] = useState<string | undefined>();
   const [cameraLinkState, setCameraLinkState] = useState<CameraLinkState>("idle");
   const [isRefreshingCamera, setIsRefreshingCamera] = useState(false);
+  const [cameraBootstrapDone, setCameraBootstrapDone] = useState(false);
   const [lastConnectedAt, setLastConnectedAt] = useState<string | undefined>();
   const [cameraModel, setCameraModel] = useState<string | undefined>();
   const [cameraProperties, setCameraProperties] = useState<Readonly<Record<string, string>>>({});
@@ -187,6 +199,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const queueStatusRef = useRef<Map<string, QueueItem["status"]>>(new Map());
   const disconnectAlertAtRef = useRef(0);
   const refreshInflightRef = useRef(false);
+  const bootOnceRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const linkStateRef = useRef<CameraLinkState>(cameraLinkState);
+  linkStateRef.current = cameraLinkState;
   const filesLenRef = useRef(0);
   filesLenRef.current = files.length;
 
@@ -322,58 +338,6 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }
   const queue = queueRef.current;
 
-  React.useEffect(() => {
-    void (async () => {
-      const saved = await AsyncStorage.getItem(HOST_KEY);
-      if (saved && isPrivateIpv4(saved)) setCameraHostState(saved);
-      const mapPref = await AsyncStorage.getItem(MAP_PREF_KEY);
-      if (mapPref === "online" || mapPref === "schematic") setMapPreferenceState(mapPref);
-      await queue.init();
-      try {
-        await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
-      } catch {
-        // directory may already exist
-      }
-      await refreshLocalFiles();
-    })();
-  }, [queue, downloadDir, refreshLocalFiles]);
-
-  useEffect(() => {
-    let sawDrop = false;
-    let dropDetail: string | undefined;
-    for (const item of queueItems) {
-      const prev = queueStatusRef.current.get(item.id);
-      // Only live transitions (queued/active/… → failed). Skip hydration of
-      // already-failed rows so reconnect is not overwritten by stale queue state.
-      if (
-        item.status === "failed" &&
-        prev !== undefined &&
-        prev !== "failed" &&
-        isConnectionDropError(item.errorMessage)
-      ) {
-        sawDrop = true;
-        dropDetail = item.errorMessage;
-      }
-    }
-    queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
-    if (!sawDrop) return;
-
-    setCameraLinkState((prev) =>
-      prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
-    );
-    setLastError(dropDetail ?? CAMERA_CONNECTION_LOST_MESSAGE);
-    const now = Date.now();
-    if (now - disconnectAlertAtRef.current > 4_000) {
-      disconnectAlertAtRef.current = now;
-      notifyCameraDisconnected(dropDetail);
-    }
-    for (const item of queue.list()) {
-      if (item.status === "queued") {
-        void queue.pause(item.id);
-      }
-    }
-  }, [queueItems, queue]);
-
   const setCameraHost = useCallback((host: string) => {
     const trimmed = host.trim();
     setCameraHostState(trimmed);
@@ -416,61 +380,162 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     }
   }, [thumbDir]);
 
-  const refreshFiles = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
-    if (!canStartCameraRefresh(refreshInflightRef.current)) {
-      return { ok: false, error: CAMERA_REFRESH_IN_PROGRESS };
-    }
-    refreshInflightRef.current = true;
-    setIsRefreshingCamera(true);
-    setCameraLinkState("connecting");
-    setLastError(undefined);
-    try {
-      if (demoMode) {
+  const refreshFiles = useCallback(
+    async (opts?: { readonly host?: string }): Promise<{ ok: boolean; error?: string }> => {
+      if (!canStartCameraRefresh(refreshInflightRef.current)) {
+        return { ok: false, error: CAMERA_REFRESH_IN_PROGRESS };
+      }
+      const host = (opts?.host ?? cameraHost).trim();
+      refreshInflightRef.current = true;
+      setIsRefreshingCamera(true);
+      setCameraLinkState("connecting");
+      setLastError(undefined);
+      try {
+        if (demoMode) {
+          const client = new CameraClient(
+            { host: "127.0.0.1", httpPort: 80, rtspPort: 554 },
+            new DemoTransport(),
+          );
+          const page = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
+          setFiles(page.files);
+          setCameraLinkState("connected");
+          setCameraModel(COMPAT_MODEL);
+          setLastConnectedAt(new Date().toISOString());
+          setConnectionNote(undefined);
+          return { ok: true };
+        }
+
+        if (!isPrivateIpv4(host)) {
+          const error = "Host must be a private IPv4 address (e.g. 192.72.1.1).";
+          setLastError(error);
+          setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
+          return { ok: false, error };
+        }
+
+        const transport = createLiveTransport(host);
+        queue.setTransport(transport);
         const client = new CameraClient(
-          { host: "127.0.0.1", httpPort: 80, rtspPort: 554 },
-          new DemoTransport(),
+          { host, httpPort: 80, rtspPort: 554 },
+          transport,
         );
-        const page = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
+        const status = await client.getStatus();
+        setCameraProperties(status.properties);
+        const page = await client.listAllFiles({ pageSize: 32, maxFiles: 500 });
         setFiles(page.files);
         setCameraLinkState("connected");
         setCameraModel(COMPAT_MODEL);
         setLastConnectedAt(new Date().toISOString());
         setConnectionNote(undefined);
         return { ok: true };
-      }
-
-      if (!isPrivateIpv4(cameraHost)) {
-        const error = "Host must be a private IPv4 address (e.g. 192.72.1.1).";
-        setLastError(error);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        setLastError(message);
         setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
-        return { ok: false, error };
+        return { ok: false, error: message };
+      } finally {
+        refreshInflightRef.current = false;
+        setIsRefreshingCamera(false);
       }
+    },
+    [demoMode, cameraHost, queue],
+  );
 
-      const transport = createLiveTransport(cameraHost);
-      queue.setTransport(transport);
-      const client = new CameraClient(
-        { host: cameraHost, httpPort: 80, rtspPort: 554 },
-        transport,
-      );
-      const status = await client.getStatus();
-      setCameraProperties(status.properties);
-      const page = await client.listAllFiles({ pageSize: 32, maxFiles: 500 });
-      setFiles(page.files);
-      setCameraLinkState("connected");
-      setCameraModel(COMPAT_MODEL);
-      setLastConnectedAt(new Date().toISOString());
-      setConnectionNote(undefined);
-      return { ok: true };
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      setLastError(message);
-      setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
-      return { ok: false, error: message };
-    } finally {
-      refreshInflightRef.current = false;
-      setIsRefreshingCamera(false);
+  const refreshFilesRef = useRef(refreshFiles);
+  refreshFilesRef.current = refreshFiles;
+
+  React.useEffect(() => {
+    if (bootOnceRef.current) return;
+    bootOnceRef.current = true;
+    void (async () => {
+      let host = DEFAULT_HOST;
+      try {
+        const saved = await AsyncStorage.getItem(HOST_KEY);
+        if (saved && isPrivateIpv4(saved)) {
+          host = saved;
+          setCameraHostState(saved);
+        }
+        const mapPref = await AsyncStorage.getItem(MAP_PREF_KEY);
+        if (mapPref === "online" || mapPref === "schematic") setMapPreferenceState(mapPref);
+        await queue.init();
+        try {
+          await FileSystem.makeDirectoryAsync(downloadDir, { intermediates: true });
+        } catch {
+          // directory may already exist
+        }
+        await refreshLocalFiles();
+
+        const probe = refreshFilesRef.current({ host });
+        await Promise.race([
+          probe,
+          new Promise<void>((resolve) => {
+            setTimeout(resolve, BOOTSTRAP_PROBE_BUDGET_MS);
+          }),
+        ]);
+      } finally {
+        setCameraBootstrapDone(true);
+      }
+    })();
+  }, [queue, downloadDir, refreshLocalFiles]);
+
+  useEffect(() => {
+    let cancelVerify: (() => void) | undefined;
+    const onChange = (next: AppStateStatus) => {
+      const prev = appStateRef.current;
+      appStateRef.current = next;
+      if (prev === "active" || next !== "active") return;
+      if (demoMode) return;
+      if (!isPrivateIpv4(cameraHost)) return;
+      if (refreshInflightRef.current) return;
+      const link = linkStateRef.current;
+      // Re-probe when returning from background if the session is not already healthy.
+      if (link === "connected" || link === "connecting") return;
+      cancelVerify?.();
+      cancelVerify = scheduleOneShotVerify(() => {
+        void refreshFilesRef.current();
+      }, APP_STATE_VERIFY_DEBOUNCE_MS);
+    };
+    const sub = AppState.addEventListener("change", onChange);
+    return () => {
+      cancelVerify?.();
+      sub.remove();
+    };
+  }, [demoMode, cameraHost]);
+
+  useEffect(() => {
+    let sawDrop = false;
+    let dropDetail: string | undefined;
+    for (const item of queueItems) {
+      const prev = queueStatusRef.current.get(item.id);
+      // Only live transitions (queued/active/… → failed). Skip hydration of
+      // already-failed rows so reconnect is not overwritten by stale queue state.
+      if (
+        item.status === "failed" &&
+        prev !== undefined &&
+        prev !== "failed" &&
+        isConnectionDropError(item.errorMessage)
+      ) {
+        sawDrop = true;
+        dropDetail = item.errorMessage;
+      }
     }
-  }, [demoMode, cameraHost, queue]);
+    queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
+    if (!sawDrop) return;
+
+    setCameraLinkState((prev) =>
+      prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
+    );
+    setLastError(dropDetail ?? CAMERA_CONNECTION_LOST_MESSAGE);
+    const now = Date.now();
+    if (now - disconnectAlertAtRef.current > 4_000) {
+      disconnectAlertAtRef.current = now;
+      notifyCameraDisconnected(dropDetail);
+    }
+    for (const item of queue.list()) {
+      if (item.status === "queued") {
+        void queue.pause(item.id);
+      }
+    }
+  }, [queueItems, queue]);
 
   const disconnectSession = useCallback(() => {
     setFiles([]);
@@ -529,6 +594,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             if (head.statusCode !== 200) {
               throw new Error(`HEAD HTTP ${head.statusCode}`);
             }
+            // Reachable again — update link chrome without starting a full library refresh
+            // (that would replace the queue transport mid-enqueue).
+            setCameraLinkState("connected");
+            setLastError(undefined);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             setCameraLinkState("connection_lost");
@@ -629,6 +698,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             if (head.statusCode !== 200) {
               throw new Error(`HEAD HTTP ${head.statusCode}`);
             }
+            setCameraLinkState("connected");
+            setLastError(undefined);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             setCameraLinkState("connection_lost");
@@ -778,6 +849,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       nativeTcpReady,
       isExpoGo,
       cameraLinkState,
+      cameraBootstrapDone,
       isRefreshingCamera,
       lastConnectedAt,
       cameraModel,
@@ -815,6 +887,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       nativeTcpReady,
       isExpoGo,
       cameraLinkState,
+      cameraBootstrapDone,
       isRefreshingCamera,
       lastConnectedAt,
       cameraModel,

@@ -19,7 +19,7 @@ import { useColorScheme } from "@/components/useColorScheme";
 import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryModel";
 import { shouldAllowGateBypassSegment } from "@/components/onboarding/connectionErrors";
 import { OnboardingProvider, useOnboarding } from "@/components/onboarding/OnboardingProvider";
-import { DemoModeProvider } from "@/context/DemoModeContext";
+import { DemoModeProvider, useDemoMode } from "@/context/DemoModeContext";
 import { Palette, Type } from "@/constants/Theme";
 
 export { ErrorBoundary } from "expo-router";
@@ -87,17 +87,19 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   const { ready, gateActive } = useOnboarding();
+  const { cameraBootstrapDone } = useDemoMode();
   const segments = useSegments();
   const top = String(segments[0] ?? "");
   const allowOutsideOnboarding = shouldAllowGateBypassSegment(top);
+  const bootReady = ready && cameraBootstrapDone;
 
   useEffect(() => {
-    if (ready) {
+    if (bootReady) {
       void SplashScreen.hideAsync();
     }
-  }, [ready]);
+  }, [bootReady]);
 
-  if (!ready) {
+  if (!bootReady) {
     return null;
   }
 
