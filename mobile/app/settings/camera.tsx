@@ -6,7 +6,6 @@ import {
   StyleSheet,
   Text,
   View,
-  type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -24,10 +23,7 @@ import {
   displayCameraSettingValue,
   rawCameraSettingValue,
 } from "@/components/settings/cameraSettingsUi";
-import {
-  SETTINGS_CHROME_HEADER_BAR_H,
-  SettingsChromeHeader,
-} from "@/components/settings/SettingsChromeHeader";
+import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
   SettingsSection,
@@ -82,9 +78,6 @@ export default function SettingsCameraScreen() {
   const [activeSetting, setActiveSetting] = useState<CameraSettingKey | null>(null);
   const [toast, setToast] = useState<ToastState | undefined>();
   const pendingToastRef = useRef<ToastState | undefined>(undefined);
-  const [headerBottom, setHeaderBottom] = useState(
-    () => insets.top + SETTINGS_CHROME_HEADER_BAR_H,
-  );
 
   const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
   const cameraConfigured =
@@ -110,11 +103,6 @@ export default function SettingsCameraScreen() {
   const sheetCurrent = activeSetting
     ? rawCameraSettingValue(cameraProperties, activeSetting)
     : undefined;
-
-  const onHeaderLayout = useCallback((event: LayoutChangeEvent) => {
-    const { y, height } = event.nativeEvent.layout;
-    setHeaderBottom(y + height);
-  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -209,16 +197,11 @@ export default function SettingsCameraScreen() {
 
   const actionsBusy = refreshPending || isRefreshingCamera || isApplyingCameraSetting;
   const demoBlocked = demoMode ? "Camera settings are unavailable in Demo Mode." : undefined;
-  const toastTop = headerBottom + 12;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SettingsChromeHeader
-        title="Camera & Connection"
-        onBack={navigateBackToSettings}
-        onLayout={onHeaderLayout}
-      />
+      <SettingsChromeHeader title="Camera & Connection" onBack={navigateBackToSettings} />
 
       <SettingsScroll
         showsVerticalScrollIndicator={false}
@@ -286,14 +269,12 @@ export default function SettingsCameraScreen() {
               compact
             />
           ) : null}
-          {clockValue ? (
-            <SettingsValueRow
-              icon="alarm-outline"
-              title="Camera clock"
-              value={clockValue}
-              compact
-            />
-          ) : null}
+          <SettingsValueRow
+            icon="alarm-outline"
+            title="Camera clock"
+            value={clockValue}
+            compact
+          />
           <SettingsValueRow
             icon="checkmark-circle-outline"
             title="Compatibility"
@@ -375,7 +356,6 @@ export default function SettingsCameraScreen() {
       <ScreenToast
         message={toast?.message}
         tone={toast?.tone ?? "success"}
-        top={toastTop}
         testID="camera-settings-toast"
         onDismiss={() => setToast(undefined)}
       />

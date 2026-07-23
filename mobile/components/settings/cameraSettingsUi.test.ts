@@ -75,7 +75,7 @@ describe("camera settings UI contracts", () => {
       "50Hz",
     );
     assert.ok(cameraSettingOptions("ev").length === 7);
-    assert.equal(cameraClockDisplay({}), undefined);
+    assert.equal(cameraClockDisplay({}), "—");
   });
 
   it("Camera clock stays read-only and unrelated screens do not mutate", () => {
@@ -97,5 +97,19 @@ describe("camera settings UI contracts", () => {
     const toastIdx = cameraSrc.indexOf("<ScreenToast");
     assert.ok(toastIdx > scrollClose);
     assert.doesNotMatch(cameraSrc.slice(0, scrollClose), /<ScreenToast/);
+  });
+
+  it("fetch merges TimeStamp component keys without collapsing to one value", () => {
+    const proto = readFileSync(
+      join(__dirname, "../../packages/protocol/src/cameraSettings.ts"),
+      "utf8",
+    );
+    assert.match(proto, /startsWith\("Camera\.Preview\.MJPEG\.TimeStamp\."/);
+    assert.match(proto, /mergedComponent/);
+    const clockBlock = proto.slice(
+      proto.indexOf("property: CAMERA_CLOCK_PROPERTY"),
+      proto.indexOf("export function cameraSettingConfirmMessage"),
+    );
+    assert.doesNotMatch(clockBlock, /Object\.values\(parsed\.properties\)\[0\]/);
   });
 });

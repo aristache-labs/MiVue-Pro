@@ -25,10 +25,6 @@ import {
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
 import {
-  filterShareEligibleLocalFiles,
-  supportsNativeMultiFileShare,
-} from "../components/local/localShareSelection";
-import {
   cameraThumbCacheFileName,
   cameraThumbRequestPath,
   isJpegMagic,
@@ -116,14 +112,6 @@ interface DemoModeContextValue {
   readonly removeFromQueue: (id: string) => Promise<void>;
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly shareLocalFile: (file: LocalMediaFile) => Promise<boolean>;
-  /**
-   * Share one Local file via the installed native sheet.
-   * Multi-file requires a native multi-URI API (not available in expo-sharing).
-   */
-  readonly shareLocalFiles: (files: readonly LocalMediaFile[]) => Promise<{
-    readonly initiated: boolean;
-    readonly unsupportedMulti?: boolean;
-  }>;
   readonly deleteLocalFile: (file: LocalMediaFile) => Promise<void>;
   /** Sequential local-only deletes; never mutates the camera. */
   readonly deleteLocalFilesBatch: (
@@ -989,28 +977,6 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [shareUri],
   );
 
-  const shareLocalFiles = useCallback(
-    async (
-      files: readonly LocalMediaFile[],
-    ): Promise<{ readonly initiated: boolean; readonly unsupportedMulti?: boolean }> => {
-      const eligible = filterShareEligibleLocalFiles(files);
-      if (eligible.length === 0) {
-        setLastError("No complete local recordings selected to share.");
-        return { initiated: false };
-      }
-      if (eligible.length === 1) {
-        const ok = await shareLocalFile(eligible[0]!);
-        return { initiated: ok };
-      }
-      if (!supportsNativeMultiFileShare()) {
-        return { initiated: false, unsupportedMulti: true };
-      }
-      setLastError("Multi-file sharing is not available in this build.");
-      return { initiated: false, unsupportedMulti: true };
-    },
-    [shareLocalFile],
-  );
-
   const deleteLocalFile = useCallback(
     async (file: LocalMediaFile) => {
       try {
@@ -1071,7 +1037,6 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
-      shareLocalFiles,
       deleteLocalFile,
       deleteLocalFilesBatch,
       queuePosition: (id) => queue.queuePosition(id),
@@ -1115,7 +1080,6 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
-      shareLocalFiles,
       deleteLocalFile,
       deleteLocalFilesBatch,
       queue,

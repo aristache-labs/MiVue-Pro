@@ -354,10 +354,26 @@ export async function fetchCameraSettingProperties(
     });
     const { parsed } = parseMutationBody(response.body);
     if (parsed && parsed.code === 0) {
-      const clock =
-        parsed.properties[CAMERA_CLOCK_PROPERTY] ?? Object.values(parsed.properties)[0];
-      if (typeof clock === "string" && clock.length > 0) {
-        out[CAMERA_CLOCK_PROPERTY] = clock;
+      // Preserve TimeStamp.year/month/day/hour/minute/second — never collapse to one value.
+      let mergedComponent = false;
+      for (const [prop, value] of Object.entries(parsed.properties)) {
+        if (
+          prop.startsWith("Camera.Preview.MJPEG.TimeStamp.") &&
+          prop !== CAMERA_CLOCK_PROPERTY &&
+          typeof value === "string" &&
+          value.length > 0
+        ) {
+          out[prop] = value;
+          mergedComponent = true;
+        }
+      }
+      if (!mergedComponent) {
+        const clock =
+          parsed.properties[CAMERA_CLOCK_PROPERTY] ??
+          parsed.properties["Camera.Preview.MJPEG.TimeStamp"];
+        if (typeof clock === "string" && clock.length > 0) {
+          out[CAMERA_CLOCK_PROPERTY] = clock;
+        }
       }
     }
   } catch {

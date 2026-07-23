@@ -2,8 +2,8 @@ import type { ComponentProps } from "react";
 import type Ionicons from "@expo/vector-icons/Ionicons";
 
 import type { CameraSettingOption } from "@/components/settings/CameraSettingSheet";
+import { formatCameraClockDisplay } from "@/components/settings/cameraClock";
 import {
-  CAMERA_CLOCK_PROPERTY,
   CAMERA_SETTING_PROPERTY,
   CAMERA_SETTING_TITLE,
   CAMERA_SETTING_VALUES,
@@ -53,11 +53,11 @@ export function displayCameraSettingValue(
   return formatCameraSettingValue(key, raw);
 }
 
+/** Always a complete stamp or em dash — never a single TimeStamp component. */
 export function cameraClockDisplay(
   properties: Readonly<Record<string, string>>,
-): string | undefined {
-  const raw = properties[CAMERA_CLOCK_PROPERTY];
-  return typeof raw === "string" && raw.length > 0 ? raw : undefined;
+): string {
+  return formatCameraClockDisplay(properties);
 }
 
 export {

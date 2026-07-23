@@ -1,13 +1,10 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { useFocusEffect } from "@react-navigation/native";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
   FlatList,
-  Modal,
-  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -16,7 +13,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { friendlyConnectionError } from "@/components/camera/cameraLibraryModel";
-import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
@@ -40,24 +36,6 @@ import {
   sortQueueForDisplay,
   type QueueAction,
 } from "@/components/queue/queuePresentation";
-import {
-  canCancelQueueEntry,
-  canPauseQueueEntry,
-  canRemoveQueueEntry,
-  classifyQueueSelection,
-  pruneSelectionToIds,
-  queueCancelActionLabel,
-  queueCancelConfirmMessage,
-  queueCancelConfirmTitle,
-  queuePauseActionLabel,
-  queueRemoveActionLabel,
-  queueRemoveConfirmMessage,
-  queueRemoveConfirmTitle,
-  queueRowSelectionA11y,
-  queueSelectionTitle,
-  removeQueueEntrySafely,
-  revalidateQueueSelection,
-} from "@/components/queue/queueSelection";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import {
@@ -69,7 +47,7 @@ import {
   useVerticalOverflow,
 } from "@/hooks/useVerticalOverflow";
 import { QueueThumbnail } from "@/components/QueueThumbnail";
-import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import type { QueueItem } from "@/packages/local-db/src/index";
 
@@ -119,59 +97,12 @@ export default function QueueScreen() {
   const smoothedRateRef = useRef(new Map<string, number>());
   const actionGateRef = useRef(createQueueActionGate());
   const [actionBusy, setActionBusy] = useState(false);
-  const [batchBusy, setBatchBusy] = useState(false);
-  const [selecting, setSelecting] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(() => new Set());
-  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
-  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
   const lastAnnouncedRef = useRef(new Map<string, string>());
   const [, setTick] = useState(0);
-  const queueItemsRef = useRef(queueItems);
-  queueItemsRef.current = queueItems;
 
   const visibleItems = useMemo(
     () => sortQueueForDisplay(filterVisibleQueueItems(queueItems)),
     [queueItems],
-  );
-
-  const selectedItems = useMemo(
-    () => visibleItems.filter((item) => selected.has(item.id)),
-    [visibleItems, selected],
-  );
-  const selectionBreakdown = useMemo(
-    () => classifyQueueSelection(selectedItems),
-    [selectedItems],
-  );
-  const showSelectionBar = selecting && selected.size > 0;
-  const actionCount =
-    (selectionBreakdown.pauseEligibleCount > 0 ? 1 : 0) +
-    (selectionBreakdown.cancelEligibleCount > 0 ? 1 : 0) +
-    (selectionBreakdown.removeEligibleCount > 0 ? 1 : 0);
-  const compactActions = actionCount >= 3;
-
-  const exitSelection = useCallback(() => {
-    setSelecting(false);
-    setSelected(new Set());
-    setCancelConfirmOpen(false);
-    setRemoveConfirmOpen(false);
-  }, []);
-
-  useEffect(() => {
-    setSelected((prev) => pruneSelectionToIds(prev, visibleItems.map((i) => i.id)));
-  }, [visibleItems]);
-
-  useEffect(() => {
-    if (selecting && visibleItems.length === 0) {
-      exitSelection();
-    }
-  }, [selecting, visibleItems.length, exitSelection]);
-
-  useFocusEffect(
-    useCallback(() => {
-      return () => {
-        exitSelection();
-      };
-    }, [exitSelection]),
   );
 
   const hasQueueWork = useMemo(
@@ -194,110 +125,16 @@ export default function QueueScreen() {
       ? friendlyConnectionError(lastError)
       : undefined;
 
-  const toggleSelect = useCallback((id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      void AccessibilityInfo.announceForAccessibility(`${next.size} selected`);
-      return next;
-    });
-  }, []);
-
-  const selectAll = useCallback(() => {
-    setSelected(new Set(visibleItems.map((i) => i.id)));
-    void AccessibilityInfo.announceForAccessibility(
-      `Selected ${visibleItems.length} downloads`,
-    );
-  }, [visibleItems]);
-
-  const deselectAll = useCallback(() => {
-    setSelected(new Set());
-    setCancelConfirmOpen(false);
-    setRemoveConfirmOpen(false);
-    void AccessibilityInfo.announceForAccessibility("Deselect all");
-  }, []);
-
   useLayoutEffect(() => {
-    if (selecting) {
-      const allSelected =
-        selected.size === visibleItems.length && visibleItems.length > 0;
-      navigation.setOptions({
-        header: () => (
-          <TabScreenHeader
-            title={queueSelectionTitle(selected.size)}
-            left={
-              <Pressable
-                onPress={exitSelection}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel selection"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Cancel
-                </Text>
-              </Pressable>
-            }
-            right={
-              <Pressable
-                onPress={() => {
-                  if (allSelected) deselectAll();
-                  else selectAll();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={allSelected ? "Deselect all" : "Select all"}
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text
-                  style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
-                  numberOfLines={1}
-                >
-                  {allSelected ? "Deselect all" : "Select all"}
-                </Text>
-              </Pressable>
-            }
-          />
-        ),
-      });
-      return;
-    }
-
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
           title="Download queue"
-          left={
-            visibleItems.length === 0 ? (
-              <View style={{ width: 44 }} />
-            ) : (
-              <Pressable
-                onPress={() => setSelecting(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Select downloads"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Select
-                </Text>
-              </Pressable>
-            )
-          }
+          left={<View style={{ width: 44 }} />}
         />
       ),
     });
-  }, [
-    navigation,
-    selecting,
-    selected.size,
-    visibleItems.length,
-    exitSelection,
-    selectAll,
-    deselectAll,
-    colors.brand,
-  ]);
+  }, [navigation]);
 
   useEffect(() => {
     const hasActive = visibleItems.some((i) => i.status === "active");
@@ -325,7 +162,7 @@ export default function QueueScreen() {
   );
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
-  const backToTopEnabled = visibleItems.length > 0 && !actionBusy && !selecting;
+  const backToTopEnabled = visibleItems.length > 0 && !actionBusy;
   const {
     listRef: queueListRef,
     visible: backToTopVisible,
@@ -369,7 +206,6 @@ export default function QueueScreen() {
 
   const runAction = useCallback(
     async (item: QueueItem, action: QueueAction) => {
-      if (selecting) return;
       await actionGateRef.current(async () => {
         setActionBusy(true);
         try {
@@ -390,7 +226,6 @@ export default function QueueScreen() {
       });
     },
     [
-      selecting,
       pauseDownload,
       resumeDownload,
       cancelDownload,
@@ -400,85 +235,6 @@ export default function QueueScreen() {
       files,
     ],
   );
-
-  const runBulkPause = useCallback(() => {
-    if (batchBusy) return;
-    void actionGateRef.current(async () => {
-      setBatchBusy(true);
-      try {
-        const targets = revalidateQueueSelection(
-          selected,
-          queueItemsRef.current,
-          canPauseQueueEntry,
-        );
-        for (const item of targets) {
-          await pauseDownload(item.id);
-        }
-        void AccessibilityInfo.announceForAccessibility(
-          `${targets.length} ${targets.length === 1 ? "download" : "downloads"} paused`,
-        );
-      } finally {
-        setBatchBusy(false);
-      }
-    });
-  }, [batchBusy, selected, pauseDownload]);
-
-  const runBulkCancel = useCallback(() => {
-    if (batchBusy) return;
-    void actionGateRef.current(async () => {
-      setBatchBusy(true);
-      try {
-        const targets = revalidateQueueSelection(
-          selected,
-          queueItemsRef.current,
-          canCancelQueueEntry,
-        );
-        for (const item of targets) {
-          await cancelDownload(item.id);
-        }
-        setCancelConfirmOpen(false);
-        void AccessibilityInfo.announceForAccessibility(
-          `${targets.length} ${targets.length === 1 ? "download" : "downloads"} cancelled`,
-        );
-      } finally {
-        setBatchBusy(false);
-      }
-    });
-  }, [batchBusy, selected, cancelDownload]);
-
-  const runBulkRemove = useCallback(() => {
-    if (batchBusy) return;
-    void actionGateRef.current(async () => {
-      setBatchBusy(true);
-      try {
-        const targets = revalidateQueueSelection(
-          selected,
-          queueItemsRef.current,
-          canRemoveQueueEntry,
-        );
-        for (const item of targets) {
-          await removeQueueEntrySafely({
-            id: item.id,
-            getLive: () => queueItemsRef.current.find((e) => e.id === item.id),
-            cancelDownload,
-            removeFromQueue,
-          });
-        }
-        setRemoveConfirmOpen(false);
-        const remaining = new Set(selected);
-        for (const item of targets) remaining.delete(item.id);
-        setSelected(remaining);
-        void AccessibilityInfo.announceForAccessibility(
-          `${targets.length} ${targets.length === 1 ? "entry" : "entries"} removed from Queue`,
-        );
-        if (remaining.size === 0 || filterVisibleQueueItems(queueItemsRef.current).length === 0) {
-          exitSelection();
-        }
-      } finally {
-        setBatchBusy(false);
-      }
-    });
-  }, [batchBusy, selected, cancelDownload, removeFromQueue, exitSelection]);
 
   const badgeColors = (status: QueueItem["status"]) => {
     switch (status) {
@@ -496,7 +252,6 @@ export default function QueueScreen() {
   };
 
   const renderActions = (item: QueueItem, compact: boolean) => {
-    if (selecting) return null;
     const actions = actionsForStatus(item.status);
     if (actions.length === 0) return null;
 
@@ -591,77 +346,12 @@ export default function QueueScreen() {
         </Pressable>
       ) : null}
 
-      <SelectionActionBand
-        visible={showSelectionBar}
-        testID="queue-selection-action-band"
-        mutedMessage={
-          showSelectionBar && actionCount === 0 ? "No actions for this selection" : undefined
-        }
-        actions={
-          showSelectionBar
-            ? [
-                ...(selectionBreakdown.pauseEligibleCount > 0
-                  ? [
-                      {
-                        key: "pause",
-                        tone: "brand" as const,
-                        icon: "pause" as const,
-                        label: queuePauseActionLabel(
-                          selectionBreakdown.pauseEligibleCount,
-                          compactActions,
-                        ),
-                        accessibilityLabel: `Pause ${selectionBreakdown.pauseEligibleCount} eligible downloads`,
-                        onPress: runBulkPause,
-                        disabled: batchBusy,
-                        busy: batchBusy,
-                      },
-                    ]
-                  : []),
-                ...(selectionBreakdown.cancelEligibleCount > 0
-                  ? [
-                      {
-                        key: "cancel",
-                        tone: "warn" as const,
-                        icon: "close" as const,
-                        label: queueCancelActionLabel(
-                          selectionBreakdown.cancelEligibleCount,
-                          compactActions,
-                        ),
-                        accessibilityLabel: `Cancel ${selectionBreakdown.cancelEligibleCount} eligible downloads`,
-                        accessibilityHint: "Opens confirmation. Does not exit selection mode.",
-                        onPress: () => setCancelConfirmOpen(true),
-                        disabled: batchBusy,
-                      },
-                    ]
-                  : []),
-                ...(selectionBreakdown.removeEligibleCount > 0
-                  ? [
-                      {
-                        key: "remove",
-                        tone: "danger" as const,
-                        icon: "trash-outline" as const,
-                        label: queueRemoveActionLabel(
-                          selectionBreakdown.removeEligibleCount,
-                          compactActions,
-                        ),
-                        accessibilityLabel: `Remove ${selectionBreakdown.removeEligibleCount} eligible entries from Queue`,
-                        accessibilityHint: "Does not delete Local recordings",
-                        onPress: () => setRemoveConfirmOpen(true),
-                        disabled: batchBusy,
-                      },
-                    ]
-                  : []),
-              ]
-            : []
-        }
-      />
-
       <FlatList
         ref={queueListRef}
         style={styles.list}
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        extraData={{ selecting, selected, batchBusy }}
+        extraData={actionBusy}
         scrollEnabled={hasOverflow}
         alwaysBounceVertical={false}
         bounces={false}
@@ -690,7 +380,6 @@ export default function QueueScreen() {
           const when = formatCompactDateTime(item.localName, parseRecordedParts);
           const durationSec = durationByName.get(item.localName);
           const sizeLabel = item.expectedBytes > 0 ? formatSizeMb(item.expectedBytes) : undefined;
-          const isSelected = selected.has(item.id);
 
           const received = item.bytesReceived ?? 0;
           const total = item.expectedBytes > 0 ? item.expectedBytes : 0;
@@ -754,26 +443,23 @@ export default function QueueScreen() {
           const badgeText =
             queued && position !== undefined ? `Queued · #${position}` : label;
 
-          const card = (
+          return (
             <Card
               style={[
                 styles.card,
                 {
                   padding: active ? 12 : queued ? 10 : 11,
                   borderRadius: radius.md,
-                  borderColor: selecting && isSelected ? colors.brand : colors.border,
-                  borderWidth: selecting && isSelected ? 1.5 : StyleSheet.hairlineWidth,
-                  backgroundColor:
-                    selecting && isSelected ? colors.brandSoft : colors.surface,
+                  borderColor: colors.border,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  backgroundColor: colors.surface,
                 },
               ]}
               accessible={false}
             >
-              {!selecting ? (
-                <Text style={styles.a11yOnly} accessibilityLabel={a11yStatus}>
-                  {a11yStatus}
-                </Text>
-              ) : null}
+              <Text style={styles.a11yOnly} accessibilityLabel={a11yStatus}>
+                {a11yStatus}
+              </Text>
               <View style={styles.row}>
                 <View
                   style={[styles.thumbWrap, { width: thumb.width, height: thumb.height }]}
@@ -794,25 +480,6 @@ export default function QueueScreen() {
                       <Text style={[styles.durationText, { color: colors.text }]}>
                         {formatDuration(durationSec)}
                       </Text>
-                    </View>
-                  ) : null}
-                  {selecting ? (
-                    <View pointerEvents="none" style={styles.selectMarkHit}>
-                      <View
-                        style={[
-                          styles.selectMark,
-                          isSelected
-                            ? { backgroundColor: colors.brand, borderColor: colors.brand }
-                            : {
-                                backgroundColor: "transparent",
-                                borderColor: "rgba(255,255,255,0.95)",
-                              },
-                        ]}
-                      >
-                        {isSelected ? (
-                          <Ionicons name="checkmark" size={12} color={colors.onBrand} />
-                        ) : null}
-                      </View>
                     </View>
                   ) : null}
                 </View>
@@ -930,127 +597,13 @@ export default function QueueScreen() {
               ) : null}
             </Card>
           );
-
-          if (selecting) {
-            return (
-              <Pressable
-                onPress={() => toggleSelect(item.id)}
-                accessibilityRole="checkbox"
-                accessibilityState={{ checked: isSelected }}
-                accessibilityLabel={queueRowSelectionA11y(
-                  item.localName,
-                  item.status,
-                  isSelected,
-                )}
-                testID="queue-selection-card"
-              >
-                {card}
-              </Pressable>
-            );
-          }
-
-          return card;
         }}
       />
 
       <FloatingBackToTop
-        visible={backToTopVisible && backToTopEnabled && !selecting}
+        visible={backToTopVisible && backToTopEnabled}
         onPress={onBackToTopPress}
       />
-
-      <Modal
-        visible={cancelConfirmOpen && selecting && selectionBreakdown.cancelEligibleCount > 0}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setCancelConfirmOpen(false)}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalScrim}
-            onPress={() => setCancelConfirmOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          />
-          <View
-            style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            accessibilityViewIsModal
-          >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {queueCancelConfirmTitle(selectionBreakdown.cancelEligibleCount)}
-            </Text>
-            <Text style={[styles.modalBody, { color: colors.textMuted }]}>
-              {queueCancelConfirmMessage(selectionBreakdown.cancelEligibleCount)}
-            </Text>
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setCancelConfirmOpen(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Keep downloads"
-                style={[styles.modalBtn, { backgroundColor: colors.surfaceMuted }]}
-              >
-                <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>Keep downloads</Text>
-              </Pressable>
-              <Pressable
-                onPress={runBulkCancel}
-                disabled={batchBusy}
-                accessibilityRole="button"
-                accessibilityLabel={queueCancelActionLabel(selectionBreakdown.cancelEligibleCount)}
-                style={[styles.modalBtn, { backgroundColor: colors.warnSoft }]}
-              >
-                <Text style={{ color: colors.warn, fontFamily: Type.fontBold }}>
-                  Cancel downloads
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
-      <Modal
-        visible={removeConfirmOpen && selecting && selectionBreakdown.removeEligibleCount > 0}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setRemoveConfirmOpen(false)}
-      >
-        <View style={styles.modalRoot}>
-          <Pressable
-            style={styles.modalScrim}
-            onPress={() => setRemoveConfirmOpen(false)}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss"
-          />
-          <View
-            style={[styles.modalCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-            accessibilityViewIsModal
-          >
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {queueRemoveConfirmTitle()}
-            </Text>
-            <Text style={[styles.modalBody, { color: colors.textMuted }]}>
-              {queueRemoveConfirmMessage(selectionBreakdown.removeEligibleCount)}
-            </Text>
-            <View style={styles.modalActions}>
-              <Pressable
-                onPress={() => setRemoveConfirmOpen(false)}
-                accessibilityRole="button"
-                accessibilityLabel="Keep entries"
-                style={[styles.modalBtn, { backgroundColor: colors.surfaceMuted }]}
-              >
-                <Text style={{ color: colors.text, fontFamily: Type.fontSemi }}>Keep entries</Text>
-              </Pressable>
-              <Pressable
-                onPress={runBulkRemove}
-                disabled={batchBusy}
-                accessibilityRole="button"
-                accessibilityLabel={queueRemoveActionLabel(selectionBreakdown.removeEligibleCount)}
-                style={[styles.modalBtn, { backgroundColor: colors.dangerSoft }]}
-              >
-                <Text style={{ color: colors.danger, fontFamily: Type.fontBold }}>Remove</Text>
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -1127,54 +680,5 @@ const styles = StyleSheet.create({
     width: 1,
     height: 1,
     opacity: 0,
-  },
-  headerSideBtn: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  selectMarkHit: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  selectMark: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  modalRoot: {
-    flex: 1,
-    justifyContent: "center",
-    paddingHorizontal: 24,
-  },
-  modalScrim: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.42)",
-  },
-  modalCard: {
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    gap: 10,
-    zIndex: 1,
-  },
-  modalTitle: { fontFamily: Type.fontBold, fontSize: 17 },
-  modalBody: { fontFamily: Type.font, fontSize: 14, lineHeight: 20 },
-  modalActions: { flexDirection: "row", gap: 8, marginTop: 4 },
-  modalBtn: {
-    flex: 1,
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 8,
-    paddingHorizontal: 8,
   },
 });

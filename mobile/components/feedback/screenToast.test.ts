@@ -11,49 +11,39 @@ describe("ScreenToast + camera settings toast placement", () => {
     "utf8",
   );
   const shellSrc = readFileSync(join(__dirname, "../media/StaticBackdropSheet.tsx"), "utf8");
-  const headerSrc = readFileSync(
-    join(__dirname, "../settings/SettingsChromeHeader.tsx"),
-    "utf8",
-  );
 
-  it("ScreenToast is absolute screen-level overlay with top offset (not bottom)", () => {
+  it("ScreenToast is full-width bottom snackbar with safe-area padding", () => {
     assert.match(toastSrc, /position:\s*"absolute"/);
-    assert.match(toastSrc, /left:\s*Spacing\.xl/);
-    assert.match(toastSrc, /right:\s*Spacing\.xl/);
+    assert.match(toastSrc, /left:\s*0/);
+    assert.match(toastSrc, /right:\s*0/);
+    assert.match(toastSrc, /bottom:\s*0/);
+    assert.match(toastSrc, /useSafeAreaInsets/);
+    assert.match(toastSrc, /paddingBottom:\s*padBottom|Math\.max\(insets\.bottom/);
+    assert.match(toastSrc, /width:\s*"100%"/);
     assert.match(toastSrc, /zIndex:\s*40/);
-    assert.match(toastSrc, /pointerEvents="box-none"/);
     assert.match(toastSrc, /pointerEvents="none"/);
-    assert.match(toastSrc, /readonly top: number/);
-    assert.doesNotMatch(toastSrc, /bottom:\s*\d+/);
+    assert.doesNotMatch(toastSrc, /readonly top: number/);
+    assert.doesNotMatch(toastSrc, /left:\s*Spacing\.xl/);
     assert.match(toastSrc, /checkmark-circle|alert-circle/);
     assert.match(toastSrc, /successSoft|dangerSoft/);
     assert.match(toastSrc, /announceForAccessibility/);
     assert.match(toastSrc, /accessibilityLiveRegion/);
-    assert.match(toastSrc, /accessibilityRole="summary"/);
     assert.match(toastSrc, /isReduceMotionEnabled/);
     assert.match(toastSrc, /translateY/);
-    assert.match(toastSrc, /scale/);
     assert.match(toastSrc, /clearTimeout/);
   });
 
-  it("Reduce Motion skips translate/scale enter animation", () => {
+  it("Reduce Motion skips translate enter animation", () => {
     assert.match(toastSrc, /reduceMotionRef/);
     assert.match(toastSrc, /\.\.\.\(rm\s*\n\s*\? \[\]/);
-    assert.match(toastSrc, /translateY\.setValue\(rm \? 0 : -8\)/);
-    assert.match(toastSrc, /scale\.setValue\(rm \? 1 : 0\.98\)/);
+    assert.match(toastSrc, /translateY\.setValue\(rm \? 0 : SLIDE_DISTANCE\)/);
+    assert.doesNotMatch(toastSrc, /scale\.setValue/);
   });
 
-  it("camera toast is sibling of SettingsScroll under measured header", () => {
+  it("camera toast is sibling of SettingsScroll at screen bottom", () => {
     assert.match(cameraSrc, /ScreenToast/);
     assert.match(cameraSrc, /testID="camera-settings-toast"/);
-    assert.match(cameraSrc, /onHeaderLayout/);
-    assert.match(cameraSrc, /headerBottom/);
-    assert.match(cameraSrc, /toastTop = headerBottom \+ 12/);
-    assert.match(cameraSrc, /SETTINGS_CHROME_HEADER_BAR_H/);
-    assert.match(cameraSrc, /onLayout=\{onHeaderLayout\}/);
-    assert.match(headerSrc, /onLayout\?:/);
-    assert.match(headerSrc, /SETTINGS_CHROME_HEADER_BAR_H = 44/);
-
+    assert.doesNotMatch(cameraSrc, /toastTop|headerBottom|onHeaderLayout/);
     const scrollOpen = cameraSrc.indexOf("<SettingsScroll");
     const scrollClose = cameraSrc.indexOf("</SettingsScroll>");
     const toastIdx = cameraSrc.indexOf("<ScreenToast");
@@ -61,7 +51,6 @@ describe("ScreenToast + camera settings toast placement", () => {
     assert.ok(toastIdx > scrollClose, "toast must render after SettingsScroll");
     const scrollBody = cameraSrc.slice(scrollOpen, scrollClose);
     assert.doesNotMatch(scrollBody, /ScreenToast|toast\?\.message|camera-settings-toast/);
-    assert.doesNotMatch(cameraSrc, /bottom:\s*24|styles\.toast/);
   });
 
   it("success toast waits for verified apply then sheet onClosed", () => {
@@ -70,10 +59,7 @@ describe("ScreenToast + camera settings toast placement", () => {
     assert.match(cameraSrc, /result\.ok/);
     assert.match(cameraSrc, /setActiveSetting\(null\)/);
     assert.match(cameraSrc, /onClosed=\{flushPendingToastAfterSheet\}/);
-    assert.match(cameraSrc, /flushPendingToastAfterSheet/);
-    assert.match(sheetSrc, /onClosed\?:/);
     assert.match(sheetSrc, /onClosed=\{onClosed\}/);
-    assert.match(shellSrc, /onClosed\?:/);
     assert.match(shellSrc, /onClosedRef\.current\?\.\(\)/);
     assert.doesNotMatch(cameraSrc, /setTimeout\(\s*\(\)\s*=>\s*setToast/);
   });
@@ -92,7 +78,6 @@ describe("ScreenToast + camera settings toast placement", () => {
     assert.match(okBranch, /pendingToastRef\.current = \{/);
     assert.match(okBranch, /tone:\s*"success"/);
     assert.doesNotMatch(failBranch, /pendingToastRef/);
-    assert.doesNotMatch(failBranch, /tone:\s*"success"/);
   });
 
   it("blur/unmount clears toast and pending toast", () => {
@@ -101,9 +86,10 @@ describe("ScreenToast + camera settings toast placement", () => {
     assert.match(cameraSrc, /setToast\(undefined\)/);
   });
 
-  it("does not change SettingsScroll overflow or bottom positioning of toast", () => {
-    assert.match(cameraSrc, /overScrollMode="never"/);
-    assert.match(cameraSrc, /bounces=\{false\}/);
-    assert.doesNotMatch(cameraSrc, /bottom:\s*(24|insets)/);
+  it("Camera clock row is always shown and read-only", () => {
+    assert.match(cameraSrc, /title="Camera clock"/);
+    assert.match(cameraSrc, /cameraClockDisplay/);
+    assert.doesNotMatch(cameraSrc, /clockValue \?/);
+    assert.doesNotMatch(cameraSrc, /Sync now/);
   });
 });

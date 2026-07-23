@@ -11,16 +11,15 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { Radius, Spacing, Type, useAppTheme } from "@/constants/Theme";
+import { Spacing, Type, useAppTheme } from "@/constants/Theme";
 
 export type ScreenToastTone = "success" | "danger";
 
 export interface ScreenToastProps {
   readonly message: string | undefined;
   readonly tone?: ScreenToastTone;
-  /** Absolute top offset (below header). */
-  readonly top: number;
   readonly style?: StyleProp<ViewStyle>;
   readonly testID?: string;
   /** Success ~2.8s, danger ~4s when omitted. */
@@ -29,28 +28,30 @@ export interface ScreenToastProps {
   readonly onDismiss?: () => void;
 }
 
-const ENTER_MS = 180;
-const EXIT_MS = 140;
+const ENTER_MS = 200;
+const EXIT_MS = 160;
+const ROW_MIN_H = 52;
+const ROW_MAX_H = 58;
+const SLIDE_DISTANCE = 72;
 
 /**
- * Screen-level confirmation toast — sibling of scroll content, not inside it.
+ * Full-width bottom snackbar — sibling of scroll content, not inside it.
  * Parent owns message state; clear `message` after onDismiss to hide.
  */
 export function ScreenToast({
   message,
   tone = "success",
-  top,
   style,
   testID = "screen-toast",
   durationMs,
   onDismiss,
 }: ScreenToastProps) {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const [rendered, setRendered] = useState<string | undefined>(undefined);
   const [renderedTone, setRenderedTone] = useState<ScreenToastTone>(tone);
   const opacity = useRef(new Animated.Value(0)).current;
-  const translateY = useRef(new Animated.Value(-8)).current;
-  const scale = useRef(new Animated.Value(0.98)).current;
+  const translateY = useRef(new Animated.Value(SLIDE_DISTANCE)).current;
   const holdTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const reduceMotionRef = useRef(false);
   const announcedRef = useRef<string | undefined>(undefined);
@@ -95,7 +96,7 @@ export function ScreenToast({
           ? []
           : [
               Animated.timing(translateY, {
-                toValue: -5,
+                toValue: SLIDE_DISTANCE,
                 duration: EXIT_MS,
                 easing: Easing.in(Easing.cubic),
                 useNativeDriver: true,
@@ -110,8 +111,7 @@ export function ScreenToast({
     setRendered(message);
     setRenderedTone(tone);
     opacity.setValue(0);
-    translateY.setValue(rm ? 0 : -8);
-    scale.setValue(rm ? 1 : 0.98);
+    translateY.setValue(rm ? 0 : SLIDE_DISTANCE);
 
     Animated.parallel([
       Animated.timing(opacity, {
@@ -129,18 +129,11 @@ export function ScreenToast({
               easing: Easing.out(Easing.cubic),
               useNativeDriver: true,
             }),
-            Animated.timing(scale, {
-              toValue: 1,
-              duration: ENTER_MS,
-              easing: Easing.out(Easing.cubic),
-              useNativeDriver: true,
-            }),
           ]),
     ]).start();
 
     if (announcedRef.current !== message) {
       announcedRef.current = message;
-      // Android uses accessibilityLiveRegion; iOS needs an explicit announcement.
       if (Platform.OS !== "android") {
         void AccessibilityInfo.announceForAccessibility(message);
       }
@@ -159,7 +152,7 @@ export function ScreenToast({
     };
     // Intentionally omit `rendered` — enter/exit driven by `message` only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [message, tone, durationMs, opacity, translateY, scale]);
+  }, [message, tone, durationMs, opacity, translateY]);
 
   useEffect(() => {
     return () => {
@@ -171,14 +164,14 @@ export function ScreenToast({
 
   const fg = renderedTone === "danger" ? colors.danger : colors.success;
   const soft = renderedTone === "danger" ? colors.dangerSoft : colors.successSoft;
-  // Opaque elevated surface when soft tint is translucent (dark theme).
   const bg = soft.startsWith("rgba") ? colors.surfaceElevated : soft;
   const icon = renderedTone === "danger" ? "alert-circle" : "checkmark-circle";
+  const padBottom = Math.max(insets.bottom, 10);
 
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.host, { top }, style]}
+      style={[styles.host, style]}
       testID={`${testID}-host`}
     >
       <Animated.View
@@ -191,26 +184,29 @@ export function ScreenToast({
           styles.toast,
           {
             backgroundColor: bg,
-            borderColor: fg,
+            borderTopColor: fg,
+            paddingBottom: padBottom,
             opacity,
-            transform: [{ translateY }, { scale }],
+            transform: [{ translateY }],
             ...Platform.select({
               ios: {
                 shadowColor: "#000",
-                shadowOpacity: 0.18,
-                shadowRadius: 8,
-                shadowOffset: { width: 0, height: 3 },
+                shadowOpacity: 0.12,
+                shadowRadius: 6,
+                shadowOffset: { width: 0, height: -2 },
               },
-              android: { elevation: 6 },
+              android: { elevation: 8 },
               default: {},
             }),
           },
         ]}
       >
-        <Ionicons name={icon} size={20} color={fg} style={styles.icon} />
-        <Text style={[styles.message, { color: fg }]} numberOfLines={2}>
-          {rendered}
-        </Text>
+        <View style={styles.row}>
+          <Ionicons name={icon} size={20} color={fg} style={styles.icon} />
+          <Text style={[styles.message, { color: fg }]} numberOfLines={2}>
+            {rendered}
+          </Text>
+        </View>
       </Animated.View>
     </View>
   );
@@ -219,27 +215,30 @@ export function ScreenToast({
 const styles = StyleSheet.create({
   host: {
     position: "absolute",
-    left: Spacing.xl,
-    right: Spacing.xl,
+    left: 0,
+    right: 0,
+    bottom: 0,
     zIndex: 40,
     elevation: 8,
   },
   toast: {
-    minHeight: 48,
-    maxHeight: 56,
+    width: "100%",
+    borderTopWidth: 1,
+    borderTopLeftRadius: 2,
+    borderTopRightRadius: 2,
+  },
+  row: {
+    minHeight: ROW_MIN_H,
+    maxHeight: ROW_MAX_H,
     flexDirection: "row",
     alignItems: "center",
-    borderWidth: 1,
-    borderRadius: Radius.lg,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: 10,
     gap: 10,
   },
   icon: { flexShrink: 0 },
   message: {
     flex: 1,
-    fontFamily: Type.fontSemi,
-    fontSize: 14,
-    lineHeight: 18,
+    ...Type.bodyStrong,
   },
 });

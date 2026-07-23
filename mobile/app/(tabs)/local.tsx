@@ -37,13 +37,7 @@ import {
   deleteLocalTitle,
   selectAllFilteredA11yLabel,
 } from "@/components/local/localCopy";
-import {
-  filterShareEligibleLocalFiles,
-  localDeleteSelectionLabel,
-  localShareA11yLabel,
-  localShareActionLabel,
-  MULTI_SHARE_UNSUPPORTED_MESSAGE,
-} from "@/components/local/localShareSelection";
+import { localDeleteSelectionLabel } from "@/components/local/localShareSelection";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
 import {
   buildFilterChips,
@@ -113,7 +107,6 @@ export default function LocalLibraryScreen() {
     localFiles,
     refreshLocalFiles,
     shareLocalFile,
-    shareLocalFiles,
     deleteLocalFile,
     deleteLocalFilesBatch,
     demoMode,
@@ -130,7 +123,6 @@ export default function LocalLibraryScreen() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
   const [deleting, setDeleting] = useState(false);
-  const [sharing, setSharing] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 
   const refreshBusyRef = useRef(false);
@@ -262,11 +254,6 @@ export default function LocalLibraryScreen() {
     [filteredFiles, selected],
   );
   const selectedBytes = useMemo(() => sumBytes(selectedFiles), [selectedFiles]);
-  const shareEligibleSelected = useMemo(
-    () => filterShareEligibleLocalFiles(selectedFiles),
-    [selectedFiles],
-  );
-  const shareEligibleCount = shareEligibleSelected.length;
 
   // Drop vanished URIs after refresh; keep selection otherwise.
   useEffect(() => {
@@ -438,33 +425,6 @@ export default function LocalLibraryScreen() {
       }
     });
   }, [selectedFiles, deleting, deleteLocalFilesBatch, exitSelection]);
-
-  const runBatchShare = useCallback(() => {
-    if (sharing || deleting || shareEligibleCount === 0) return;
-    void actionGateRef.current(async () => {
-      setSharing(true);
-      try {
-        const result = await shareLocalFiles(shareEligibleSelected);
-        if (result.unsupportedMulti) {
-          Alert.alert("Share unavailable", MULTI_SHARE_UNSUPPORTED_MESSAGE, [{ text: "OK" }]);
-          void AccessibilityInfo.announceForAccessibility(MULTI_SHARE_UNSUPPORTED_MESSAGE);
-          return;
-        }
-        if (result.initiated) {
-          exitSelection();
-        }
-      } finally {
-        setSharing(false);
-      }
-    });
-  }, [
-    sharing,
-    deleting,
-    shareEligibleCount,
-    shareEligibleSelected,
-    shareLocalFiles,
-    exitSelection,
-  ]);
 
   useLayoutEffect(() => {
     if (selecting) {
@@ -707,24 +667,6 @@ export default function LocalLibraryScreen() {
         actions={
           showDeleteBar
             ? [
-                ...(shareEligibleCount > 0
-                  ? [
-                      {
-                        key: "share",
-                        tone: "brand" as const,
-                        icon: "share-outline" as const,
-                        label: localShareActionLabel(shareEligibleCount),
-                        accessibilityLabel: localShareA11yLabel(shareEligibleCount),
-                        accessibilityHint:
-                          shareEligibleCount > 1
-                            ? "Opens the system share sheet when multi-file share is supported"
-                            : "Opens the system share sheet",
-                        onPress: runBatchShare,
-                        disabled: sharing || deleting,
-                        busy: sharing,
-                      },
-                    ]
-                  : []),
                 {
                   key: "delete",
                   tone: "danger" as const,
@@ -732,7 +674,7 @@ export default function LocalLibraryScreen() {
                   label: localDeleteSelectionLabel(selected.size),
                   accessibilityLabel: deleteLocalA11yLabel(selected.size),
                   onPress: () => setDeleteConfirmOpen(true),
-                  disabled: deleting || sharing,
+                  disabled: deleting,
                   busy: deleting,
                 },
               ]
