@@ -36,8 +36,6 @@ export type CategoryFilter = "all" | Exclude<FileCategory, "unknown">;
 export type CameraLibrarySort =
   | "newest"
   | "oldest"
-  | "nameAsc"
-  | "nameDesc"
   | "largest"
   | "smallest"
   | "longest"
@@ -46,8 +44,6 @@ export type CameraLibrarySort =
 export const CAMERA_SORT_OPTIONS: readonly { id: CameraLibrarySort; label: string }[] = [
   { id: "newest", label: "Newest first" },
   { id: "oldest", label: "Oldest first" },
-  { id: "nameAsc", label: "Name A–Z" },
-  { id: "nameDesc", label: "Name Z–A" },
   { id: "largest", label: "Largest first" },
   { id: "smallest", label: "Smallest first" },
   { id: "longest", label: "Longest first" },
@@ -254,10 +250,6 @@ export function isDateBasedSort(sort: CameraLibrarySort): boolean {
 
 export function compareRemoteFiles(a: RemoteFile, b: RemoteFile, sort: CameraLibrarySort): number {
   switch (sort) {
-    case "nameAsc":
-      return a.name.localeCompare(b.name);
-    case "nameDesc":
-      return b.name.localeCompare(a.name);
     case "largest":
       return b.sizeBytes - a.sizeBytes;
     case "smallest":

@@ -26,6 +26,10 @@ import {
   LIBRARY_THUMB_VIEWABILITY,
 } from "@/components/camera/cameraLibraryViewability";
 import {
+  cameraSortOptionsForCategory,
+  type CameraLibrarySort,
+} from "@/components/camera/cameraLibraryModel";
+import {
   deleteLocalA11yLabel,
   deleteLocalButtonLabel,
   deleteLocalPartialMessage,
@@ -67,6 +71,8 @@ import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -84,12 +90,14 @@ import {
   useVerticalOverflow,
 } from "@/hooks/useVerticalOverflow";
 import type { FileCategory } from "@/packages/parsers/src/index";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 /** Compact sticky delete strip under the nav header (wide, not tall). */
 const SELECTION_DELETE_BAR_H = 44;
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation();
   const {
@@ -105,7 +113,9 @@ export default function LocalLibraryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [filters, setFilters] = useState<LocalLibraryFilters>(EMPTY_FILTERS);
   const [category, setCategory] = useState<LocalCategoryScope>("all");
+  const [sort, setSort] = useState<CameraLibrarySort>("newest");
   const [filterOpen, setFilterOpen] = useState(false);
+  const [sortOpen, setSortOpen] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [statusMessage, setStatusMessage] = useState<string | undefined>();
@@ -140,6 +150,11 @@ export default function LocalLibraryScreen() {
   const selectionBarH = 0;
   const canPullToRefresh = true;
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
+  const {
+    hasOverflow: sortHasOverflow,
+    onViewportLayout: onSortViewportLayout,
+    onContentSizeChange: onSortContentSizeChange,
+  } = useVerticalOverflow();
   const listFilledPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight);
 
   const categoryByName = useMemo(() => {
@@ -155,6 +170,8 @@ export default function LocalLibraryScreen() {
     }
     return map;
   }, [files]);
+
+  const sortOptions = useMemo(() => cameraSortOptionsForCategory(category), [category]);
 
   const normalized = useMemo(
     () => normalizeLocalFiles(localFiles, categoryByName),
@@ -175,7 +192,10 @@ export default function LocalLibraryScreen() {
 
   const filteredFiles = useMemo(() => filtered.map((n) => n.file), [filtered]);
 
-  const sections = useMemo(() => buildLocalLibrarySections(filteredFiles), [filteredFiles]);
+  const sections = useMemo(
+    () => buildLocalLibrarySections(filteredFiles, sort, durationByName),
+    [filteredFiles, sort, durationByName],
+  );
   const listRows = useMemo(() => buildLocalLibraryFileRows(sections), [sections]);
   const [stickySectionKey, setStickySectionKey] = useState<string | null>(null);
   const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
@@ -212,6 +232,12 @@ export default function LocalLibraryScreen() {
   useEffect(() => {
     setFilters((prev) => sanitizeLocalFiltersForCategoryScope(prev, category));
   }, [category]);
+
+  useEffect(() => {
+    if (category === "photo" && (sort === "longest" || sort === "shortest")) {
+      setSort("newest");
+    }
+  }, [category, sort]);
 
   const activeGroups = countActiveFilterGroups(filters);
   const chips = useMemo(() => buildFilterChips(filters), [filters]);
@@ -491,6 +517,18 @@ export default function LocalLibraryScreen() {
                 ) : null}
               </Pressable>
               <Pressable
+                onPress={() => setSortOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Sort local library"
+                hitSlop={HitSlop44}
+                style={({ pressed }) => [
+                  styles.headerIconBtn,
+                  { opacity: pressed ? 0.65 : 1 },
+                ]}
+              >
+                <Ionicons name="swap-vertical-outline" size={22} color={colors.textMuted} />
+              </Pressable>
+              <Pressable
                 onPress={() => void runRefresh()}
                 disabled={refreshing}
                 accessibilityRole="button"
@@ -538,6 +576,7 @@ export default function LocalLibraryScreen() {
 
   const backToTopEnabled =
     !filterOpen &&
+    !sortOpen &&
     !selecting &&
     !deleteConfirmOpen &&
     !deleting &&
@@ -865,6 +904,78 @@ export default function LocalLibraryScreen() {
         onClose={() => setFilterOpen(false)}
         onApply={applyFilters}
       />
+
+      <StaticBackdropSheet
+        visible={sortOpen}
+        onClose={() => setSortOpen(false)}
+        sheetTestID="local-sort-sheet"
+        scrimTestID="local-sort-scrim"
+        scrimAccessibilityLabel="Close sort"
+        sheetStyle={[
+          styles.sortSheet,
+          {
+            backgroundColor: colors.surfaceElevated,
+            borderColor: colors.border,
+            paddingBottom: Math.max(insets.bottom, 16),
+            borderTopLeftRadius: radius.xl,
+            borderTopRightRadius: radius.xl,
+          },
+        ]}
+      >
+        {({ requestClose }) => (
+          <View style={styles.sortBody}>
+            <View style={styles.sortHeader}>
+              <View style={styles.sortHeaderSide} />
+              <Text
+                style={[styles.sortTitle, { color: colors.text }]}
+                accessibilityRole="header"
+              >
+                Sort
+              </Text>
+              <View style={styles.sortHeaderSide}>
+                <SheetCloseButton onPress={requestClose} accessibilityLabel="Close sort" />
+              </View>
+            </View>
+            <ScrollView
+              style={styles.sortScroll}
+              scrollEnabled={sortHasOverflow}
+              alwaysBounceVertical={false}
+              bounces={false}
+              overScrollMode="never"
+              showsVerticalScrollIndicator={sortHasOverflow}
+              onLayout={onSortViewportLayout}
+              onContentSizeChange={onSortContentSizeChange}
+            >
+              {sortOptions.map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    setSort(opt.id);
+                    if (selecting) exitSelection();
+                    requestClose();
+                  }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sort === opt.id }}
+                  style={styles.sortRow}
+                >
+                  <Text
+                    style={{
+                      color: sort === opt.id ? colors.brand : colors.text,
+                      fontFamily: Type.fontSemi,
+                      fontSize: 15,
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                  {sort === opt.id ? (
+                    <Ionicons name="checkmark" size={18} color={colors.brand} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+      </StaticBackdropSheet>
     </View>
   );
 }
@@ -915,6 +1026,36 @@ const styles = StyleSheet.create({
     fontFamily: Type.font,
     paddingHorizontal: 16,
     marginBottom: 4,
+  },
+  sortSheet: {
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  sortBody: { flexShrink: 1 },
+  sortHeader: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sortHeaderSide: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontFamily: Type.fontBold,
+  },
+  sortScroll: { flexShrink: 1 },
+  sortRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 8,
   },
   selectionDeleteWrap: {
     overflow: "hidden",

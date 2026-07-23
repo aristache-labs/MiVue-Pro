@@ -158,6 +158,15 @@ test("photo sort options hide duration sorts", () => {
   assert.equal(opts.some((o) => o.id === "newest"), true);
 });
 
+test("sort options omit name A–Z / Z–A", () => {
+  const opts = cameraSortOptionsForCategory("all");
+  assert.equal(opts.some((o) => /Name/u.test(o.label)), false);
+  assert.deepEqual(
+    opts.map((o) => o.id),
+    ["newest", "oldest", "largest", "smallest", "longest", "shortest"],
+  );
+});
+
 test("detail sheet has no Status row; uses StaticBackdropSheet", () => {
   const sheet = readFileSync(join(__dirname, "RemoteDetailSheet.tsx"), "utf8");
   assert.equal(sheet.includes('label="Status"'), false);

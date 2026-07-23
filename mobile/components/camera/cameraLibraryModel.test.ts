@@ -77,7 +77,7 @@ describe("cameraLibraryModel", () => {
     assert.equal(matchesSearch(file, "zzz"), false);
   });
 
-  it("sorts newest and by name", () => {
+  it("sorts newest and by size", () => {
     const files = [
       remote({ name: "B.MP4", path: "/SD/B.MP4", recordedAt: "2026-07-18 10:00:00" }),
       remote({ name: "A.MP4", path: "/SD/A.MP4", recordedAt: "2026-07-19 10:00:00" }),
@@ -91,18 +91,21 @@ describe("cameraLibraryModel", () => {
       downloadedNames: new Set(),
     });
     assert.equal(newest[0]?.name, "A.MP4");
-    const byName = filterAndSortRemoteFiles({
-      files,
+    const bySize = filterAndSortRemoteFiles({
+      files: [
+        remote({ name: "A.MP4", path: "/SD/A.MP4", recordedAt: "2026-07-19 10:00:00", sizeBytes: 10 }),
+        remote({ name: "B.MP4", path: "/SD/B.MP4", recordedAt: "2026-07-19 11:00:00", sizeBytes: 99 }),
+      ],
       category: "all",
       search: "",
       filters: EMPTY_CAMERA_FILTERS,
-      sort: "nameAsc",
+      sort: "largest",
       downloadedNames: new Set(),
     });
-    assert.equal(byName[0]?.name, "A.MP4");
+    assert.equal(bySize[0]?.name, "B.MP4");
   });
 
-  it("groups by date for newest and flat for name sort", () => {
+  it("groups by date for newest and flat for size sort", () => {
     const files = [
       remote({ name: "A.MP4", path: "/SD/A.MP4", recordedAt: "2026-07-19 10:00:00" }),
       remote({ name: "B.MP4", path: "/SD/B.MP4", recordedAt: "2026-07-18 10:00:00" }),
@@ -115,10 +118,10 @@ describe("cameraLibraryModel", () => {
     const oldest = buildCameraLibrarySections(files, "oldest");
     assert.equal(oldest[0]?.dayKey, "2026-07-18");
     assert.equal(oldest[1]?.dayKey, "2026-07-19");
-    const flat = buildCameraLibrarySections(files, "nameAsc");
+    const flat = buildCameraLibrarySections(files, "largest");
     assert.equal(flat.length, 1);
-    assert.equal(flat[0]?.key, "all-nameAsc");
-    assert.equal(flat[0]?.dayKey, "all-nameAsc");
+    assert.equal(flat[0]?.key, "all-largest");
+    assert.equal(flat[0]?.dayKey, "all-largest");
   });
 
   it("section keys stay stable and match dayKey for date groups", () => {

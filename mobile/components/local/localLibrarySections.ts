@@ -1,5 +1,10 @@
 import { parseRecordedParts } from "@/components/mediaMeta";
 import {
+  CAMERA_SORT_OPTIONS,
+  isDateBasedSort,
+  type CameraLibrarySort,
+} from "@/components/camera/cameraLibraryModel";
+import {
   formatDateSeparator,
   formatRecordingDateTime,
 } from "@/components/media/recordingDateTime";
@@ -57,27 +62,69 @@ export function formatCompactDateTime(name: string): string | undefined {
   return formatRecordingDateTime(parts.isoLocal);
 }
 
+function localIso(name: string): string | undefined {
+  return parseRecordedParts(name)?.isoLocal;
+}
+
+export function compareLocalFiles(
+  a: LocalMediaFile,
+  b: LocalMediaFile,
+  sort: CameraLibrarySort,
+  durationByName: ReadonlyMap<string, number> = new Map(),
+): number {
+  switch (sort) {
+    case "largest":
+      return b.sizeBytes - a.sizeBytes;
+    case "smallest":
+      return a.sizeBytes - b.sizeBytes;
+    case "longest":
+      return (durationByName.get(b.name) ?? 0) - (durationByName.get(a.name) ?? 0);
+    case "shortest":
+      return (durationByName.get(a.name) ?? 0) - (durationByName.get(b.name) ?? 0);
+    case "oldest": {
+      const ta = localIso(a.name);
+      const tb = localIso(b.name);
+      if (!ta && !tb) return a.name.localeCompare(b.name);
+      if (!ta) return 1;
+      if (!tb) return -1;
+      return ta.localeCompare(tb);
+    }
+    case "newest":
+    default: {
+      const ta = localIso(a.name);
+      const tb = localIso(b.name);
+      if (!ta && !tb) return a.name.localeCompare(b.name);
+      if (!ta) return 1;
+      if (!tb) return -1;
+      return tb.localeCompare(ta);
+    }
+  }
+}
+
 /**
- * Group local files by calendar day, newest days first.
- * Within a day, preserves the relative order of `files` (already sorted newest-first by caller or here).
+ * Group local files by calendar day when sort is date-based; otherwise one flat section.
+ * Caller should pass files already filtered; this applies `sort` ordering.
  */
 export function buildLocalLibrarySections(
   files: readonly LocalMediaFile[],
+  sort: CameraLibrarySort = "newest",
+  durationByName: ReadonlyMap<string, number> = new Map(),
 ): LocalLibrarySection[] {
-  const sorted = [...files].sort((a, b) => {
-    const ka = dayKeyFromName(a.name);
-    const kb = dayKeyFromName(b.name);
-    if (ka !== kb) {
-      if (ka === "unknown") return 1;
-      if (kb === "unknown") return -1;
-      return kb.localeCompare(ka);
-    }
-    const pa = parseRecordedParts(a.name);
-    const pb = parseRecordedParts(b.name);
-    const ta = pa?.isoLocal ?? a.name;
-    const tb = pb?.isoLocal ?? b.name;
-    return tb.localeCompare(ta);
-  });
+  const sorted = [...files].sort((a, b) => compareLocalFiles(a, b, sort, durationByName));
+
+  if (!isDateBasedSort(sort)) {
+    const flatKey = `all-${sort}`;
+    return [
+      {
+        key: flatKey,
+        dayKey: flatKey,
+        title: CAMERA_SORT_OPTIONS.find((o) => o.id === sort)?.label.toUpperCase() ?? "RESULTS",
+        count: sorted.length,
+        countLabel: formatCountLabel(sorted.length),
+        data: sorted,
+      },
+    ];
+  }
 
   const map = new Map<string, LocalMediaFile[]>();
   for (const file of sorted) {
@@ -87,14 +134,23 @@ export function buildLocalLibrarySections(
     else map.set(key, [file]);
   }
 
-  return [...map.entries()].map(([dayKey, data]) => ({
-    key: dayKey,
-    dayKey,
-    title: formatSectionHeading(dayKey),
-    count: data.length,
-    countLabel: formatCountLabel(data.length),
-    data,
-  }));
+  const keys = [...map.keys()].sort((a, b) => {
+    if (a === "unknown") return 1;
+    if (b === "unknown") return -1;
+    return sort === "oldest" ? a.localeCompare(b) : b.localeCompare(a);
+  });
+
+  return keys.map((dayKey) => {
+    const data = map.get(dayKey) ?? [];
+    return {
+      key: dayKey,
+      dayKey,
+      title: formatSectionHeading(dayKey),
+      count: data.length,
+      countLabel: formatCountLabel(data.length),
+      data,
+    };
+  });
 }
 
 /**

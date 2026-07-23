@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 import type { LocalMediaFile } from "../../context/DemoModeContext";
@@ -54,6 +56,52 @@ test("files keep newest-first order inside a section", () => {
     sections[0]?.data.map((f) => f.name),
     ["FILE260719-150000F.MP4", "FILE260719-130000F.MP4", "FILE260719-120000F.MP4"],
   );
+});
+
+test("oldest reverses day order and within-day order", () => {
+  const sections = buildLocalLibrarySections(
+    [
+      file("FILE260719-150000F.MP4"),
+      file("FILE260719-120000F.MP4"),
+      file("FILE260718-100000F.MP4"),
+    ],
+    "oldest",
+  );
+  assert.deepEqual(
+    sections.map((s) => s.dayKey),
+    ["2026-07-18", "2026-07-19"],
+  );
+  assert.deepEqual(
+    sections[1]?.data.map((f) => f.name),
+    ["FILE260719-120000F.MP4", "FILE260719-150000F.MP4"],
+  );
+});
+
+test("non-date sort uses a single flat section", () => {
+  const sections = buildLocalLibrarySections(
+    [
+      { name: "A.MP4", uri: "file://A", sizeBytes: 10, kind: "video" },
+      { name: "B.MP4", uri: "file://B", sizeBytes: 99, kind: "video" },
+    ],
+    "largest",
+  );
+  assert.equal(sections.length, 1);
+  assert.equal(sections[0]?.key, "all-largest");
+  assert.deepEqual(
+    sections[0]?.data.map((f) => f.name),
+    ["B.MP4", "A.MP4"],
+  );
+});
+
+test("Local screen wires shared sort sheet without Name options", () => {
+  const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
+  const model = readFileSync(join(__dirname, "../camera/cameraLibraryModel.ts"), "utf8");
+  assert.match(local, /setSortOpen\(true\)/);
+  assert.match(local, /local-sort-sheet/);
+  assert.match(local, /cameraSortOptionsForCategory/);
+  assert.match(local, /buildLocalLibrarySections\(filteredFiles, sort, durationByName\)/);
+  assert.doesNotMatch(model, /Name A/);
+  assert.doesNotMatch(model, /nameAsc/);
 });
 
 test("card date formatting stays available", () => {
