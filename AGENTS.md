@@ -1,10 +1,14 @@
 # AGENTS.md — reguli pentru agenți în MiVue Pro / `Laneory`
 
-Acest repository conține un CLI TypeScript + dashboard local read-only pentru interoperabilitate cu camere auto deținute legal, plus documentația de tranziție către o aplicație mobilă comercială independentă (nu oficială Mio/MiTAC).
+Acest repository conține un CLI TypeScript + dashboard local pentru interoperabilitate cu camere auto deținute legal, plus o aplicație mobilă comercială independentă (nu oficială Mio/MiTAC). Comunicarea cu camera este read-only în mod implicit; produsul poate expune un set limitat de operații mutative inițiate explicit de utilizator.
 
 ## Obligatoriu
 
-- Rămâi **read-only** față de cameră (GET/HEAD) în produsul mobil și în fluxurile automate. Nu implementa `set`, `del`, format SD, update firmware sau ocolirea autentificării.
+- Rămâi **read-only în mod implicit** față de cameră (GET/HEAD), în special în refresh, polling, bootstrap, download și toate fluxurile automate.
+- În produsul mobil sunt permise numai aceste mutații, declanșate explicit în foreground de utilizator: setarea allowlisted pentru Frequency, EV, Date & Time, Time Zone și Daylight Saving Time; ștergerea fișierelor selectate de pe cardul camerei; formatarea cardului SD.
+- Nu executa mutații în background, la reconectare, la refresh sau prin retry automat. Marchează requesturile mutative cu politica `mutation`/fără retry și revalidează conexiunea, modelul/capabilitatea și ținta imediat înainte de execuție.
+- Pentru `set`, afișează valoarea curentă și valoarea propusă și cere confirmare explicită. Pentru ștergere, afișează numărul și țintele validate; operațiile bulk cer confirmare întărită. Pentru format SD, folosește confirmare în doi pași cu text introdus de utilizator și avertisment clar că operația este ireversibilă.
+- Nu implementa alte proprietăți `set`, ștergere automată, update/upload de firmware sau ocolirea autentificării. Nu prezenta succesul până când răspunsul camerei nu este validat și informația nu este reîmprospătată.
 - Nu accesa, analiza, copia, importa sau distribui: `MiVue+Pro_*.xapk`, APK/XAPK oficiale, `.analysis/`, decompilări, resurse/iconuri/texte Mio/MiTAC, chei/certificate din aplicația oficială, firmware.
 - Nu clona UI-ul aplicației MiVue Pro.
 - Nu porni aplicația cu `npm start` / `npx expo start` — utilizatorul rulează CLI-ul.
@@ -20,7 +24,7 @@ Acest repository conține un CLI TypeScript + dashboard local read-only pentru i
 
 ## Surse permise pentru protocol
 
-- Cod original din `src/` (cu excepția `cameraMutate.ts` / `probe` pentru mobil)
+- Cod original din `src/`, inclusiv allowlistul și validările auditate din `cameraMutate.ts`; codul generic de `probe` rămâne tooling de dezvoltare și nu se importă în produsul mobil
 - [docs/protocol.md](docs/protocol.md) — observații confirmate; secțiunea APK este în **carantină**
 - [docs/compatibility.md](docs/compatibility.md)
 - [docs/legal/](docs/legal/) și [docs/mobile/](docs/mobile/)
