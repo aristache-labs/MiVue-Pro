@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
+import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 /** Compact scrollable onboarding shell — CTAs follow content (no space-between footer). */
@@ -24,45 +25,26 @@ export function OnboardingScreen({
 
   return (
     <View style={[styles.root, { backgroundColor: colors.bg }]}>
-      <View
-        style={[
-          styles.headerPad,
-          {
-            paddingTop: Math.max(insets.top, 12) + 6,
-            paddingHorizontal: OnboardingLayout.screenHorizontalPadding,
-          },
-        ]}
-      >
-        <View style={styles.headerRow}>
-          {onBack ? (
-            <Pressable
-              onPress={onBack}
-              accessibilityRole="button"
-              accessibilityLabel={backLabel}
-              hitSlop={HitSlop44}
-              style={styles.backHit}
-            >
-              <Ionicons name="chevron-back" size={24} color={colors.text} />
-              <Text style={[styles.backText, { color: colors.text }]}>{backLabel}</Text>
-            </Pressable>
-          ) : (
-            <View style={styles.sideSlot} />
-          )}
-          <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-            {title}
-          </Text>
-          <View style={styles.sideSlot} />
-        </View>
-        {subtitle ? (
-          <Text style={[styles.subtitle, { color: colors.textMuted }]}>{subtitle}</Text>
-        ) : null}
-      </View>
+      <SettingsChromeHeader title={title} onBack={onBack} backLabel={backLabel} />
+      {subtitle ? (
+        <Text
+          style={[
+            styles.subtitle,
+            {
+              color: colors.textMuted,
+              paddingHorizontal: OnboardingLayout.screenHorizontalPadding,
+            },
+          ]}
+        >
+          {subtitle}
+        </Text>
+      ) : null}
 
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={{
           paddingHorizontal: OnboardingLayout.screenHorizontalPadding,
-          paddingTop: 12,
+          paddingTop: subtitle ? 8 : 12,
           paddingBottom: Math.max(insets.bottom, 20) + 8,
           gap: OnboardingLayout.sectionGap,
         }}
@@ -194,24 +176,14 @@ export function InlineMessage({
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  headerPad: {},
-  headerRow: {
-    minHeight: OnboardingLayout.minimumTouchTarget,
-    flexDirection: "row",
-    alignItems: "center",
+  subtitle: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontFamily: Type.font,
+    textAlign: "center",
+    marginTop: 2,
+    marginBottom: 2,
   },
-  backHit: {
-    minWidth: 88,
-    minHeight: OnboardingLayout.minimumTouchTarget,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 2,
-    marginLeft: -6,
-  },
-  sideSlot: { minWidth: 88, minHeight: OnboardingLayout.minimumTouchTarget },
-  backText: { fontSize: 16, fontFamily: Type.font },
-  title: { fontSize: 17, lineHeight: 22, fontFamily: Type.fontSemi, flex: 1, textAlign: "center" },
-  subtitle: { fontSize: 14, lineHeight: 20, fontFamily: Type.font, textAlign: "center", marginTop: 6, marginBottom: 2 },
   scroll: { flex: 1 },
   card: { borderWidth: StyleSheet.hairlineWidth, gap: OnboardingLayout.compactCardGap },
   badge: {

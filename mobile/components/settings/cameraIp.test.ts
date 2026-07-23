@@ -76,11 +76,15 @@ describe("cameraIp", () => {
   it("connection-help uses SettingsChromeHeader without native Back title", () => {
     const helpSrc = readFileSync(join(__dirname, "../../app/connection-help.tsx"), "utf8");
     const rootLayout = readFileSync(join(__dirname, "../../app/_layout.tsx"), "utf8");
+    const chromeSrc = readFileSync(join(__dirname, "./SettingsChromeHeader.tsx"), "utf8");
     assert.match(helpSrc, /SettingsChromeHeader/);
     assert.match(helpSrc, /headerShown:\s*false/);
     assert.doesNotMatch(helpSrc, /headerBackTitle/);
     assert.match(rootLayout, /name="connection-help"/);
     assert.match(rootLayout, /headerShown:\s*false/);
+    assert.match(chromeSrc, /backLabel/);
+    assert.match(chromeSrc, /chevron-back/);
+    assert.match(chromeSrc, /\{backLabel\}/);
   });
 
   it("dismiss path leaves host unchanged until Save", () => {

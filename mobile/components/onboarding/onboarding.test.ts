@@ -305,7 +305,10 @@ describe("onboarding layout contract", () => {
     }
     const ui = readFileSync(join(__dirname, "OnboardingUi.tsx"), "utf8");
     assert.match(ui, /ScrollView/);
+    assert.match(ui, /SettingsChromeHeader/);
     assert.equal(ui.includes('justifyContent: "space-between"'), false);
+    const chrome = readFileSync(join(__dirname, "OnboardingScreenChrome.tsx"), "utf8");
+    assert.match(chrome, /SettingsChromeHeader/);
   });
 
   it("Open Library uses navigation reset not only replace", () => {

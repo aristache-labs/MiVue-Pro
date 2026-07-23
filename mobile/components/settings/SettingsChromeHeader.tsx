@@ -6,14 +6,21 @@ import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 interface SettingsChromeHeaderProps {
   readonly title: string;
-  readonly onBack: () => void;
+  /** When omitted, no back control is shown (title stays centered). */
+  readonly onBack?: () => void;
+  /** Label after the chevron. Defaults to “Back”. */
+  readonly backLabel?: string;
 }
 
 /**
- * Custom stack header — icon-only chevron-back, no native iOS capsule.
- * Title is centered on full screen width; sides are symmetric 44×44.
+ * Shared stack header — chevron + label (e.g. “‹ Back”), no native iOS capsule.
+ * Title is centered on full screen width.
  */
-export function SettingsChromeHeader({ title, onBack }: SettingsChromeHeaderProps) {
+export function SettingsChromeHeader({
+  title,
+  onBack,
+  backLabel = "Back",
+}: SettingsChromeHeaderProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -27,23 +34,30 @@ export function SettingsChromeHeader({ title, onBack }: SettingsChromeHeaderProp
         >
           {title}
         </Text>
-        <Pressable
-          onPress={onBack}
-          accessibilityRole="button"
-          accessibilityLabel="Back"
-          hitSlop={HitSlop44}
-          style={styles.headerSide}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={24}
-            color={colors.text}
-            style={styles.headerBackIcon}
-          />
-        </Pressable>
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            accessibilityRole="button"
+            accessibilityLabel={backLabel}
+            hitSlop={HitSlop44}
+            style={styles.backHit}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={colors.text}
+              style={styles.headerBackIcon}
+            />
+            <Text style={[styles.backText, { color: colors.text }]} numberOfLines={1}>
+              {backLabel}
+            </Text>
+          </Pressable>
+        ) : (
+          <View style={styles.sideSpacer} />
+        )}
         <View style={styles.headerFlex} />
         <View
-          style={styles.headerSide}
+          style={styles.sideSpacer}
           accessibilityElementsHidden
           importantForAccessibility="no-hide-descendants"
         />
@@ -61,16 +75,27 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     position: "relative",
   },
-  headerSide: {
-    width: 44,
-    height: 44,
+  backHit: {
+    minHeight: 44,
+    minWidth: 72,
+    paddingRight: 8,
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 2,
     backgroundColor: "transparent",
+  },
+  sideSpacer: {
+    minWidth: 72,
+    height: 44,
   },
   headerFlex: { flex: 1 },
   headerBackIcon: {
     transform: [{ translateX: -1 }],
+  },
+  backText: {
+    fontSize: 17,
+    lineHeight: 22,
+    fontFamily: Type.font,
   },
   headerTitleAbsolute: {
     ...StyleSheet.absoluteFillObject,
@@ -79,5 +104,6 @@ const styles = StyleSheet.create({
     fontSize: 17,
     lineHeight: 44,
     fontFamily: Type.fontSemi,
+    paddingHorizontal: 88,
   },
 });
