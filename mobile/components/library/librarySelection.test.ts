@@ -119,6 +119,8 @@ describe("librarySelection helpers", () => {
     assert.match(index, /disabled=\{selecting \|\| !libraryInteractive\}/);
     assert.match(index, /SelectionActionBand/);
     assert.match(index, /library-selection-action-band/);
+    assert.match(index, /downloaded:\s*"not_downloaded"/);
+    assert.match(index, /selecting[\s\S]{0,80}not_downloaded|filters: selecting/);
     assert.doesNotMatch(index, /selectionBarWrap/);
     assert.doesNotMatch(index, /position:\s*"absolute"[\s\S]{0,80}selection/);
     assert.doesNotMatch(index, /bottom:\s*tabBarHeight/);

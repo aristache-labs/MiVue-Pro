@@ -633,8 +633,8 @@ function VideoWithGps({
           )}
 
           {track && track.samples.length > 0 ? (
-            <View style={styles.privacyRow}>
-              <Text style={[styles.privacyInline, { color: colors.textMuted, flex: 1 }]}>
+            <View style={styles.privacyBlock}>
+              <Text style={[styles.privacyInline, { color: colors.textMuted }]}>
                 Online map loads visible tiles only. Video and the complete GPS track are not uploaded.
               </Text>
               <Pressable
@@ -644,9 +644,13 @@ function VideoWithGps({
                 accessibilityRole="link"
                 accessibilityLabel="Privacy"
                 hitSlop={8}
-                style={styles.privacyLink}
+                style={({ pressed }) => [
+                  styles.privacyLink,
+                  { opacity: pressed ? 0.75 : 1 },
+                ]}
               >
                 <Text style={[styles.privacyLinkText, { color: colors.brand }]}>Privacy</Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.brand} />
               </Pressable>
             </View>
           ) : null}
@@ -821,16 +825,17 @@ const styles = StyleSheet.create({
     fontFamily: Type.font,
     lineHeight: 15,
   },
-  privacyRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 10,
+  privacyBlock: {
     marginTop: 10,
+    gap: 4,
   },
   privacyLink: {
-    minHeight: 44,
-    justifyContent: "center",
-    paddingTop: 0,
+    alignSelf: "flex-start",
+    minHeight: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 2,
+    paddingVertical: 4,
   },
   privacyLinkText: {
     fontSize: 12,

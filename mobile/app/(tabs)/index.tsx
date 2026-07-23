@@ -188,12 +188,14 @@ export default function LibraryScreen() {
         files,
         category,
         search: "",
-        filters,
+        filters: selecting
+          ? { ...filters, downloaded: "not_downloaded" }
+          : filters,
         sort,
         downloadedNames: localNames,
         queuedNames: stableQueuedNames,
       }),
-    [files, category, filters, sort, localNames, stableQueuedNames],
+    [files, category, filters, sort, localNames, stableQueuedNames, selecting],
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);

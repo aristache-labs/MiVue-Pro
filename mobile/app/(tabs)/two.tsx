@@ -163,18 +163,33 @@ export default function QueueScreen() {
       header: () => (
         <TabScreenHeader
           title="Download queue"
-          left={<View style={{ width: 44 }} />}
-          right={
+          left={
             clearableItems.length > 0 ? (
               <Pressable
                 onPress={clearCanceledOrFailed}
                 disabled={actionBusy}
                 accessibilityRole="button"
                 accessibilityLabel={`Clear ${clearableItems.length} canceled or failed items`}
-                hitSlop={8}
-                style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  {
+                    minHeight: 36,
+                    paddingHorizontal: 10,
+                    borderRadius: 8,
+                    borderWidth: StyleSheet.hairlineWidth,
+                    borderColor: colors.brand,
+                    backgroundColor: colors.brandSoft,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 5,
+                    opacity: actionBusy ? 0.5 : pressed ? 0.85 : 1,
+                    marginLeft: 4,
+                  },
+                ]}
               >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                <Ionicons name="trash-outline" size={15} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 13 }}>
                   Clear
                 </Text>
               </Pressable>
@@ -182,10 +197,18 @@ export default function QueueScreen() {
               <View style={{ width: 44 }} />
             )
           }
+          right={<View style={{ width: 44 }} />}
         />
       ),
     });
-  }, [navigation, clearableItems.length, clearCanceledOrFailed, actionBusy, colors.brand]);
+  }, [
+    navigation,
+    clearableItems.length,
+    clearCanceledOrFailed,
+    actionBusy,
+    colors.brand,
+    colors.brandSoft,
+  ]);
 
   useEffect(() => {
     const hasActive = visibleItems.some((i) => i.status === "active");
