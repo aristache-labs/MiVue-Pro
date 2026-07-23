@@ -44,7 +44,7 @@ export function CameraConnectionStrip({
       ? "Connecting…"
       : "Disconnected";
 
-  const dotColor = connected ? colors.brand : connecting ? colors.textFaint : colors.warn;
+  const dotColor = connected ? colors.brand : connecting ? colors.textMuted : colors.warn;
   const showRefresh = connected || lost;
   const showConnect = disconnected && !connecting && !lost;
   const showRetry = lost && !refreshing;

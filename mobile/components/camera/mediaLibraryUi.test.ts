@@ -145,6 +145,8 @@ test("compact action hit area contract", () => {
   assert.match(cardStyle, /minWidth:\s*0/);
   assert.match(media, /body:\s*\{\s*flex:\s*1,\s*minWidth:\s*0/);
   assert.match(media, /side:\s*\{[^}]*flexShrink:\s*0/s);
+  assert.match(media, /backgroundColor: selected \? colors\.selectionFill : colors\.surface/);
+  assert.match(media, /borderWidth: selected \? 1\.5 : StyleSheet\.hairlineWidth/);
   assert.match(media, /numberOfLines=\{1\}/);
 
   const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");

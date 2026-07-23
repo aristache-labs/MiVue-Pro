@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 import type { QueueItem } from "../../packages/local-db/src/index";
@@ -276,6 +278,17 @@ test("Clear targets only cancelled and failed — never active queue work", () =
   assert.equal(isClearableQueueStatus("cancelled"), true);
   assert.match(queueClearConfirmMessage(2), /2 canceled or failed/);
   assert.match(queueClearConfirmMessage(2), /Downloaded recordings are not deleted/);
+});
+
+test("Queue Clear is a trailing header action", () => {
+  const two = readFileSync(join(__dirname, "../../app/(tabs)/two.tsx"), "utf8");
+  assert.match(two, /right=\{/);
+  assert.match(two, /Clear/);
+  assert.match(two, /clearableItems\.length > 0/);
+  assert.doesNotMatch(
+    two,
+    /left=\{[\s\S]*clearableItems\.length > 0[\s\S]*Clear[\s\S]*right=\{/,
+  );
 });
 
 test("queue size and date use en-GB dots", () => {

@@ -192,7 +192,7 @@ export function CameraIpSheet({
                 Private IPv4 address used to reach the camera over its Wi‑Fi network.
               </Text>
             )}
-            <Text style={[styles.example, { color: colors.textFaint }]}>Example: 192.72.1.1</Text>
+            <Text style={[styles.example, { color: colors.textMuted }]}>Example: 192.72.1.1</Text>
           </View>
         </View>
       </KeyboardAvoidingView>

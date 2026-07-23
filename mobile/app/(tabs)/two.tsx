@@ -163,33 +163,30 @@ export default function QueueScreen() {
       header: () => (
         <TabScreenHeader
           title="Download queue"
-          left={
+          left={<View style={{ width: 44 }} />}
+          right={
             clearableItems.length > 0 ? (
               <Pressable
                 onPress={clearCanceledOrFailed}
                 disabled={actionBusy}
                 accessibilityRole="button"
                 accessibilityLabel={`Clear ${clearableItems.length} canceled or failed items`}
-                hitSlop={6}
+                hitSlop={8}
                 style={({ pressed }) => [
                   {
-                    minHeight: 36,
-                    paddingHorizontal: 10,
-                    borderRadius: 8,
-                    borderWidth: StyleSheet.hairlineWidth,
-                    borderColor: colors.brand,
-                    backgroundColor: colors.brandSoft,
+                    minWidth: 44,
+                    minHeight: 44,
+                    paddingHorizontal: 6,
                     flexDirection: "row",
                     alignItems: "center",
-                    justifyContent: "center",
-                    gap: 5,
-                    opacity: actionBusy ? 0.5 : pressed ? 0.85 : 1,
-                    marginLeft: 4,
+                    justifyContent: "flex-end",
+                    gap: 4,
+                    opacity: actionBusy ? 0.5 : pressed ? 0.7 : 1,
                   },
                 ]}
               >
-                <Ionicons name="trash-outline" size={15} color={colors.brand} />
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 13 }}>
+                <Ionicons name="trash-outline" size={16} color={colors.brand} />
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
                   Clear
                 </Text>
               </Pressable>
@@ -197,7 +194,6 @@ export default function QueueScreen() {
               <View style={{ width: 44 }} />
             )
           }
-          right={<View style={{ width: 44 }} />}
         />
       ),
     });
@@ -207,7 +203,6 @@ export default function QueueScreen() {
     clearCanceledOrFailed,
     actionBusy,
     colors.brand,
-    colors.brandSoft,
   ]);
 
   useEffect(() => {

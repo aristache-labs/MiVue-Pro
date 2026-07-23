@@ -29,6 +29,7 @@ import {
 } from "@/components/gps";
 import { HeaderDivider } from "@/components/navigation/HeaderDivider";
 import { safeRouterBack, navigateAfterDismissingModal } from "@/components/navigation/safeRouterBack";
+import { MapPrivacySheet } from "@/components/player/MapPrivacySheet";
 import {
   gpsStatusA11yLabel,
   gpsStatusLabel,
@@ -283,6 +284,7 @@ function VideoWithGps({
   const [videoTimeSec, setVideoTimeSec] = useState(0);
   const [gpsStatus, setGpsStatus] = useState<GpsSyncStatus>("waiting");
   const [mapMenuOpen, setMapMenuOpen] = useState(false);
+  const [mapPrivacyOpen, setMapPrivacyOpen] = useState(false);
   const [playStatus, setPlayStatus] = useState<PlaybackUiStatus>("loading");
   const [slowLoad, setSlowLoad] = useState(false);
   const [durationSec, setDurationSec] = useState(0);
@@ -599,6 +601,22 @@ function VideoWithGps({
                 {mapModeLabel} ▾
               </Text>
             </Pressable>
+            <Pressable
+              onPress={() => setMapPrivacyOpen(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Map privacy information"
+              hitSlop={8}
+              style={({ pressed }) => [
+                styles.mapInfoBtn,
+                {
+                  borderColor: colors.border,
+                  backgroundColor: colors.surfaceMuted,
+                  opacity: pressed ? 0.8 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="information-circle-outline" size={22} color={colors.brand} />
+            </Pressable>
           </View>
 
           <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} clipName={clipName} />
@@ -631,36 +649,20 @@ function VideoWithGps({
               <Text style={[styles.noGpsText, { color: colors.textMuted }]}>GPS unavailable</Text>
             </View>
           )}
-
-          {track && track.samples.length > 0 ? (
-            <Pressable
-              onPress={() =>
-                navigateAfterDismissingModal(
-                  "/settings/maps-privacy" as Parameters<typeof navigateAfterDismissingModal>[0],
-                )
-              }
-              accessibilityRole="button"
-              accessibilityLabel="Maps and Privacy. Online map loads visible tiles only. Video and GPS stay on this device."
-              hitSlop={4}
-              style={({ pressed }) => [
-                styles.privacyStrip,
-                {
-                  backgroundColor: colors.surfaceMuted,
-                  borderColor: colors.border,
-                  opacity: pressed ? 0.85 : 1,
-                },
-              ]}
-            >
-              <Ionicons name="shield-checkmark-outline" size={16} color={colors.brand} />
-              <Text style={[styles.privacyStripText, { color: colors.textMuted }]} numberOfLines={2}>
-                Visible tiles only · video and GPS stay on this device
-              </Text>
-              <Text style={[styles.privacyStripAction, { color: colors.brand }]}>Privacy</Text>
-              <Ionicons name="chevron-forward" size={14} color={colors.brand} />
-            </Pressable>
-          ) : null}
         </View>
       ) : null}
+
+      <MapPrivacySheet
+        visible={mapPrivacyOpen}
+        mapMode={mapMode === "online" ? "online" : "local"}
+        onClose={() => setMapPrivacyOpen(false)}
+        onOpenSettings={() => {
+          setMapPrivacyOpen(false);
+          navigateAfterDismissingModal(
+            "/settings/maps-privacy" as Parameters<typeof navigateAfterDismissingModal>[0],
+          );
+        }}
+      />
 
       <Modal visible={mapMenuOpen} transparent animationType="fade" onRequestClose={() => setMapMenuOpen(false)}>
         <Pressable style={styles.menuBackdrop} onPress={() => setMapMenuOpen(false)} />
@@ -825,27 +827,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
   },
-  privacyStrip: {
-    marginTop: 12,
-    minHeight: 44,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
+  mapInfoBtn: {
+    marginLeft: "auto",
+    width: 44,
+    height: 44,
+    borderRadius: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    flexDirection: "row",
     alignItems: "center",
-    gap: 8,
-  },
-  privacyStripText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: Type.font,
-    lineHeight: 16,
-  },
-  privacyStripAction: {
-    fontSize: 12,
-    fontFamily: Type.fontSemi,
-    flexShrink: 0,
+    justifyContent: "center",
   },
   noGps: {
     minHeight: 100,

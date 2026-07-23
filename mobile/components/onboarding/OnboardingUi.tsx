@@ -165,7 +165,7 @@ export function InlineMessage({
           </Pressable>
         ) : null}
         {__DEV__ && technical ? (
-          <Text style={[styles.tech, { color: colors.textFaint }]} numberOfLines={4}>
+          <Text style={[styles.tech, { color: colors.textMuted }]} numberOfLines={4}>
             Technical details: {technical}
           </Text>
         ) : null}

@@ -24,11 +24,12 @@ describe("safeRouterBack", () => {
     assert.doesNotMatch(selectCamera, /router\.back\(\)/);
   });
 
-  it("Player Privacy opens Maps & Privacy after dismissing the Player modal", () => {
+  it("Player Maps & Privacy settings exit dismisses the Player modal", () => {
     assert.match(src, /navigateAfterDismissingModal/);
     assert.match(src, /queueMicrotask/);
     assert.match(player, /navigateAfterDismissingModal/);
     assert.match(player, /\/settings\/maps-privacy/);
+    assert.match(player, /MapPrivacySheet/);
     assert.doesNotMatch(player, /router\.push\(\s*["']\/settings\/maps-privacy/);
   });
 

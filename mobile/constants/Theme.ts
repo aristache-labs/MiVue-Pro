@@ -20,6 +20,8 @@ export interface ThemeColors {
   readonly brandPressed: string;
   readonly brandStrong: string;
   readonly brandSoft: string;
+  /** Selected library card fill — subtler than brandSoft in light mode. */
+  readonly selectionFill: string;
   readonly onBrand: string;
   readonly live: string;
   readonly liveSoft: string;
@@ -43,10 +45,11 @@ const light: ThemeColors = {
   text: "#0f1720",
   textMuted: "#5b6b7a",
   textFaint: "#94a3b8",
-  brand: "#0d9488",
-  brandPressed: "#0f766e",
+  brand: "#0f766e",
+  brandPressed: "#115e59",
   brandStrong: "#0f766e",
   brandSoft: "#d9f3ef",
+  selectionFill: "rgba(15, 118, 110, 0.07)",
   onBrand: "#ffffff",
   live: "#FF5A36",
   liveSoft: "#FFE7E0",
@@ -74,6 +77,7 @@ const dark: ThemeColors = {
   brandPressed: "#0d9488",
   brandStrong: "#2dd4bf",
   brandSoft: "rgba(20, 184, 166, 0.16)",
+  selectionFill: "rgba(20, 184, 166, 0.16)",
   onBrand: "#042f2e",
   live: "#FF7256",
   liveSoft: "#3A1D16",
@@ -89,7 +93,7 @@ const dark: ThemeColors = {
 
 /** Category accents from web SD usage bars. */
 export const CATEGORY_COLORS = {
-  normal: { light: "#0d9488", dark: "#14b8a6" },
+  normal: { light: "#0f766e", dark: "#14b8a6" },
   event: { light: "#f59e0b", dark: "#f59e0b" },
   parking: { light: "#0ea5e9", dark: "#0ea5e9" },
   photo: { light: "#8b5cf6", dark: "#8b5cf6" },
