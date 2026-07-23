@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
 import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
@@ -108,26 +109,42 @@ export default function SettingsCameraScreen() {
   const actionsBusy = pendingAction !== null || isRefreshingCamera;
 
   return (
-    <>
-      <Stack.Screen
-        options={{
-          title: "Camera & Connection",
-          headerTitleAlign: "center",
-          headerBackVisible: false,
-          headerTintColor: colors.text,
-          headerLeft: () => (
-            <Pressable
-              onPress={navigateBackToSettings}
-              accessibilityRole="button"
-              accessibilityLabel="Back"
-              hitSlop={HitSlop44}
-              style={styles.headerBack}
-            >
-              <Text style={[styles.headerBackGlyph, { color: colors.text }]}>‹</Text>
-            </Pressable>
-          ),
-        }}
-      />      <SettingsScroll
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+
+      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
+        <View style={styles.headerBar}>
+          <Text
+            pointerEvents="none"
+            style={[styles.headerTitleAbsolute, { color: colors.text }]}
+            numberOfLines={1}
+          >
+            Camera & Connection
+          </Text>
+          <Pressable
+            onPress={navigateBackToSettings}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            hitSlop={HitSlop44}
+            style={styles.headerSide}
+          >
+            <Ionicons
+              name="chevron-back"
+              size={24}
+              color={colors.text}
+              style={styles.headerBackIcon}
+            />
+          </Pressable>
+          <View style={styles.headerFlex} />
+          <View
+            style={styles.headerSide}
+            accessibilityElementsHidden
+            importantForAccessibility="no-hide-descendants"
+          />
+        </View>
+      </View>
+
+      <SettingsScroll
         showsVerticalScrollIndicator={false}
         alwaysBounceVertical={false}
         bounces={false}
@@ -251,23 +268,38 @@ export default function SettingsCameraScreen() {
           setIpSheetOpen(false);
         }}
       />
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  headerBack: {
-    minWidth: 44,
-    minHeight: 44,
+  screen: { flex: 1 },
+  header: { zIndex: 1 },
+  headerBar: {
+    height: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 4,
+    position: "relative",
+  },
+  headerSide: {
+    width: 44,
+    height: 44,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "transparent",
   },
-  headerBackGlyph: {
-    fontSize: 34,
-    lineHeight: 38,
-    fontWeight: "300",
-    marginTop: -2,
+  headerFlex: { flex: 1 },
+  headerBackIcon: {
+    transform: [{ translateX: -1 }],
+  },
+  headerTitleAbsolute: {
+    ...StyleSheet.absoluteFillObject,
+    textAlign: "center",
+    textAlignVertical: "center",
+    fontSize: 17,
+    lineHeight: 44,
+    fontFamily: Type.fontSemi,
   },
   section: { marginBottom: 10 },
   sectionLast: { marginBottom: 0 },
