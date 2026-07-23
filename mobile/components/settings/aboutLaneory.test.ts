@@ -49,6 +49,23 @@ describe("About Laneory screen", () => {
     assert.match(sheetSrc, /maxFontSizeMultiplier/);
   });
 
+  it("keeps a shared 90% sheet height for About, Disclaimer and licences", () => {
+    assert.match(sheetSrc, /height:\s*"90%"/);
+    assert.match(sheetSrc, /maxHeight:\s*"90%"/);
+    assert.doesNotMatch(sheetSrc, /72%/);
+    assert.doesNotMatch(sheetSrc, /\btall\b/);
+    assert.doesNotMatch(sheetSrc, /maxHeight:\s*420/);
+    assert.match(sheetSrc, /sheetInner:\s*\{\s*flex:\s*1\s*\}/);
+    assert.match(sheetSrc, /scroll:\s*\{\s*flex:\s*1\s*\}/);
+    assert.match(sheetSrc, /licensesBody:\s*\{\s*flex:\s*1/);
+    assert.match(sheetSrc, /licenseList:\s*\{\s*flex:\s*1\s*\}/);
+    assert.match(sheetSrc, /kind === "about"/);
+    assert.match(sheetSrc, /kind === "disclaimer"/);
+    assert.match(sheetSrc, /kind === "licenses"/);
+    assert.match(sheetSrc, /ScrollView/);
+    assert.match(sheetSrc, /FlatList/);
+  });
+
   it("includes essential read-only, independence and safety copy", () => {
     const aboutFlat = JSON.stringify(ABOUT_SHEET_SECTIONS);
     const discFlat = JSON.stringify(DISCLAIMER_SHEET_SECTIONS);

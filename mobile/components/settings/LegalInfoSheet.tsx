@@ -134,9 +134,6 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
           ? "Open-source licences"
           : "";
 
-  const tall = kind === "disclaimer" || kind === "licenses";
-  const maxHeight = tall ? ("90%" as const) : ("72%" as const);
-
   const filteredLicenses = useMemo(() => {
     const q = query.trim().toLowerCase();
     const list = thirdPartyLicenses.packages;
@@ -183,8 +180,8 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
         borderColor: colors.border,
         borderTopLeftRadius: MEDIA_SHEET_RADIUS,
         borderTopRightRadius: MEDIA_SHEET_RADIUS,
-        maxHeight,
-        minHeight: tall ? "55%" : undefined,
+        height: "90%",
+        maxHeight: "90%",
       }}
     >
       {({ requestClose }) => (
@@ -313,7 +310,7 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
 }
 
 const styles = StyleSheet.create({
-  sheetInner: { flexShrink: 1, maxHeight: "100%" },
+  sheetInner: { flex: 1 },
   handle: {
     alignSelf: "center",
     width: 36,
@@ -347,12 +344,12 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     paddingHorizontal: 16,
   },
-  scroll: { flexGrow: 0 },
+  scroll: { flex: 1 },
   sectionBlock: { marginBottom: 14 },
   sectionTitle: { fontSize: 15, fontFamily: Type.fontSemi, marginBottom: 6 },
   sectionBody: { fontSize: 14, fontFamily: Type.font, lineHeight: 20, marginBottom: 6 },
   metaLine: { fontSize: 12, fontFamily: Type.mono, marginTop: 8, marginBottom: 4 },
-  licensesBody: { paddingHorizontal: 16, flexShrink: 1, maxHeight: "100%", gap: 8 },
+  licensesBody: { flex: 1, paddingHorizontal: 16, gap: 8 },
   search: {
     minHeight: 44,
     borderWidth: StyleSheet.hairlineWidth,
@@ -361,7 +358,7 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontFamily: Type.font,
   },
-  licenseList: { flexGrow: 1, maxHeight: 420 },
+  licenseList: { flex: 1 },
   licenseCard: {
     borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
