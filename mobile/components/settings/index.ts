@@ -26,8 +26,11 @@ export {
 } from "./settingsSummaries";
 export type { ConnectionHubKind, VisibleConnectionStatus } from "./settingsSummaries";
 export {
+  canContinueWithCameraIpv4,
   canSaveCameraIpv4,
   isStrictIpv4,
   parseCameraIpv4Input,
+  sanitizeCameraIpv4Draft,
 } from "./cameraIp";
 export { CameraIpSheet } from "./CameraIpSheet";
+export { SettingsChromeHeader } from "./SettingsChromeHeader";

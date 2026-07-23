@@ -125,10 +125,7 @@ function RootLayoutNav() {
         <Stack.Screen name="modal" options={{ presentation: "modal", title: "About" }} />
         <Stack.Screen
           name="connection-help"
-          options={{
-            title: "Connection help",
-            headerBackTitle: CONNECTION_HELP_BACK_TITLE,
-          }}
+          options={{ headerShown: false }}
         />
         <Stack.Screen
           name="legal-document"

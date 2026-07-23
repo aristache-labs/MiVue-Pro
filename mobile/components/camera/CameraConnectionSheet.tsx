@@ -115,7 +115,10 @@ export function CameraConnectionSheet({
 
   const openHelp = () => {
     onClose();
-    router.push("/connection-help" as Parameters<typeof router.push>[0]);
+    router.push({
+      pathname: "/connection-help",
+      params: { source: "library" },
+    } as Parameters<typeof router.push>[0]);
   };
 
   return (

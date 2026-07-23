@@ -251,7 +251,10 @@ export default function OnboardingConnectScreen() {
       setVerifyState("idle");
       void backToGuide();
     }
-    router.push("/connection-help" as Parameters<typeof router.push>[0]);
+    router.push({
+      pathname: "/connection-help",
+      params: { source: "onboarding" },
+    } as Parameters<typeof router.push>[0]);
   };
 
   if (!profile) {

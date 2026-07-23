@@ -4,6 +4,16 @@ export type CameraIpv4ParseResult =
   | { readonly ok: true; readonly value: string }
   | { readonly ok: false; readonly error: string };
 
+const IPV4_DRAFT_MAX_LEN = 15;
+
+/**
+ * Normalize a live IPv4 draft for typing (RO locale comma → dot).
+ * Keeps only digits and dots; caps length at 15.
+ */
+export function sanitizeCameraIpv4Draft(raw: string): string {
+  return raw.replace(/,/g, ".").replace(/[^\d.]/g, "").slice(0, IPV4_DRAFT_MAX_LEN);
+}
+
 /** Strict IPv4 (four octets 0–255). Rejects protocol, port, path, hostname. */
 export function isStrictIpv4(host: string): boolean {
   if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host)) return false;
@@ -19,15 +29,11 @@ export function isStrictIpv4(host: string): boolean {
  * Persists only private IPv4 addresses the transport already accepts.
  */
 export function parseCameraIpv4Input(raw: string): CameraIpv4ParseResult {
-  const value = raw.trim();
+  const value = sanitizeCameraIpv4Draft(raw).trim();
   if (!value) {
     return { ok: false, error: "Enter a camera IP address." };
   }
-  if (
-    /[:/\\?#]|[a-zA-Z]|^\./.test(value) ||
-    value.includes(" ") ||
-    !isStrictIpv4(value)
-  ) {
+  if (!isStrictIpv4(value)) {
     return {
       ok: false,
       error: "Enter a valid IPv4 address with exactly four numbers (0–255).",
@@ -46,4 +52,9 @@ export function canSaveCameraIpv4(draft: string, currentHost: string): boolean {
   const parsed = parseCameraIpv4Input(draft);
   if (!parsed.ok) return false;
   return parsed.value !== currentHost.trim();
+}
+
+/** Continue enabled when Other camera IP draft is a valid private IPv4. */
+export function canContinueWithCameraIpv4(draft: string): boolean {
+  return parseCameraIpv4Input(draft).ok;
 }

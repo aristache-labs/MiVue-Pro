@@ -1,12 +1,13 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useState } from "react";
-import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, BackHandler, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { CameraIpSheet } from "@/components/settings/CameraIpSheet";
+import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
   SettingsSection,
@@ -19,10 +20,8 @@ import {
   lastConnectedSummaryLine,
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
-import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
-
-type CameraAction = "refresh" | "reconnect";
 
 function navigateBackToSettings(): void {
   if (router.canGoBack()) {
@@ -46,7 +45,7 @@ export default function SettingsCameraScreen() {
     isRefreshingCamera,
   } = useDemoMode();
   const { state: onboardingState, startChangeCamera } = useOnboarding();
-  const [pendingAction, setPendingAction] = useState<CameraAction | null>(null);
+  const [refreshPending, setRefreshPending] = useState(false);
   const [ipSheetOpen, setIpSheetOpen] = useState(false);
 
   const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
@@ -75,18 +74,15 @@ export default function SettingsCameraScreen() {
     }, [ipSheetOpen]),
   );
 
-  const runAction = useCallback(
-    async (action: CameraAction) => {
-      if (pendingAction || isRefreshingCamera) return;
-      setPendingAction(action);
-      try {
-        await refreshFiles();
-      } finally {
-        setPendingAction(null);
-      }
-    },
-    [isRefreshingCamera, pendingAction, refreshFiles],
-  );
+  const onRefresh = useCallback(async () => {
+    if (refreshPending || isRefreshingCamera) return;
+    setRefreshPending(true);
+    try {
+      await refreshFiles();
+    } finally {
+      setRefreshPending(false);
+    }
+  }, [isRefreshingCamera, refreshFiles, refreshPending]);
 
   const onChangeCamera = useCallback(() => {
     Alert.alert(
@@ -106,43 +102,12 @@ export default function SettingsCameraScreen() {
     );
   }, [startChangeCamera]);
 
-  const actionsBusy = pendingAction !== null || isRefreshingCamera;
+  const actionsBusy = refreshPending || isRefreshingCamera;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ headerShown: false }} />
-
-      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
-        <View style={styles.headerBar}>
-          <Text
-            pointerEvents="none"
-            style={[styles.headerTitleAbsolute, { color: colors.text }]}
-            numberOfLines={1}
-          >
-            Camera & Connection
-          </Text>
-          <Pressable
-            onPress={navigateBackToSettings}
-            accessibilityRole="button"
-            accessibilityLabel="Back"
-            hitSlop={HitSlop44}
-            style={styles.headerSide}
-          >
-            <Ionicons
-              name="chevron-back"
-              size={24}
-              color={colors.text}
-              style={styles.headerBackIcon}
-            />
-          </Pressable>
-          <View style={styles.headerFlex} />
-          <View
-            style={styles.headerSide}
-            accessibilityElementsHidden
-            importantForAccessibility="no-hide-descendants"
-          />
-        </View>
-      </View>
+      <SettingsChromeHeader title="Camera & Connection" onBack={navigateBackToSettings} />
 
       <SettingsScroll
         showsVerticalScrollIndicator={false}
@@ -222,22 +187,12 @@ export default function SettingsCameraScreen() {
           <SettingsActionRow
             icon="refresh"
             title="Refresh camera information"
-            subtitle="Read-only status and library metadata"
+            subtitle="Reconnects and refreshes read-only camera data"
             compact
-            loading={pendingAction === "refresh"}
+            loading={refreshPending}
             disabled={actionsBusy}
-            onPress={() => void runAction("refresh")}
+            onPress={() => void onRefresh()}
             accessibilityLabel="Refresh camera information"
-          />
-          <SettingsActionRow
-            icon="sync-outline"
-            title="Reconnect camera"
-            subtitle="Read-only status and library refresh"
-            compact
-            loading={pendingAction === "reconnect"}
-            disabled={actionsBusy}
-            onPress={() => void runAction("reconnect")}
-            accessibilityLabel="Reconnect camera"
           />
           <SettingsActionRow
             icon="swap-horizontal-outline"
@@ -253,7 +208,12 @@ export default function SettingsCameraScreen() {
             title="Connection help"
             compact
             disabled={actionsBusy}
-            onPress={() => router.push("/connection-help" as Parameters<typeof router.push>[0])}
+            onPress={() =>
+              router.push({
+                pathname: "/connection-help",
+                params: { source: "settings-camera" },
+              } as Parameters<typeof router.push>[0])
+            }
             accessibilityLabel="Connection help"
           />
         </SettingsSection>
@@ -274,33 +234,6 @@ export default function SettingsCameraScreen() {
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
-  header: { zIndex: 1 },
-  headerBar: {
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 4,
-    position: "relative",
-  },
-  headerSide: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: "transparent",
-  },
-  headerFlex: { flex: 1 },
-  headerBackIcon: {
-    transform: [{ translateX: -1 }],
-  },
-  headerTitleAbsolute: {
-    ...StyleSheet.absoluteFillObject,
-    textAlign: "center",
-    textAlignVertical: "center",
-    fontSize: 17,
-    lineHeight: 44,
-    fontFamily: Type.fontSemi,
-  },
   section: { marginBottom: 10 },
   sectionLast: { marginBottom: 0 },
   statusBlock: { paddingHorizontal: 12, paddingVertical: 10, gap: 4 },

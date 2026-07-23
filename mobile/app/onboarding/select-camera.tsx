@@ -1,7 +1,7 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { router } from "expo-router";
-import { useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useMemo, useState } from "react";
+import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 import {
   CAMERA_PROFILES,
@@ -11,10 +11,14 @@ import {
 import { OnboardingLayout } from "@/components/onboarding/onboardingLayout";
 import { OnboardingScreen, StatusBadge } from "@/components/onboarding/OnboardingUi";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import {
+  canContinueWithCameraIpv4,
+  parseCameraIpv4Input,
+  sanitizeCameraIpv4Draft,
+} from "@/components/settings/cameraIp";
 import { PrimaryButton } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
-import { isPrivateIpv4 } from "@/packages/camera-transport/src/index";
 
 /** Only verified profiles plus experimental with real manual IP path. */
 const VISIBLE_PROFILES = CAMERA_PROFILES.filter(
@@ -29,19 +33,30 @@ export default function OnboardingSelectCameraScreen() {
     state.selectedCameraProfileId ?? VISIBLE_PROFILES[0]?.id,
   );
   const [otherHost, setOtherHost] = useState("");
+  const [otherHostTouched, setOtherHostTouched] = useState(false);
   const fromSettings = state.cameraSetupCompleted === false && state.onboardingCompleted;
 
   const selected = VISIBLE_PROFILES.find((p) => p.id === selectedId);
+  const otherIpParsed = useMemo(() => parseCameraIpv4Input(otherHost), [otherHost]);
+  const otherIpError =
+    otherHostTouched && selected?.id === "other-compatible" && !otherIpParsed.ok
+      ? otherIpParsed.error
+      : undefined;
+
+  const continueDisabled =
+    !selected ||
+    !canStartConnection(selected) ||
+    (selected.id === "other-compatible" && !canContinueWithCameraIpv4(otherHost));
 
   const onContinue = () => {
     if (!selected || !canStartConnection(selected)) return;
     if (selected.id === "other-compatible") {
-      const host = otherHost.trim();
-      if (!isPrivateIpv4(host)) {
-        Alert.alert("Invalid IP", "Enter a private IPv4 address such as 192.72.1.1.");
+      const parsed = parseCameraIpv4Input(otherHost);
+      if (!parsed.ok) {
+        setOtherHostTouched(true);
         return;
       }
-      setCameraHost(host);
+      setCameraHost(parsed.value);
     } else if (selected.defaultHost) {
       setCameraHost(selected.defaultHost);
     }
@@ -136,23 +151,33 @@ export default function OnboardingSelectCameraScreen() {
           <Text style={[styles.hostLabel, { color: colors.textMuted }]}>Camera IP</Text>
           <TextInput
             value={otherHost}
-            onChangeText={setOtherHost}
+            onChangeText={(value) => {
+              setOtherHostTouched(true);
+              setOtherHost(sanitizeCameraIpv4Draft(value));
+            }}
             placeholder="192.72.1.1"
             placeholderTextColor={colors.textFaint}
-            keyboardType="decimal-pad"
+            keyboardType="numbers-and-punctuation"
             autoCapitalize="none"
             autoCorrect={false}
             accessibilityLabel="Camera IP address"
-            style={[styles.hostInput, { color: colors.text, borderColor: colors.border }]}
+            style={[
+              styles.hostInput,
+              {
+                color: colors.text,
+                borderColor: otherIpError ? colors.warn : colors.border,
+              },
+            ]}
           />
+          {otherIpError ? (
+            <Text style={[styles.hostError, { color: colors.warn }]} accessibilityLiveRegion="polite">
+              {otherIpError}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
-      <PrimaryButton
-        label="Continue"
-        onPress={onContinue}
-        disabled={!selected || !canStartConnection(selected)}
-      />
+      <PrimaryButton label="Continue" onPress={onContinue} disabled={continueDisabled} />
     </OnboardingScreen>
   );
 }
@@ -196,5 +221,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     fontFamily: Type.mono,
     fontSize: 15,
+    fontVariant: ["tabular-nums"],
   },
+  hostError: { fontSize: 12, fontFamily: Type.font, lineHeight: 16 },
 });
