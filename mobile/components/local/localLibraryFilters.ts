@@ -93,6 +93,23 @@ export function minutesFromName(name: string): number | undefined {
   return hh * 60 + mm;
 }
 
+/**
+ * Infer recording category from local filename — independent of camera connection.
+ * Optional camera metadata may refine this when available.
+ */
+export function categoryFromLocalName(
+  name: string,
+  kind?: LocalMediaFile["kind"],
+): FileCategory {
+  if (kind === "image" || /\.(jpe?g|png|webp)$/iu.test(name)) return "photo";
+  const prefix = /^([A-Za-z]+)/u.exec(name)?.[1]?.toUpperCase() ?? "";
+  if (prefix === "PARK") return "parking";
+  if (prefix === "FILE") return "normal";
+  if (prefix === "EVNT" || prefix === "EVENT" || prefix === "EMER") return "event";
+  if (prefix === "IMG" || prefix === "SHOT" || prefix === "PHOTO") return "photo";
+  return "unknown";
+}
+
 export function normalizeLocalFile(
   file: LocalMediaFile,
   categoryByName?: ReadonlyMap<string, FileCategory>,
@@ -102,8 +119,7 @@ export function normalizeLocalFile(
   const mediaType =
     file.kind === "video" ? "video" : file.kind === "image" ? "image" : "other";
   const fromMap = categoryByName?.get(file.name);
-  const category: FileCategory =
-    mediaType === "image" ? "photo" : (fromMap ?? "unknown");
+  const category: FileCategory = fromMap ?? categoryFromLocalName(file.name, file.kind);
   return {
     file,
     dayKey,

@@ -35,6 +35,7 @@ import {
   clearFilterGroup,
   countActiveFilterGroups,
   countLocalCategories,
+  categoryFromLocalName,
   EMPTY_FILTERS,
   filterNormalizedFiles,
   formatResultsSummary,
@@ -76,7 +77,6 @@ export default function LocalLibraryScreen() {
     shareLocalFile,
     deleteLocalFile,
     deleteLocalFilesBatch,
-    lastError,
     demoMode,
     files,
   } = useDemoMode();
@@ -420,11 +420,6 @@ export default function LocalLibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      {lastError ? (
-        <Text style={[styles.error, { color: colors.danger, paddingHorizontal: spacing.lg }]}>
-          {lastError}
-        </Text>
-      ) : null}
       {statusMessage ? (
         <Text style={[styles.status, { color: colors.textMuted, paddingHorizontal: spacing.lg }]}>
           {statusMessage}
@@ -622,7 +617,7 @@ export default function LocalLibraryScreen() {
         )}
         renderItem={({ item }) => {
           const category: FileCategory =
-            item.kind === "image" ? "photo" : (categoryByName.get(item.name) ?? "unknown");
+            categoryByName.get(item.name) ?? categoryFromLocalName(item.name, item.kind);
           return (
             <LocalLibraryCard
               item={item}

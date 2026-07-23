@@ -15,6 +15,7 @@ import {
   clearFilterGroup,
   countActiveFilterGroups,
   countLocalCategories,
+  categoryFromLocalName,
   EMPTY_FILTERS,
   fileMatchesFilters,
   filterNormalizedFiles,
@@ -160,6 +161,24 @@ test("top category scope All Normal Parking Event Photos", () => {
   const dirty: LocalLibraryFilters = { ...EMPTY_FILTERS, categories: ["parking"] };
   assert.deepEqual(sanitizeLocalFiltersForCategoryScope(dirty, "event").categories, []);
   assert.deepEqual(sanitizeLocalFiltersForCategoryScope(dirty, "all").categories, ["parking"]);
+});
+
+test("categoryFromLocalName works without camera metadata", () => {
+  assert.equal(categoryFromLocalName("PARK260723-075837F.MP4"), "parking");
+  assert.equal(categoryFromLocalName("FILE260721-204110F.MP4"), "normal");
+  assert.equal(categoryFromLocalName("EVNT260719-100000F.MP4"), "event");
+  assert.equal(categoryFromLocalName("IMG260719-100000F.JPG", "image"), "photo");
+  const orphan = normalizeLocalFile(file("PARK260723-075837F.MP4"));
+  assert.equal(orphan.category, "parking");
+  const counts = countLocalCategories([
+    normalizeLocalFile(file("PARK260723-075837F.MP4")),
+    normalizeLocalFile(file("FILE260721-204110F.MP4")),
+    normalizeLocalFile(file("FILE260721-204200F.MP4")),
+  ]);
+  assert.equal(counts.all, 3);
+  assert.equal(counts.parking, 1);
+  assert.equal(counts.normal, 2);
+  assert.equal(counts.event, 0);
 });
 
 test("videos and photos media type", () => {

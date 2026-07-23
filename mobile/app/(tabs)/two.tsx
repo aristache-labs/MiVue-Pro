@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { friendlyConnectionError } from "@/components/camera/cameraLibraryModel";
 import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
 import {
   actionsForStatus,
@@ -95,6 +96,22 @@ export default function QueueScreen() {
   );
 
   const summary = useMemo(() => formatQueueSummary(visibleItems), [visibleItems]);
+
+  const hasQueueWork = useMemo(
+    () =>
+      visibleItems.some(
+        (item) => item.status === "active" || item.status === "paused" || item.status === "queued",
+      ),
+    [visibleItems],
+  );
+
+  const [errorDismissed, setErrorDismissed] = useState(false);
+  useEffect(() => {
+    setErrorDismissed(false);
+  }, [lastError]);
+
+  const queueErrorBanner =
+    hasQueueWork && !errorDismissed ? friendlyConnectionError(lastError) : undefined;
 
   useEffect(() => {
     navigation.setOptions({
@@ -258,7 +275,18 @@ export default function QueueScreen() {
         <View style={{ height: spacing.sm }} />
       )}
 
-      {lastError ? <Text style={[styles.error, { color: colors.danger }]}>{lastError}</Text> : null}
+      {queueErrorBanner ? (
+        <Pressable
+          onPress={() => setErrorDismissed(true)}
+          style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
+          accessibilityRole="button"
+          accessibilityLabel={`Error: ${queueErrorBanner}. Dismiss.`}
+        >
+          <Text style={[styles.bannerText, { color: colors.danger }]} numberOfLines={2}>
+            {queueErrorBanner}
+          </Text>
+        </Pressable>
+      ) : null}
 
       <FlatList
         data={visibleItems}
@@ -502,6 +530,14 @@ export default function QueueScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   demoRow: { flexDirection: "row", justifyContent: "flex-end" },
+  banner: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    marginBottom: 8,
+  },
+  bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
   navTitleWrap: { alignItems: Platform.OS === "ios" ? "center" : "flex-start" },
   navTitle: { fontSize: 17, fontFamily: Type.fontBold },
   navSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 1 },
