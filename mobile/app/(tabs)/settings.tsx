@@ -1,10 +1,11 @@
 import Constants from "expo-constants";
-import { router } from "expo-router";
-import { useMemo } from "react";
+import { router, useNavigation } from "expo-router";
+import { useLayoutEffect, useMemo } from "react";
 
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
+import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   SettingsCategoryRow,
   SettingsSection,
@@ -19,6 +20,7 @@ import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { useDemoMode } from "@/context/DemoModeContext";
 
 export default function SettingsHubScreen() {
+  const navigation = useNavigation();
   const {
     cameraLinkState,
     cameraModel,
@@ -47,6 +49,12 @@ export default function SettingsHubScreen() {
   const push = (href: string) => {
     router.push(href as Parameters<typeof router.push>[0]);
   };
+
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      header: () => <TabScreenHeader title="Settings" />,
+    });
+  }, [navigation]);
 
   return (
     <SettingsScroll>

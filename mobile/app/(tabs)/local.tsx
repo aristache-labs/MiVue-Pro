@@ -21,7 +21,6 @@ import {
   type ViewToken,
 } from "react-native";
 
-import { formatCountAbbrev } from "@/components/camera/cameraLibraryModel";
 import {
   LIBRARY_LIST_VIRTUALIZATION,
   LIBRARY_THUMB_VIEWABILITY,
@@ -46,7 +45,6 @@ import {
   formatResultsSummary,
   formatSelectionSize,
   isFiltersEmpty,
-  LOCAL_CATEGORY_CHIPS,
   normalizeLocalFiles,
   pruneSelectionToUris,
   sanitizeLocalFiltersForCategoryScope,
@@ -65,6 +63,10 @@ import {
   type LocalLibraryFileRow,
 } from "@/components/local/localLibrarySections";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
+import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
+import {
+  LibraryCategoryTabs,
+} from "@/components/library/LibraryCategoryTabs";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -399,119 +401,117 @@ export default function LocalLibraryScreen() {
     if (selecting) {
       const allSelected = selected.size === filteredFiles.length && filteredFiles.length > 0;
       navigation.setOptions({
-        headerTitle: () => (
-          <Text style={[styles.navCenterTitle, { color: colors.text }]}>
-            {selected.size} selected
-          </Text>
-        ),
-        headerLeft: () => (
-          <Pressable
-            onPress={exitSelection}
-            accessibilityRole="button"
-            accessibilityLabel="Cancel"
-            hitSlop={HitSlop44}
-            style={styles.headerSideBtn}
-          >
-            <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>Cancel</Text>
-          </Pressable>
-        ),
-        headerRight: () => (
-          <Pressable
-            onPress={() => {
-              if (allSelected) deselectAll();
-              else selectAllFiltered();
-            }}
-            accessibilityRole="button"
-            accessibilityLabel={
-              allSelected ? "Deselect all" : selectAllFilteredA11yLabel(filteredFiles.length)
+        header: () => (
+          <TabScreenHeader
+            title={`${selected.size} selected`}
+            left={
+              <Pressable
+                onPress={exitSelection}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                  Cancel
+                </Text>
+              </Pressable>
             }
-            hitSlop={HitSlop44}
-            style={styles.headerSideBtn}
-          >
-            <Text
-              style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
-              numberOfLines={1}
-            >
-              {allSelected ? "Deselect all" : "Select all"}
-            </Text>
-          </Pressable>
+            right={
+              <Pressable
+                onPress={() => {
+                  if (allSelected) deselectAll();
+                  else selectAllFiltered();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  allSelected ? "Deselect all" : selectAllFilteredA11yLabel(filteredFiles.length)
+                }
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text
+                  style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
+                  numberOfLines={1}
+                >
+                  {allSelected ? "Deselect all" : "Select all"}
+                </Text>
+              </Pressable>
+            }
+          />
         ),
-        headerTitleAlign: "center",
       });
       return;
     }
 
     navigation.setOptions({
-      headerTitle: () => (
-        <View style={styles.navTitleWrap}>
-          <Text style={[styles.navTitle, { color: colors.text }]}>Local library</Text>
-          <Text style={[styles.navSubtitle, { color: colors.textMuted }]}>Saved on this device</Text>
-        </View>
-      ),
-      headerLeft: () =>
-        localFiles.length === 0 ? (
-          <View style={{ width: LOCAL_ACTION_HIT }} />
-        ) : (
-          <Pressable
-            onPress={() => setSelecting(true)}
-            accessibilityRole="button"
-            accessibilityLabel="Select files"
-            hitSlop={HitSlop44}
-            style={styles.headerSideBtn}
-          >
-            <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>Select</Text>
-          </Pressable>
-        ),
-      headerRight: () => (
-        <View style={styles.headerRightRow}>
-          <Pressable
-            onPress={() => setFilterOpen(true)}
-            accessibilityRole="button"
-            accessibilityLabel={
-              activeGroups > 0
-                ? `Filter local library, ${activeGroups} filters active`
-                : "Filter local library"
-            }
-            hitSlop={HitSlop44}
-            style={({ pressed }) => [
-              styles.headerIconBtn,
-              { opacity: pressed ? 0.65 : 1 },
-            ]}
-          >
-            <Ionicons name="options-outline" size={22} color={colors.textMuted} />
-            {activeGroups > 0 ? (
-              <View style={[styles.filterBadge, { backgroundColor: colors.brand }]}>
-                <Text style={[styles.filterBadgeText, { color: colors.onBrand }]}>{activeGroups}</Text>
-              </View>
-            ) : null}
-          </Pressable>
-          <Pressable
-            onPress={() => void runRefresh()}
-            disabled={refreshing}
-            accessibilityRole="button"
-            accessibilityLabel="Refresh local library"
-            accessibilityState={{ busy: refreshing, disabled: refreshing }}
-            hitSlop={HitSlop44}
-            style={({ pressed }) => [
-              styles.headerIconBtn,
-              { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
-            ]}
-          >
-            {refreshing ? (
-              <ActivityIndicator size="small" color={colors.textMuted} />
+      header: () => (
+        <TabScreenHeader
+          title="Local library"
+          left={
+            localFiles.length === 0 ? (
+              <View style={{ width: LOCAL_ACTION_HIT }} />
             ) : (
-              <Ionicons name="refresh" size={22} color={colors.textMuted} />
-            )}
-          </Pressable>
-        </View>
+              <Pressable
+                onPress={() => setSelecting(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Select files"
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                  Select
+                </Text>
+              </Pressable>
+            )
+          }
+          right={
+            <View style={styles.headerRightRow}>
+              <Pressable
+                onPress={() => setFilterOpen(true)}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  activeGroups > 0
+                    ? `Filter local library, ${activeGroups} filters active`
+                    : "Filter local library"
+                }
+                hitSlop={HitSlop44}
+                style={({ pressed }) => [
+                  styles.headerIconBtn,
+                  { opacity: pressed ? 0.65 : 1 },
+                ]}
+              >
+                <Ionicons name="options-outline" size={22} color={colors.textMuted} />
+                {activeGroups > 0 ? (
+                  <View style={[styles.filterBadge, { backgroundColor: colors.brand }]}>
+                    <Text style={[styles.filterBadgeText, { color: colors.onBrand }]}>
+                      {activeGroups}
+                    </Text>
+                  </View>
+                ) : null}
+              </Pressable>
+              <Pressable
+                onPress={() => void runRefresh()}
+                disabled={refreshing}
+                accessibilityRole="button"
+                accessibilityLabel="Refresh local library"
+                accessibilityState={{ busy: refreshing, disabled: refreshing }}
+                hitSlop={HitSlop44}
+                style={({ pressed }) => [
+                  styles.headerIconBtn,
+                  { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
+                ]}
+              >
+                {refreshing ? (
+                  <ActivityIndicator size="small" color={colors.textMuted} />
+                ) : (
+                  <Ionicons name="refresh" size={22} color={colors.textMuted} />
+                )}
+              </Pressable>
+            </View>
+          }
+        />
       ),
-      headerTitleAlign: "center",
-      headerRightContainerStyle: {
-        paddingRight: Platform.OS === "ios" ? 4 : 8,
-      },
-      headerLeftContainerStyle: {
-        paddingLeft: Platform.OS === "ios" ? 4 : 8,
-      },
     });
   }, [
     navigation,
@@ -522,10 +522,10 @@ export default function LocalLibraryScreen() {
     activeGroups,
     refreshing,
     colors,
-    runRefresh,
     exitSelection,
     selectAllFiltered,
     deselectAll,
+    runRefresh,
   ]);
 
   const emptyLibrary = localFiles.length === 0;
@@ -584,52 +584,15 @@ export default function LocalLibraryScreen() {
         </Text>
       ) : null}
 
-      <View
-        style={[styles.catRow, { paddingHorizontal: spacing.lg, paddingTop: spacing.sm }]}
+      <LibraryCategoryTabs
+        selectedId={category}
+        counts={categoryCounts}
+        onSelect={(id) => {
+          setCategory(id);
+          if (selecting) exitSelection();
+        }}
         testID="local-category-row"
-      >
-        {LOCAL_CATEGORY_CHIPS.map((chip) => {
-          const selectedChip = category === chip.id;
-          const value = categoryCounts[chip.id];
-          const abbrev = formatCountAbbrev(value);
-          return (
-            <Pressable
-              key={chip.id}
-              onPress={() => {
-                setCategory(chip.id);
-                if (selecting) exitSelection();
-              }}
-              accessibilityRole="button"
-              accessibilityState={{ selected: selectedChip }}
-              accessibilityLabel={`${chip.label}, ${abbrev.a11y}`}
-              style={[
-                styles.catCell,
-                {
-                  borderColor: selectedChip ? colors.brand : colors.border,
-                  backgroundColor: selectedChip ? colors.brandSoft : colors.surface,
-                  borderRadius: radius.sm,
-                },
-              ]}
-            >
-              <Text
-                style={[styles.catChipLabel, { color: selectedChip ? colors.brand : colors.text }]}
-                numberOfLines={1}
-              >
-                {chip.label}
-              </Text>
-              <Text
-                style={[
-                  styles.catChipCount,
-                  { color: selectedChip ? colors.brandStrong : colors.textMuted },
-                ]}
-                numberOfLines={1}
-              >
-                {abbrev.display}
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+      />
 
       {!isFiltersEmpty(filters) ? (
         <View style={styles.chipsBlock}>
@@ -912,12 +875,6 @@ const styles = StyleSheet.create({
   demoRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 8 },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4, marginBottom: 4 },
   status: { fontSize: 12, fontFamily: Type.font, marginBottom: 4 },
-  navTitleWrap: {
-    alignItems: Platform.OS === "ios" ? "center" : "center",
-  },
-  navTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  navSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 1 },
-  navCenterTitle: { fontSize: 17, fontFamily: Type.fontBold },
   headerSideBtn: {
     minHeight: LOCAL_ACTION_HIT,
     minWidth: LOCAL_ACTION_HIT,
@@ -943,23 +900,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 3,
   },
   filterBadgeText: { fontSize: 10, fontFamily: Type.fontBold },
-  catRow: {
-    flexDirection: "row",
-    gap: 6,
-    marginBottom: 4,
-  },
-  catCell: {
-    flex: 1,
-    minWidth: 0,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 6,
-    paddingHorizontal: 2,
-    alignItems: "center",
-    justifyContent: "center",
-    minHeight: LOCAL_ACTION_HIT,
-  },
-  catChipLabel: { fontSize: 11, fontFamily: Type.fontSemi },
-  catChipCount: { fontSize: 10, fontFamily: Type.font, marginTop: 1 },
   chipsBlock: { paddingBottom: 4 },
   chipsRow: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 6 },
   chip: {

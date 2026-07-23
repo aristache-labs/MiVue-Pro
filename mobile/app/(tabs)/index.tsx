@@ -30,13 +30,11 @@ import {
   countCategories,
   EMPTY_CAMERA_FILTERS,
   filterAndSortRemoteFiles,
-  formatCountAbbrev,
   formatMediaSizeMbGb,
   friendlyConnectionError,
   isCameraFiltersEmpty,
   isCameraLibraryInteractive,
   libraryEmptyPresentation,
-  librarySubtitle,
   sanitizeFiltersForCategoryScope,
   sumRemoteBytes,
   type CameraLibraryFileRow,
@@ -61,6 +59,10 @@ import { LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibra
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
+import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
+import {
+  LibraryCategoryTabs,
+} from "@/components/library/LibraryCategoryTabs";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -76,14 +78,6 @@ import {
   useVerticalOverflow,
 } from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
-
-const CATEGORY_CHIPS: readonly { id: CategoryFilter; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "normal", label: "Normal" },
-  { id: "parking", label: "Parking" },
-  { id: "event", label: "Event" },
-  { id: "photo", label: "Photos" },
-];
 
 function SkeletonRow() {
   const { colors, radius } = useAppTheme();
@@ -232,13 +226,6 @@ export default function LibraryScreen() {
   const filteredBytes = useMemo(() => sumRemoteBytes(filtered), [filtered]);
   const filterChips = useMemo(() => buildCameraFilterChips(filters), [filters]);
 
-  const subtitle = librarySubtitle({
-    linkState: cameraLinkState,
-    totalCount: files.length,
-    filteredCount: filtered.length,
-    hasActiveFilters,
-  });
-
   const libraryInteractive = isCameraLibraryInteractive(cameraLinkState);
   const canPullToRefresh = cameraLinkState === "connected";
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
@@ -337,35 +324,21 @@ export default function LibraryScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      headerTitle: () => (
-        <View style={styles.navTitleWrap}>
-          <Text style={[styles.navTitle, { color: colors.text }]}>Library</Text>
-          <Text style={[styles.navSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
-            {subtitle}
-          </Text>
-        </View>
-      ),
-      headerTitleAlign: "center",
-      headerRight: () => (
-        <CameraConnectionHeaderButton
-          key={`${cameraLinkState}-${isRefreshingCamera ? "1" : "0"}`}
-          linkState={cameraLinkState}
-          refreshing={isRefreshingCamera}
-          onPress={openConnectionSheet}
+      header: () => (
+        <TabScreenHeader
+          title="Library"
+          right={
+            <CameraConnectionHeaderButton
+              key={`${cameraLinkState}-${isRefreshingCamera ? "1" : "0"}`}
+              linkState={cameraLinkState}
+              refreshing={isRefreshingCamera}
+              onPress={openConnectionSheet}
+            />
+          }
         />
       ),
-      headerRightContainerStyle: {
-        paddingRight: Platform.OS === "ios" ? 4 : 8,
-      },
     });
-  }, [
-    navigation,
-    colors,
-    subtitle,
-    cameraLinkState,
-    isRefreshingCamera,
-    openConnectionSheet,
-  ]);
+  }, [navigation, cameraLinkState, isRefreshingCamera, openConnectionSheet]);
 
   const onDownload = useCallback(
     (file: RemoteFile) => {
@@ -520,66 +493,36 @@ export default function LibraryScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
-        {errorBanner ? (
-          <Pressable
-            onPress={() => setErrorDismissed(true)}
-            style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
-            accessibilityRole="button"
-            accessibilityLabel={`Error: ${errorBanner}. Dismiss.`}
-          >
-            <Text style={[styles.bannerText, { color: colors.danger }]} numberOfLines={2}>
-              {errorBanner}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        <View
-          style={[styles.catRow, { opacity: libraryInteractive ? 1 : 0.55 }]}
-          pointerEvents={libraryInteractive ? "auto" : "none"}
-          testID="camera-category-row"
+      {errorBanner ? (
+        <Pressable
+          onPress={() => setErrorDismissed(true)}
+          style={[
+            styles.banner,
+            {
+              marginHorizontal: spacing.lg,
+              marginTop: spacing.sm,
+              backgroundColor: colors.dangerSoft,
+              borderColor: colors.danger,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel={`Error: ${errorBanner}. Dismiss.`}
         >
-          {CATEGORY_CHIPS.map((chip) => {
-            const selected = category === chip.id;
-            const value = counts[chip.id];
-            const abbrev = formatCountAbbrev(value);
-            return (
-              <Pressable
-                key={chip.id}
-                onPress={() => setCategory(chip.id)}
-                disabled={!libraryInteractive}
-                accessibilityRole="button"
-                accessibilityState={{ selected, disabled: !libraryInteractive }}
-                accessibilityLabel={`${chip.label}, ${abbrev.a11y}`}
-                style={[
-                  styles.catCell,
-                  {
-                    borderColor: selected ? colors.brand : colors.border,
-                    backgroundColor: selected ? colors.brandSoft : colors.surface,
-                    borderRadius: radius.sm,
-                  },
-                ]}
-              >
-                <Text
-                  style={[styles.catChipLabel, { color: selected ? colors.brand : colors.text }]}
-                  numberOfLines={1}
-                >
-                  {chip.label}
-                </Text>
-                <Text
-                  style={[
-                    styles.catChipCount,
-                    { color: selected ? colors.brandStrong : colors.textMuted },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {abbrev.display}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
+          <Text style={[styles.bannerText, { color: colors.danger }]} numberOfLines={2}>
+            {errorBanner}
+          </Text>
+        </Pressable>
+      ) : null}
 
+      <LibraryCategoryTabs
+        selectedId={category}
+        counts={counts}
+        onSelect={setCategory}
+        disabled={!libraryInteractive}
+        testID="camera-category-row"
+      />
+
+      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
         <View style={[styles.toolbar, { opacity: libraryInteractive ? 1 : 0.55 }]}>
           <View
             style={[
@@ -880,13 +823,6 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  navTitleWrap: {
-    alignItems: Platform.OS === "ios" ? "center" : "flex-start",
-    marginTop: Platform.OS === "ios" ? -2 : 0,
-    paddingBottom: 6,
-  },
-  navTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  navSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 0 },
   headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   banner: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -895,24 +831,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
-  catRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    gap: 6,
-    minHeight: 50,
-  },
-  catCell: {
-    flex: 1,
-    minHeight: 48,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 4,
-    paddingVertical: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-  },
-  catChipLabel: { fontSize: 11, fontFamily: Type.fontSemi, textAlign: "center" },
-  catChipCount: { fontSize: 11, fontFamily: Type.monoMed, textAlign: "center" },
   toolbar: { flexDirection: "row", alignItems: "center", gap: 8 },
   searchWrap: {
     flex: 1,

@@ -16,12 +16,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { friendlyConnectionError } from "@/components/camera/cameraLibraryModel";
 import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
+import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   actionsForStatus,
   createQueueActionGate,
   filterVisibleQueueItems,
   formatCompactDateTime,
-  formatQueueSummary,
   formatSizeMb,
   isExpandedCard,
   QUEUE_ACTION_GAP,
@@ -106,8 +106,6 @@ export default function QueueScreen() {
     [queueItems],
   );
 
-  const summary = useMemo(() => formatQueueSummary(visibleItems), [visibleItems]);
-
   const hasQueueWork = useMemo(
     () =>
       visibleItems.some(
@@ -130,16 +128,9 @@ export default function QueueScreen() {
 
   useEffect(() => {
     navigation.setOptions({
-      headerTitle: () => (
-        <View style={styles.navTitleWrap}>
-          <Text style={[styles.navTitle, { color: colors.text }]}>Download queue</Text>
-          <Text style={[styles.navSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
-            {summary}
-          </Text>
-        </View>
-      ),
+      header: () => <TabScreenHeader title="Download queue" />,
     });
-  }, [navigation, summary, colors.text, colors.textMuted]);
+  }, [navigation]);
 
   useEffect(() => {
     const hasActive = visibleItems.some((i) => i.status === "active");
@@ -623,9 +614,6 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
-  navTitleWrap: { alignItems: Platform.OS === "ios" ? "center" : "flex-start" },
-  navTitle: { fontSize: 17, fontFamily: Type.fontBold },
-  navSubtitle: { fontSize: 11, fontFamily: Type.font, marginTop: 1 },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
   card: { overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },

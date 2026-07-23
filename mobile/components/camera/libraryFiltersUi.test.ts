@@ -50,13 +50,17 @@ const sample: readonly RemoteFile[] = [
   }),
 ];
 
-test("five category cells use equal flex without horizontal ScrollView", () => {
+test("five category cells use shared LibraryCategoryTabs without horizontal ScrollView", () => {
   const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
+  const cats = readFileSync(join(__dirname, "../library/LibraryCategoryTabs.tsx"), "utf8");
   assert.match(index, /testID="camera-category-row"/);
-  assert.match(index, /styles\.catRow/);
-  assert.match(index, /flex:\s*1/);
-  assert.equal(index.includes("horizontal\n          showsHorizontalScrollIndicator={false}\n          style={{ maxHeight: 40"), false);
-  assert.match(index, /formatCountAbbrev/);
+  assert.match(index, /LibraryCategoryTabs/);
+  assert.match(cats, /LIBRARY_CATEGORY_GAP/);
+  assert.match(cats, /formatCountAbbrev/);
+  assert.equal(
+    index.includes("horizontal\n          showsHorizontalScrollIndicator={false}\n          style={{ maxHeight: 40"),
+    false,
+  );
 });
 
 test("large counts abbreviate visually and keep full a11y value", () => {
