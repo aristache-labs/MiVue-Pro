@@ -87,10 +87,12 @@ describe("ScreenToast + camera settings toast placement", () => {
     assert.match(cameraSrc, /setToast\(undefined\)/);
   });
 
-  it("Camera clock row is always shown and read-only", () => {
-    assert.match(cameraSrc, /title="Camera clock"/);
+  it("Camera clock strip is always shown and read-only", () => {
+    assert.match(cameraSrc, /Camera clock/);
     assert.match(cameraSrc, /cameraClockDisplay/);
+    assert.match(cameraSrc, /\{clockValue\}/);
     assert.doesNotMatch(cameraSrc, /clockValue \?/);
     assert.doesNotMatch(cameraSrc, /Sync now/);
+    assert.doesNotMatch(cameraSrc, /title="Camera clock"/);
   });
 });

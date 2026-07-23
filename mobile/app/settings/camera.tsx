@@ -1,3 +1,4 @@
+import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -36,11 +37,9 @@ import {
   SettingsSection,
   SettingsStatusBadge,
   SettingsValueRow,
-  cameraStatusTitle,
   connectionHubKind,
   connectionStatusLabel,
   formatLastConnected,
-  lastConnectedSummaryLine,
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -102,16 +101,20 @@ export default function SettingsCameraScreen() {
   const statusLabel = connectionStatusLabel(cameraLinkState);
   const kind = connectionHubKind(cameraLinkState);
   const modelName = selectedProfile?.displayName ?? cameraModel;
-  const statusTitle = cameraStatusTitle(cameraConfigured, modelName);
   const modelRowValue = modelName?.trim()
     ? modelName
     : cameraConfigured
       ? "—"
       : "No camera configured";
   const lastConnectedValue = formatLastConnected(lastConnectedAt);
-  const lastConnectedLine = lastConnectedSummaryLine(lastConnectedAt);
   const connected = cameraLinkState === "connected" && !demoMode;
   const clockValue = cameraClockDisplay(cameraProperties);
+  const statusA11yLabel = [
+    `Camera ${modelRowValue}`,
+    statusLabel,
+    `Last connected ${lastConnectedValue}`,
+    `Camera clock ${clockValue}`,
+  ].join(". ");
   const softwareLoading = refreshPending || isRefreshingCamera;
   const softwareFields = useMemo(
     () =>
@@ -320,36 +323,70 @@ export default function SettingsCameraScreen() {
         }}
       >
         <SettingsSection title="Status" style={styles.section}>
-          <View style={styles.statusBlock}>
-            <SettingsStatusBadge kind={kind} label={statusLabel} />
-            <Text style={[styles.statusMeta, { color: colors.text }]} numberOfLines={1}>
-              {statusTitle}
-            </Text>
-            <Text
-              style={[styles.statusMetaMuted, styles.tabular, { color: colors.textMuted }]}
-              numberOfLines={1}
-            >
-              {cameraHost}
-            </Text>
-            {lastConnectedLine ? (
-              <Text
-                style={[styles.statusMetaMuted, styles.tabular, { color: colors.textMuted }]}
-                numberOfLines={1}
+          <View
+            style={styles.statusCard}
+            accessibilityRole="summary"
+            accessibilityLabel={statusA11yLabel}
+          >
+            <View style={styles.statusMain}>
+              <View
+                style={[styles.statusIconWrap, { backgroundColor: colors.brandSoft }]}
+                accessibilityElementsHidden
+                importantForAccessibility="no-hide-descendants"
               >
-                {lastConnectedLine}
+                <Ionicons name="videocam" size={18} color={colors.brand} />
+              </View>
+              <View style={styles.statusTextCol}>
+                <Text
+                  style={[styles.statusModel, { color: colors.text }]}
+                  numberOfLines={2}
+                  maxFontSizeMultiplier={1.35}
+                >
+                  {modelRowValue}
+                </Text>
+                <Text
+                  style={[styles.statusLastConnected, { color: colors.textMuted }]}
+                  numberOfLines={1}
+                  maxFontSizeMultiplier={1.3}
+                >
+                  {`Last connected · ${lastConnectedValue}`}
+                </Text>
+              </View>
+              <View style={styles.statusBadgeWrap}>
+                <SettingsStatusBadge kind={kind} label={statusLabel} />
+              </View>
+            </View>
+            <View
+              style={[
+                styles.clockStrip,
+                {
+                  backgroundColor: colors.surfaceMuted,
+                  borderTopColor: colors.borderSoft,
+                },
+              ]}
+              accessibilityRole="text"
+              accessibilityLabel={`Camera clock ${clockValue}`}
+            >
+              <Ionicons name="alarm-outline" size={16} color={colors.textMuted} />
+              <Text
+                style={[styles.clockLabel, { color: colors.textMuted }]}
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.3}
+              >
+                Camera clock
               </Text>
-            ) : null}
+              <Text
+                style={[styles.clockValue, { color: colors.text }]}
+                numberOfLines={1}
+                maxFontSizeMultiplier={1.3}
+              >
+                {clockValue}
+              </Text>
+            </View>
           </View>
         </SettingsSection>
 
         <SettingsSection title="Camera information" style={styles.section}>
-          <SettingsValueRow icon="wifi" title="Connection status" value={statusLabel} compact />
-          <SettingsValueRow
-            icon="videocam-outline"
-            title="Camera model"
-            value={modelRowValue}
-            compact
-          />
           <SettingsActionRow
             icon="globe-outline"
             title="Camera IP"
@@ -391,18 +428,6 @@ export default function SettingsCameraScreen() {
             accessibilityLabel="Voice package"
             accessibilityHint={softwareFields.voicePackage.accessibilityHint}
           />
-          <SettingsValueRow
-            icon="time-outline"
-            title="Last connected"
-            value={lastConnectedValue}
-            compact
-          />
-          <SettingsValueRow
-            icon="alarm-outline"
-            title="Camera clock"
-            value={clockValue}
-            compact
-          />
           {cameraProperties["Camera.Menu.VideoRes"] ? (
             <SettingsValueRow
               icon="film-outline"
@@ -411,12 +436,6 @@ export default function SettingsCameraScreen() {
               compact
             />
           ) : null}
-          <SettingsValueRow
-            icon="checkmark-circle-outline"
-            title="Compatibility"
-            subtitle="Verified with Mio MiVue 866"
-            compact
-          />
         </SettingsSection>
 
         <SettingsSection title="Camera settings" style={styles.section}>
@@ -566,10 +585,70 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   section: { marginBottom: 10 },
   sectionLast: { marginBottom: 0 },
-  statusBlock: { paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
-  statusMeta: { fontSize: 15, fontFamily: Type.fontSemi, marginTop: 2 },
-  statusMetaMuted: { fontSize: 12, fontFamily: Type.font },
-  tabular: { fontFamily: Type.mono, fontVariant: ["tabular-nums"] },
+  statusCard: {
+    overflow: "hidden",
+  },
+  statusMain: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    minHeight: 44,
+  },
+  statusIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  statusTextCol: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    gap: 2,
+  },
+  statusModel: {
+    fontSize: 16,
+    lineHeight: 20,
+    fontFamily: Type.fontSemi,
+  },
+  statusLastConnected: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: Type.font,
+  },
+  statusBadgeWrap: {
+    flexShrink: 0,
+    alignSelf: "center",
+  },
+  clockStrip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    minHeight: 40,
+  },
+  clockLabel: {
+    flexShrink: 1,
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: Type.font,
+  },
+  clockValue: {
+    flex: 1,
+    flexShrink: 1,
+    minWidth: 0,
+    textAlign: "right",
+    fontSize: 12,
+    lineHeight: 16,
+    fontFamily: Type.mono,
+    fontVariant: ["tabular-nums"],
+  },
   placeholder: { paddingHorizontal: 14, paddingVertical: 14, gap: 6 },
   placeholderTitle: { fontFamily: Type.fontSemi, fontSize: 15 },
   placeholderBody: { fontFamily: Type.font, fontSize: 13, lineHeight: 18 },

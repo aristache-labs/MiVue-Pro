@@ -30,13 +30,48 @@ const iosModule = readFileSync(
 );
 
 describe("Camera & Connection software info UI wiring", () => {
-  it("renders the four new information rows in recommended order", () => {
-    const wifi = cameraPageSrc.indexOf('title="Camera Wi‑Fi"');
-    const firmware = cameraPageSrc.indexOf('title="Firmware"');
-    const safety = cameraPageSrc.indexOf('title="Safety camera data"');
-    const voice = cameraPageSrc.indexOf('title="Voice package"');
-    const last = cameraPageSrc.indexOf('title="Last connected"');
-    assert.ok(wifi > 0 && firmware > wifi && safety > firmware && voice > safety && last > voice);
+  it("renders Camera information rows in recommended order without Status duplicates", () => {
+    const infoStart = cameraPageSrc.indexOf('title="Camera information"');
+    const infoEnd = cameraPageSrc.indexOf('title="Camera settings"');
+    assert.ok(infoStart > 0 && infoEnd > infoStart);
+    const infoBlock = cameraPageSrc.slice(infoStart, infoEnd);
+
+    const ip = infoBlock.indexOf('title="Camera IP"');
+    const wifi = infoBlock.indexOf('title="Camera Wi‑Fi"');
+    const firmware = infoBlock.indexOf('title="Firmware"');
+    const safety = infoBlock.indexOf('title="Safety camera data"');
+    const voice = infoBlock.indexOf('title="Voice package"');
+    assert.ok(ip > 0 && wifi > ip && firmware > wifi && safety > firmware && voice > safety);
+
+    assert.doesNotMatch(infoBlock, /title="Connection status"/);
+    assert.doesNotMatch(infoBlock, /title="Camera model"/);
+    assert.doesNotMatch(infoBlock, /title="Last connected"/);
+    assert.doesNotMatch(infoBlock, /title="Camera clock"/);
+    assert.doesNotMatch(infoBlock, /title="Compatibility"/);
+  });
+
+  it("Status card shows model, last connected, clock badge — without Camera IP", () => {
+    const statusStart = cameraPageSrc.indexOf('title="Status"');
+    const statusEnd = cameraPageSrc.indexOf('title="Camera information"');
+    assert.ok(statusStart > 0 && statusEnd > statusStart);
+    const statusBlock = cameraPageSrc.slice(statusStart, statusEnd);
+
+    assert.match(statusBlock, /SettingsStatusBadge/);
+    assert.match(statusBlock, /modelRowValue/);
+    assert.match(statusBlock, /Last connected · \$\{lastConnectedValue\}/);
+    assert.match(statusBlock, /Camera clock/);
+    assert.match(statusBlock, /clockValue/);
+    assert.doesNotMatch(statusBlock, /title="Camera IP"/);
+    assert.doesNotMatch(statusBlock, /\{cameraHost\}/);
+  });
+
+  it("Camera IP stays interactive in Camera information", () => {
+    const infoStart = cameraPageSrc.indexOf('title="Camera information"');
+    const infoEnd = cameraPageSrc.indexOf('title="Camera settings"');
+    const infoBlock = cameraPageSrc.slice(infoStart, infoEnd);
+    assert.match(infoBlock, /title="Camera IP"/);
+    assert.match(infoBlock, /setIpSheetOpen\(true\)/);
+    assert.match(cameraPageSrc, /<CameraIpSheet/);
   });
 
   it("places Camera updates before Actions", () => {

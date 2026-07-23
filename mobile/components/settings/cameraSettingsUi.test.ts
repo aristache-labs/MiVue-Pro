@@ -80,6 +80,7 @@ describe("camera settings UI contracts", () => {
 
   it("Camera clock stays read-only and unrelated screens do not mutate", () => {
     assert.match(cameraSrc, /Camera clock/);
+    assert.match(cameraSrc, /cameraClockDisplay/);
     assert.doesNotMatch(cameraSrc, /Sync now/);
     assert.doesNotMatch(indexSrc, /setCameraSetting/);
     assert.doesNotMatch(queueSrc, /setCameraSetting/);
