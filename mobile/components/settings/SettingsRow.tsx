@@ -167,7 +167,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: Type.mono,
     fontVariant: ["tabular-nums"],
-    maxWidth: 168,
+    maxWidth: 180,
     flexShrink: 0,
     textAlign: "right",
   },

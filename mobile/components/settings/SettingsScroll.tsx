@@ -14,10 +14,15 @@ export function SettingsScroll({
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: colors.bg }}
+      alwaysBounceVertical={false}
+      bounces={false}
+      overScrollMode="never"
+      showsVerticalScrollIndicator={false}
       contentContainerStyle={[
         {
           padding: spacing.lg,
           paddingBottom: Math.max(insets.bottom, 24) + 72,
+          flexGrow: 1,
         },
         contentContainerStyle,
       ]}

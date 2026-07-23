@@ -34,3 +34,14 @@ export {
 } from "./cameraIp";
 export { CameraIpSheet } from "./CameraIpSheet";
 export { SettingsChromeHeader } from "./SettingsChromeHeader";
+export {
+  aggregateStorageBreakdown,
+  formatStorageStatLine,
+  storageBreakdownRows,
+} from "./storageBreakdown";
+export type {
+  StorageBreakdown,
+  StorageBucket,
+  StorageSizedItem,
+  StorageStatRow,
+} from "./storageBreakdown";
