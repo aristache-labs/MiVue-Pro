@@ -62,6 +62,13 @@ import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
+import {
+  listBounceEnabled,
+  listContentBottomPadding,
+  listOverScrollMode,
+  listScrollEnabled,
+  useVerticalOverflow,
+} from "@/hooks/useVerticalOverflow";
 import type { FileCategory } from "@/packages/parsers/src/index";
 
 /** Compact sticky delete strip under the nav header (wide, not tall). */
@@ -117,7 +124,9 @@ export default function LocalLibraryScreen() {
   }, [showDeleteBar, reduceMotion, deleteBarAnim]);
 
   const selectionBarH = 0;
-  const listBottomPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight);
+  const canPullToRefresh = true;
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
+  const listFilledPad = Math.max(LOCAL_LIBRARY_LIST_BOTTOM_PADDING, 24 + tabBarHeight);
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -417,6 +426,11 @@ export default function LocalLibraryScreen() {
 
   const emptyLibrary = localFiles.length === 0;
   const emptyFiltered = !emptyLibrary && filteredFiles.length === 0;
+  const listPadBottom = listContentBottomPadding(
+    filteredFiles.length,
+    listFilledPad,
+    Math.max(spacing.lg, 12),
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -556,14 +570,22 @@ export default function LocalLibraryScreen() {
       </Animated.View>
 
       <SectionList
+        style={styles.list}
         sections={sections}
         keyExtractor={(item) => item.uri}
         stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
         extraData={{ selecting, selectedSize: selected.size }}
+        scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
+        alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
+        bounces={listBounceEnabled(canPullToRefresh)}
+        overScrollMode={listOverScrollMode(canPullToRefresh)}
+        showsVerticalScrollIndicator={hasOverflow}
+        onLayout={onViewportLayout}
+        onContentSizeChange={onContentSizeChange}
         contentContainerStyle={{
           paddingHorizontal: spacing.lg,
           paddingTop: spacing.sm,
-          paddingBottom: listBottomPad,
+          paddingBottom: listPadBottom,
           flexGrow: 1,
         }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
@@ -735,6 +757,7 @@ export default function LocalLibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  list: { flex: 1 },
   demoRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 8 },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4, marginBottom: 4 },
   status: { fontSize: 12, fontFamily: Type.font, marginBottom: 4 },

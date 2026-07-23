@@ -55,6 +55,13 @@ import {
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import {
+  listBounceEnabled,
+  listContentBottomPadding,
+  listOverScrollMode,
+  listScrollEnabled,
+  useVerticalOverflow,
+} from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
 const CATEGORY_CHIPS: readonly { id: CategoryFilter; label: string }[] = [
@@ -185,6 +192,14 @@ export default function LibraryScreen() {
     files.length,
   );
   const libraryInteractive = isCameraLibraryInteractive(cameraLinkState, files.length);
+  const canPullToRefresh = cameraLinkState === "connected";
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
+  const listFilledPad = Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING);
+  const listPadBottom = listContentBottomPadding(
+    filtered.length,
+    listFilledPad,
+    Math.max(spacing.lg, 12),
+  );
 
   const openConnectionSheet = useCallback(() => {
     if (cameraLinkState === "connecting" || isRefreshingCamera) return;
@@ -514,8 +529,15 @@ export default function LibraryScreen() {
           sections={sections.map((s) => ({ ...s, data: [...s.data] }))}
           keyExtractor={(item) => item.path}
           stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
+          scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
+          alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
+          bounces={listBounceEnabled(canPullToRefresh)}
+          overScrollMode={listOverScrollMode(canPullToRefresh)}
+          showsVerticalScrollIndicator={hasOverflow}
+          onLayout={onViewportLayout}
+          onContentSizeChange={onContentSizeChange}
           refreshControl={
-            cameraLinkState === "connected" ? (
+            canPullToRefresh ? (
               <RefreshControl
                 refreshing={isRefreshingCamera}
                 onRefresh={() => void runRefresh()}
@@ -525,8 +547,9 @@ export default function LibraryScreen() {
           }
           contentContainerStyle={{
             paddingHorizontal: spacing.lg,
-            paddingBottom: Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING),
+            paddingBottom: listPadBottom,
             paddingTop: spacing.sm,
+            flexGrow: 1,
           }}
           ListEmptyComponent={listEmpty}
           renderSectionHeader={({ section }) => (

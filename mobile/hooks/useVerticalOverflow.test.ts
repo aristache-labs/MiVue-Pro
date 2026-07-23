@@ -6,6 +6,10 @@ import { join } from "node:path";
 import {
   VERTICAL_OVERFLOW_TOLERANCE_PX,
   computeVerticalOverflow,
+  listBounceEnabled,
+  listContentBottomPadding,
+  listOverScrollMode,
+  listScrollEnabled,
 } from "./useVerticalOverflow";
 
 describe("computeVerticalOverflow", () => {
@@ -38,17 +42,53 @@ describe("computeVerticalOverflow", () => {
   });
 });
 
-describe("overflow scroll wiring", () => {
+describe("list scroll helpers", () => {
+  it("Library: overflow → scroll on; short + connected → pull refresh keeps scroll; short + disconnected → off", () => {
+    assert.equal(listScrollEnabled(true, false), true);
+    assert.equal(listScrollEnabled(true, true), true);
+    assert.equal(listScrollEnabled(false, true), true);
+    assert.equal(listScrollEnabled(false, false), false);
+    assert.equal(listBounceEnabled(true), true);
+    assert.equal(listBounceEnabled(false), false);
+    assert.equal(listOverScrollMode(true), "always");
+    assert.equal(listOverScrollMode(false), "never");
+  });
+
+  it("Local: short content still enables pull-to-refresh scroll/bounce", () => {
+    const canPullToRefresh = true;
+    assert.equal(listScrollEnabled(false, canPullToRefresh), true);
+    assert.equal(listBounceEnabled(canPullToRefresh), true);
+  });
+
+  it("Queue: short → no scroll/bounce; long → scroll", () => {
+    assert.equal(listScrollEnabled(false, false), false);
+    assert.equal(listScrollEnabled(true, false), true);
+    assert.equal(listBounceEnabled(false), false);
+    assert.equal(listOverScrollMode(false), "never");
+  });
+
+  it("empty-state padding does not use the filled tab-clearance pad", () => {
+    const filled = 96;
+    const empty = 16;
+    assert.equal(listContentBottomPadding(0, filled, empty), empty);
+    assert.equal(listContentBottomPadding(3, filled, empty), filled);
+  });
+});
+
+describe("overflow scroll wiring — filters/player", () => {
   const camera = readFileSync(
     join(__dirname, "../components/camera/CameraFilterSheet.tsx"),
     "utf8",
   );
-  const local = readFileSync(join(__dirname, "../components/local/LocalFilterSheet.tsx"), "utf8");
+  const localFilter = readFileSync(
+    join(__dirname, "../components/local/LocalFilterSheet.tsx"),
+    "utf8",
+  );
   const player = readFileSync(join(__dirname, "../app/player.tsx"), "utf8");
 
   for (const [label, src] of [
     ["CameraFilterSheet", camera],
-    ["LocalFilterSheet", local],
+    ["LocalFilterSheet", localFilter],
     ["Player", player],
   ] as const) {
     it(`${label} uses hasOverflow and disables bounce/overscroll`, () => {
@@ -71,7 +111,55 @@ describe("overflow scroll wiring", () => {
   it("Filter sheets gate scroll and indicator on hasOverflow only", () => {
     assert.match(camera, /scrollEnabled=\{hasOverflow\}/);
     assert.match(camera, /showsVerticalScrollIndicator=\{hasOverflow\}/);
-    assert.match(local, /scrollEnabled=\{hasOverflow\}/);
-    assert.match(local, /showsVerticalScrollIndicator=\{hasOverflow\}/);
+    assert.match(localFilter, /scrollEnabled=\{hasOverflow\}/);
+    assert.match(localFilter, /showsVerticalScrollIndicator=\{hasOverflow\}/);
+  });
+});
+
+describe("tab list overflow wiring", () => {
+  const library = readFileSync(join(__dirname, "../app/(tabs)/index.tsx"), "utf8");
+  const local = readFileSync(join(__dirname, "../app/(tabs)/local.tsx"), "utf8");
+  const queue = readFileSync(join(__dirname, "../app/(tabs)/two.tsx"), "utf8");
+
+  it("Library: overflow scroll, connected pull-refresh, disconnected no scroll, RefreshControl → runRefresh", () => {
+    assert.match(library, /useVerticalOverflow/);
+    assert.match(library, /canPullToRefresh = cameraLinkState === "connected"/);
+    assert.match(library, /scrollEnabled=\{listScrollEnabled\(hasOverflow, canPullToRefresh\)\}/);
+    assert.match(library, /alwaysBounceVertical=\{listBounceEnabled\(canPullToRefresh\)\}/);
+    assert.match(library, /bounces=\{listBounceEnabled\(canPullToRefresh\)\}/);
+    assert.match(library, /overScrollMode=\{listOverScrollMode\(canPullToRefresh\)\}/);
+    assert.match(library, /onLayout=\{onViewportLayout\}/);
+    assert.match(library, /onContentSizeChange=\{onContentSizeChange\}/);
+    assert.match(library, /RefreshControl/);
+    assert.match(library, /onRefresh=\{\(\) => void runRefresh\(\)\}/);
+    assert.match(library, /listContentBottomPadding/);
+    assert.match(library, /flexGrow:\s*1/);
+  });
+
+  it("Local: overflow or pull-refresh; RefreshControl → runRefresh", () => {
+    assert.match(local, /useVerticalOverflow/);
+    assert.match(local, /canPullToRefresh = true/);
+    assert.match(local, /scrollEnabled=\{listScrollEnabled\(hasOverflow, canPullToRefresh\)\}/);
+    assert.match(local, /alwaysBounceVertical=\{listBounceEnabled\(canPullToRefresh\)\}/);
+    assert.match(local, /bounces=\{listBounceEnabled\(canPullToRefresh\)\}/);
+    assert.match(local, /RefreshControl/);
+    assert.match(local, /onRefresh=\{\(\) => void runRefresh\(\)\}/);
+    assert.match(local, /listContentBottomPadding/);
+    assert.match(local, /flexGrow:\s*1/);
+  });
+
+  it("Queue: overflow-only scroll, no RefreshControl, expands recalculate via onContentSizeChange", () => {
+    assert.match(queue, /useVerticalOverflow/);
+    assert.match(queue, /scrollEnabled=\{hasOverflow\}/);
+    assert.match(queue, /alwaysBounceVertical=\{false\}/);
+    assert.match(queue, /bounces=\{false\}/);
+    assert.match(queue, /overScrollMode="never"/);
+    assert.match(queue, /showsVerticalScrollIndicator=\{hasOverflow\}/);
+    assert.match(queue, /onLayout=\{onViewportLayout\}/);
+    assert.match(queue, /onContentSizeChange=\{onContentSizeChange\}/);
+    assert.doesNotMatch(queue, /RefreshControl/);
+    assert.match(queue, /listContentBottomPadding/);
+    assert.match(queue, /flexGrow:\s*1/);
+    assert.match(queue, /isExpandedCard/);
   });
 });

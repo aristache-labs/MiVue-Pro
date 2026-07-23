@@ -41,6 +41,10 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { QueueThumbnail } from "@/components/QueueThumbnail";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import {
+  listContentBottomPadding,
+  useVerticalOverflow,
+} from "@/hooks/useVerticalOverflow";
 import type { QueueItem } from "@/packages/local-db/src/index";
 
 function kindFromName(name: string): "video" | "image" | "other" {
@@ -150,7 +154,13 @@ export default function QueueScreen() {
     }
   }, [queueItems]);
 
-  const listBottomPad = Math.max(QUEUE_LIST_BOTTOM_PADDING, 64 + insets.bottom);
+  const listFilledPad = Math.max(QUEUE_LIST_BOTTOM_PADDING, 64 + insets.bottom);
+  const listPadBottom = listContentBottomPadding(
+    visibleItems.length,
+    listFilledPad,
+    Math.max(insets.bottom, spacing.lg),
+  );
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
   const durationByName = useMemo(() => {
     const map = new Map<string, number>();
@@ -304,9 +314,21 @@ export default function QueueScreen() {
       ) : null}
 
       <FlatList
+        style={styles.list}
         data={visibleItems}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingTop: spacing.sm, paddingBottom: listBottomPad }}
+        scrollEnabled={hasOverflow}
+        alwaysBounceVertical={false}
+        bounces={false}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={hasOverflow}
+        onLayout={onViewportLayout}
+        onContentSizeChange={onContentSizeChange}
+        contentContainerStyle={{
+          paddingTop: spacing.sm,
+          paddingBottom: listPadBottom,
+          flexGrow: 1,
+        }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
           <EmptyState
@@ -544,6 +566,7 @@ export default function QueueScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  list: { flex: 1 },
   demoRow: { flexDirection: "row", justifyContent: "flex-end" },
   banner: {
     borderWidth: StyleSheet.hairlineWidth,

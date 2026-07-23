@@ -18,8 +18,32 @@ export function computeVerticalOverflow(
   return contentHeight > viewportHeight + tolerance;
 }
 
+/** Library/Local: overflow or pull-to-refresh must keep scrollEnabled true for RefreshControl. */
+export function listScrollEnabled(hasOverflow: boolean, canPullToRefresh: boolean): boolean {
+  return hasOverflow || canPullToRefresh;
+}
+
+export function listBounceEnabled(canPullToRefresh: boolean): boolean {
+  return canPullToRefresh;
+}
+
+export function listOverScrollMode(canPullToRefresh: boolean): "always" | "never" {
+  return canPullToRefresh ? "always" : "never";
+}
+
 /**
- * Measures a ScrollView viewport vs content and reports whether vertical scroll is needed.
+ * Avoid false overflow from empty-state bottom padding while keeping tab clearance when items exist.
+ */
+export function listContentBottomPadding(
+  itemCount: number,
+  filledPad: number,
+  emptyPad: number,
+): number {
+  return itemCount > 0 ? filledPad : emptyPad;
+}
+
+/**
+ * Measures a ScrollView / list viewport vs content and reports whether vertical scroll is needed.
  */
 export function useVerticalOverflow(
   tolerance: number = VERTICAL_OVERFLOW_TOLERANCE_PX,
