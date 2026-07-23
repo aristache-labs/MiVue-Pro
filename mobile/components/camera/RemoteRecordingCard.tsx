@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback } from "react";
-import { StyleSheet, View } from "react-native";
+import { Pressable, StyleSheet, View } from "react-native";
 
 import { CompactDownloadAction } from "@/components/camera/CompactDownloadAction";
 import { CameraThumb } from "@/components/camera/CameraThumb";
@@ -23,6 +23,11 @@ interface RemoteRecordingCardProps {
   readonly file: RemoteFile;
   readonly downloadState: RemoteDownloadUiState;
   readonly thumbActive?: boolean;
+  readonly selecting?: boolean;
+  readonly selected?: boolean;
+  readonly onToggleSelect?: (path: string) => void;
+  /** Long-press in normal mode enters selection with this file. */
+  readonly onLongPressSelect?: (path: string) => void;
   readonly onDownload: (file: RemoteFile) => void;
   readonly onOpenDownloaded?: (file: RemoteFile) => void;
   readonly onOpenDetail?: (file: RemoteFile) => void;
@@ -34,6 +39,10 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   file,
   downloadState,
   thumbActive = true,
+  selecting = false,
+  selected = false,
+  onToggleSelect,
+  onLongPressSelect,
   onDownload,
   onOpenDownloaded,
   onOpenDetail,
@@ -49,15 +58,27 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       : undefined;
   const isDownloaded = downloadState.kind === "downloaded";
 
+  const toggle = useCallback(() => {
+    onToggleSelect?.(file.path);
+  }, [file.path, onToggleSelect]);
+
   const openBody = useCallback(() => {
+    if (selecting) {
+      toggle();
+      return;
+    }
     if (isDownloaded && onOpenDownloaded) {
       onOpenDownloaded(file);
       return;
     }
     onOpenDetail?.(file);
-  }, [file, isDownloaded, onOpenDownloaded, onOpenDetail]);
+  }, [selecting, toggle, file, isDownloaded, onOpenDownloaded, onOpenDetail]);
 
   const onAction = useCallback(() => {
+    if (selecting) {
+      toggle();
+      return;
+    }
     if (downloadState.kind === "downloaded") {
       onOpenDownloaded?.(file);
       return;
@@ -69,9 +90,9 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
     if (shouldEnqueueOnDownloadPress(downloadState)) {
       onDownload(file);
     }
-  }, [downloadState, file, onDownload, onOpenDownloaded, onResume]);
+  }, [selecting, toggle, downloadState, file, onDownload, onOpenDownloaded, onResume]);
 
-  return (
+  const card = (
     <MediaCard
       source="camera"
       title={displayMediaName(file.name)}
@@ -80,9 +101,16 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       categoryLabel={CATEGORY_LABEL[file.category]}
       categoryAccent={catAccent}
       durationLabel={duration}
+      selected={selected}
       onThumbPress={openBody}
       thumbAccessibilityLabel={
-        isDownloaded ? `Play ${file.name}` : `Details for ${file.name}`
+        selecting
+          ? selected
+            ? `Deselect ${file.name}`
+            : `Select ${file.name}`
+          : isDownloaded
+            ? `Play ${file.name}`
+            : `Details for ${file.name}`
       }
       onBodyPress={openBody}
       bodyAccessibilityLabel={`${file.name}, ${CATEGORY_LABEL[file.category]}${when ? `, ${when}` : ""}`}
@@ -96,7 +124,28 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         />
       }
       thumbnailOverlay={
-        isDownloaded ? (
+        selecting ? (
+          <View pointerEvents="none" style={styles.selectMarkHit}>
+            <View
+              style={[
+                styles.selectMark,
+                selected
+                  ? { backgroundColor: colors.brand, borderColor: colors.brand }
+                  : {
+                      backgroundColor: "transparent",
+                      borderColor: "rgba(255,255,255,0.95)",
+                      shadowColor: "#000",
+                      shadowOpacity: 0.55,
+                      shadowRadius: 1.5,
+                      shadowOffset: { width: 0, height: 0 },
+                      elevation: 2,
+                    },
+              ]}
+            >
+              {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
+            </View>
+          </View>
+        ) : isDownloaded ? (
           <>
             <View
               pointerEvents="none"
@@ -121,13 +170,38 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         ) : null
       }
       actions={
-        <CompactDownloadAction
-          fileName={file.name}
-          state={downloadState}
-          onPress={onAction}
-        />
+        !selecting ? (
+          <CompactDownloadAction
+            fileName={file.name}
+            state={downloadState}
+            onPress={onAction}
+          />
+        ) : undefined
       }
     />
+  );
+
+  if (selecting) {
+    return (
+      <Pressable
+        onPress={toggle}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: selected }}
+        accessibilityLabel={selected ? `Deselect ${file.name}` : `Select ${file.name}`}
+      >
+        {card}
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onLongPress={() => onLongPressSelect?.(file.path)}
+      delayLongPress={450}
+      accessibilityRole="none"
+    >
+      {card}
+    </Pressable>
   );
 });
 
@@ -147,6 +221,23 @@ const styles = StyleSheet.create({
     height: 34,
     borderRadius: 17,
     borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectMarkHit: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectMark: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    borderWidth: 2,
     alignItems: "center",
     justifyContent: "center",
   },

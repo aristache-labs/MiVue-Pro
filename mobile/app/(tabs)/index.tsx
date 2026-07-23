@@ -4,6 +4,8 @@ import { router, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
+  ActivityIndicator,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -54,15 +56,25 @@ import {
   resolveRemoteDownloadState,
   shouldEnqueueOnDownloadPress,
 } from "@/components/camera/remoteDownloadState";
-import { LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
-import { SheetCloseButton } from "@/components/media/SheetCloseButton";
-import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
-import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
-import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
+import { LOCAL_ACTION_HIT, LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
+import { selectAllFilteredA11yLabel } from "@/components/local/localCopy";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
 import { LibraryListControls } from "@/components/library/LibraryListControls";
+import {
+  classifyLibrarySelection,
+  libraryCancelActionLabel,
+  libraryCancelConfirmMessage,
+  libraryCancelConfirmTitle,
+  libraryDownloadActionLabel,
+  librarySelectionTitle,
+  pruneSelectionToPaths,
+} from "@/components/library/librarySelection";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
+import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -79,6 +91,9 @@ import {
 } from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
+/** Compact bottom action bar while Library selection has items. */
+const LIBRARY_SELECTION_BAR_H = 52;
+const LIBRARY_SELECTION_BAR_GAP = 10;
 function SkeletonRow() {
   const { colors, radius } = useAppTheme();
   return (
@@ -107,6 +122,7 @@ export default function LibraryScreen() {
     queueItems,
     localFiles,
     enqueueDownload,
+    cancelDownload,
     resumeDownload,
     retryDownload,
     refreshFiles,
@@ -127,6 +143,10 @@ export default function LibraryScreen() {
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
   const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
+  const [batchBusy, setBatchBusy] = useState(false);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
   const queuedNames = useMemo(() => {
@@ -179,6 +199,29 @@ export default function LibraryScreen() {
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
   const listRows = useMemo(() => buildCameraLibraryFileRows(sections), [sections]);
+  const filteredPaths = useMemo(() => filtered.map((f) => f.path), [filtered]);
+
+  useEffect(() => {
+    setSelected((prev) => pruneSelectionToPaths(prev, filteredPaths));
+  }, [filteredPaths]);
+
+  const selectedFiles = useMemo(
+    () => filtered.filter((f) => selected.has(f.path)),
+    [filtered, selected],
+  );
+
+  const selectionBreakdown = useMemo(
+    () =>
+      classifyLibrarySelection({
+        selectedFiles,
+        queueItems,
+        localNames,
+        queuePosition,
+      }),
+    [selectedFiles, queueItems, localNames, queuePosition],
+  );
+
+  const showSelectionBar = selecting && selected.size > 0;
   const [activeThumbnailPaths, setActiveThumbnailPaths] = useState(() => new Set<string>());
   const [stickySectionKey, setStickySectionKey] = useState<string | null>(null);
   const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
@@ -236,6 +279,7 @@ export default function LibraryScreen() {
     !filterOpen &&
     !sortOpen &&
     !connectionSheetOpen &&
+    !selecting &&
     detailFile === null &&
     filtered.length > 0;
 
@@ -252,10 +296,13 @@ export default function LibraryScreen() {
     itemCount: filtered.length,
   });
 
+  const listPadBottomBaseWithBar =
+    listPadBottomBase + (showSelectionBar ? LIBRARY_SELECTION_BAR_H + LIBRARY_SELECTION_BAR_GAP : 0);
+
   const listPadBottom = backToTopListBottomPadding(
     filtered.length,
     hasOverflow,
-    listPadBottomBase,
+    listPadBottomBaseWithBar,
   );
 
   const handleListLayout = useCallback(
@@ -285,12 +332,52 @@ export default function LibraryScreen() {
     setSortOpen(false);
     setFilters(EMPTY_CAMERA_FILTERS);
     setCategory("all");
+    setSelecting(false);
+    setSelected(new Set());
+    setCancelConfirmOpen(false);
   }, [cameraLinkState]);
 
+  const exitSelection = useCallback(() => {
+    setSelecting(false);
+    setSelected(new Set());
+    setCancelConfirmOpen(false);
+  }, []);
+
+  const toggleSelect = useCallback((path: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) next.delete(path);
+      else next.add(path);
+      void AccessibilityInfo.announceForAccessibility(`${next.size} selected`);
+      return next;
+    });
+  }, []);
+
+  const enterSelectionWith = useCallback((path: string) => {
+    setSelecting(true);
+    setSelected(new Set([path]));
+    setDetailFile(null);
+    setFilterOpen(false);
+    setSortOpen(false);
+    setConnectionSheetOpen(false);
+  }, []);
+
+  const selectAllFiltered = useCallback(() => {
+    setSelected(new Set(filteredPaths));
+    void AccessibilityInfo.announceForAccessibility(
+      selectAllFilteredA11yLabel(filteredPaths.length),
+    );
+  }, [filteredPaths]);
+
+  const deselectAll = useCallback(() => {
+    setSelected(new Set());
+  }, []);
+
   const openConnectionSheet = useCallback(() => {
+    if (selecting) return;
     if (cameraLinkState === "connecting" || isRefreshingCamera) return;
     setConnectionSheetOpen(true);
-  }, [cameraLinkState, isRefreshingCamera]);
+  }, [selecting, cameraLinkState, isRefreshingCamera]);
 
   const runRefresh = useCallback(async () => {
     const result = await refreshFiles();
@@ -308,10 +395,73 @@ export default function LibraryScreen() {
       : undefined;
 
   useLayoutEffect(() => {
+    if (selecting) {
+      const allSelected = selected.size === filtered.length && filtered.length > 0;
+      navigation.setOptions({
+        header: () => (
+          <TabScreenHeader
+            title={librarySelectionTitle(selected.size)}
+            left={
+              <Pressable
+                onPress={exitSelection}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                  Cancel
+                </Text>
+              </Pressable>
+            }
+            right={
+              <Pressable
+                onPress={() => {
+                  if (allSelected) deselectAll();
+                  else selectAllFiltered();
+                }}
+                accessibilityRole="button"
+                accessibilityLabel={
+                  allSelected ? "Deselect all" : "Select all visible recordings"
+                }
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text
+                  style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
+                  numberOfLines={1}
+                >
+                  {allSelected ? "Deselect all" : "Select all"}
+                </Text>
+              </Pressable>
+            }
+          />
+        ),
+      });
+      return;
+    }
+
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
           title="Library"
+          left={
+            !libraryInteractive || filtered.length === 0 ? (
+              <View style={{ width: LOCAL_ACTION_HIT }} />
+            ) : (
+              <Pressable
+                onPress={() => setSelecting(true)}
+                accessibilityRole="button"
+                accessibilityLabel="Select recordings"
+                hitSlop={HitSlop44}
+                style={styles.headerSideBtn}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
+                  Select
+                </Text>
+              </Pressable>
+            )
+          }
           right={
             <CameraConnectionHeaderButton
               key={`${cameraLinkState}-${isRefreshingCamera ? "1" : "0"}`}
@@ -323,7 +473,20 @@ export default function LibraryScreen() {
         />
       ),
     });
-  }, [navigation, cameraLinkState, isRefreshingCamera, openConnectionSheet]);
+  }, [
+    navigation,
+    selecting,
+    selected.size,
+    filtered.length,
+    libraryInteractive,
+    cameraLinkState,
+    isRefreshingCamera,
+    openConnectionSheet,
+    exitSelection,
+    selectAllFiltered,
+    deselectAll,
+    colors.brand,
+  ]);
 
   const onDownload = useCallback(
     (file: RemoteFile) => {
@@ -356,6 +519,62 @@ export default function LibraryScreen() {
     },
     [queueItems, localNames, queuePosition, resumeDownload],
   );
+
+  const runBatchDownload = useCallback(async () => {
+    if (batchBusy) return;
+    const targets = selectionBreakdown.downloadEligible;
+    if (targets.length === 0) return;
+    setBatchBusy(true);
+    try {
+      for (const file of targets) {
+        const state = resolveRemoteDownloadState({
+          file,
+          queueItems,
+          localNames,
+          queuePosition,
+        });
+        if (state.kind === "failed") {
+          await retryDownload(state.queueId);
+        } else if (shouldEnqueueOnDownloadPress(state)) {
+          await enqueueDownload(file);
+        }
+      }
+      void AccessibilityInfo.announceForAccessibility(
+        `${targets.length} ${targets.length === 1 ? "recording" : "recordings"} added to download queue`,
+      );
+      exitSelection();
+    } finally {
+      setBatchBusy(false);
+    }
+  }, [
+    batchBusy,
+    selectionBreakdown.downloadEligible,
+    queueItems,
+    localNames,
+    queuePosition,
+    retryDownload,
+    enqueueDownload,
+    exitSelection,
+  ]);
+
+  const runBatchCancel = useCallback(async () => {
+    if (batchBusy) return;
+    const targets = selectionBreakdown.cancelEligible;
+    if (targets.length === 0) return;
+    setBatchBusy(true);
+    try {
+      for (const entry of targets) {
+        await cancelDownload(entry.queueId);
+      }
+      void AccessibilityInfo.announceForAccessibility(
+        `${targets.length} ${targets.length === 1 ? "download" : "downloads"} cancelled`,
+      );
+      setCancelConfirmOpen(false);
+      exitSelection();
+    } finally {
+      setBatchBusy(false);
+    }
+  }, [batchBusy, selectionBreakdown.cancelEligible, cancelDownload, exitSelection]);
 
   const openDownloaded = useCallback(
     (file: RemoteFile) => {
@@ -407,10 +626,14 @@ export default function LibraryScreen() {
             file={item.file}
             downloadState={downloadState}
             thumbActive={activeThumbnailPaths.has(item.file.path)}
+            selecting={selecting}
+            selected={selected.has(item.file.path)}
+            onToggleSelect={toggleSelect}
+            onLongPressSelect={enterSelectionWith}
             onDownload={onDownload}
             onResume={onResume}
             onOpenDownloaded={openDownloaded}
-            onOpenDetail={setDetailFile}
+            onOpenDetail={selecting ? undefined : setDetailFile}
           />
         </View>
       );
@@ -421,6 +644,10 @@ export default function LibraryScreen() {
       queueItems,
       localNames,
       queuePosition,
+      selecting,
+      selected,
+      toggleSelect,
+      enterSelectionWith,
       onDownload,
       onResume,
       openDownloaded,
@@ -430,8 +657,16 @@ export default function LibraryScreen() {
   );
 
   const listExtraData = useMemo(
-    () => ({ queueItems, localNames, queuePosition, activeThumbnailPaths, stickySectionKey }),
-    [queueItems, localNames, queuePosition, activeThumbnailPaths, stickySectionKey],
+    () => ({
+      queueItems,
+      localNames,
+      queuePosition,
+      activeThumbnailPaths,
+      stickySectionKey,
+      selecting,
+      selected,
+    }),
+    [queueItems, localNames, queuePosition, activeThumbnailPaths, stickySectionKey, selecting, selected],
   );
 
   const detailDownloadState = useMemo(() => {
@@ -497,7 +732,7 @@ export default function LibraryScreen() {
         selectedId={category}
         counts={counts}
         onSelect={setCategory}
-        disabled={!libraryInteractive}
+        disabled={!libraryInteractive || selecting}
         testID="camera-category-row"
       />
 
@@ -506,7 +741,7 @@ export default function LibraryScreen() {
         sortActive={sort !== "newest"}
         onPressFilters={() => setFilterOpen(true)}
         onPressSort={() => setSortOpen(true)}
-        disabled={!libraryInteractive}
+        disabled={selecting || !libraryInteractive}
         testID="camera-list-controls"
       />
 
@@ -623,8 +858,178 @@ export default function LibraryScreen() {
         onPress={onBackToTopPress}
       />
 
+      {showSelectionBar ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.selectionBarWrap,
+            {
+              bottom: tabBarHeight,
+              paddingHorizontal: spacing.lg,
+              paddingBottom: LIBRARY_SELECTION_BAR_GAP,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.selectionBar,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            {selectionBreakdown.downloadEligibleCount === 0 &&
+            selectionBreakdown.cancelEligibleCount === 0 ? (
+              <Text
+                style={{
+                  color: colors.textMuted,
+                  fontFamily: Type.fontSemi,
+                  fontSize: 14,
+                  textAlign: "center",
+                  flex: 1,
+                }}
+              >
+                Already downloaded
+              </Text>
+            ) : (
+              <>
+                {selectionBreakdown.downloadEligibleCount > 0 ? (
+                  <Pressable
+                    onPress={() => void runBatchDownload()}
+                    disabled={batchBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel={libraryDownloadActionLabel(
+                      selectionBreakdown.downloadEligibleCount,
+                    )}
+                    accessibilityHint={`${selectionBreakdown.downloadEligibleCount} recordings will be added to Queue`}
+                    style={({ pressed }) => [
+                      styles.selectionBtn,
+                      {
+                        flex: 1,
+                        backgroundColor: colors.brand,
+                        opacity: batchBusy || pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    {batchBusy ? (
+                      <ActivityIndicator size="small" color={colors.onBrand} />
+                    ) : (
+                      <Text
+                        style={{ color: colors.onBrand, fontFamily: Type.fontBold, fontSize: 15 }}
+                        numberOfLines={1}
+                      >
+                        {libraryDownloadActionLabel(selectionBreakdown.downloadEligibleCount)}
+                      </Text>
+                    )}
+                  </Pressable>
+                ) : null}
+                {selectionBreakdown.cancelEligibleCount > 0 ? (
+                  <Pressable
+                    onPress={() => setCancelConfirmOpen(true)}
+                    disabled={batchBusy}
+                    accessibilityRole="button"
+                    accessibilityLabel={libraryCancelActionLabel(
+                      selectionBreakdown.cancelEligibleCount,
+                    )}
+                    accessibilityHint={`${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`}
+                    style={({ pressed }) => [
+                      styles.selectionBtn,
+                      {
+                        flex: 1,
+                        borderWidth: StyleSheet.hairlineWidth,
+                        borderColor: colors.warn,
+                        backgroundColor: colors.warnSoft,
+                        opacity: batchBusy || pressed ? 0.75 : 1,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={{ color: colors.warn, fontFamily: Type.fontBold, fontSize: 14 }}
+                      numberOfLines={1}
+                    >
+                      {libraryCancelActionLabel(selectionBreakdown.cancelEligibleCount)}
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </>
+            )}
+          </View>
+        </View>
+      ) : null}
+
+      <Modal
+        visible={cancelConfirmOpen && selecting && selectionBreakdown.cancelEligibleCount > 0}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!batchBusy) setCancelConfirmOpen(false);
+        }}
+      >
+        <View style={styles.modalScrim}>
+          <View
+            style={[
+              styles.modalCard,
+              {
+                backgroundColor: colors.surfaceElevated,
+                borderColor: colors.border,
+                borderRadius: radius.xl,
+              },
+            ]}
+          >
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              {libraryCancelConfirmTitle(selectionBreakdown.cancelEligibleCount)}
+            </Text>
+            <Text style={{ color: colors.textMuted, fontFamily: Type.font, fontSize: 14, marginTop: 8 }}>
+              {libraryCancelConfirmMessage(selectionBreakdown.cancelEligibleCount)}
+            </Text>
+            <Pressable
+              onPress={() => void runBatchCancel()}
+              disabled={batchBusy}
+              accessibilityRole="button"
+              accessibilityLabel={libraryCancelActionLabel(selectionBreakdown.cancelEligibleCount)}
+              style={({ pressed }) => [
+                styles.modalPrimary,
+                {
+                  backgroundColor: colors.warnSoft,
+                  borderColor: colors.warn,
+                  borderRadius: radius.md,
+                  opacity: batchBusy || pressed ? 0.7 : 1,
+                  minHeight: LOCAL_ACTION_HIT,
+                },
+              ]}
+            >
+              {batchBusy ? (
+                <ActivityIndicator size="small" color={colors.warn} />
+              ) : (
+                <Text style={{ color: colors.warn, fontFamily: Type.fontBold, fontSize: 16 }}>
+                  {libraryCancelActionLabel(selectionBreakdown.cancelEligibleCount)}
+                </Text>
+              )}
+            </Pressable>
+            <Pressable
+              onPress={() => {
+                if (!batchBusy) setCancelConfirmOpen(false);
+              }}
+              disabled={batchBusy}
+              accessibilityRole="button"
+              accessibilityLabel="Keep downloads"
+              style={({ pressed }) => [
+                styles.modalSecondary,
+                { opacity: pressed ? 0.65 : 1, minHeight: LOCAL_ACTION_HIT },
+              ]}
+            >
+              <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                Keep downloads
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
+
       <CameraConnectionSheet
-        visible={connectionSheetOpen}
+        visible={connectionSheetOpen && !selecting}
         linkState={cameraLinkState}
         refreshing={isRefreshingCamera}
         cameraModel={cameraModel}
@@ -637,7 +1042,7 @@ export default function LibraryScreen() {
       />
 
       <CameraFilterSheet
-        visible={filterOpen}
+        visible={filterOpen && !selecting}
         initial={filters}
         categoryScope={category}
         files={files}
@@ -649,7 +1054,7 @@ export default function LibraryScreen() {
       />
 
       <StaticBackdropSheet
-        visible={sortOpen}
+        visible={sortOpen && !selecting}
         onClose={() => setSortOpen(false)}
         sheetTestID="sort-sheet"
         scrimTestID="sort-scrim"
@@ -722,7 +1127,7 @@ export default function LibraryScreen() {
       <RemoteDetailSheet
         file={detailFile}
         downloadState={detailDownloadState}
-        visible={detailFile !== null}
+        visible={detailFile !== null && !selecting}
         onClose={() => setDetailFile(null)}
         onDownload={onDownload}
         onResume={onResume}
@@ -738,6 +1143,12 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  headerSideBtn: {
+    minHeight: LOCAL_ACTION_HIT,
+    minWidth: LOCAL_ACTION_HIT,
+    justifyContent: "center",
+    paddingHorizontal: 4,
+  },
   banner: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
@@ -771,6 +1182,65 @@ const styles = StyleSheet.create({
       ios: {},
       default: {},
     }),
+  },
+  selectionBarWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 30,
+  },
+  selectionBar: {
+    minHeight: LIBRARY_SELECTION_BAR_H,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    ...Platform.select({
+      ios: {
+        shadowColor: "#000",
+        shadowOpacity: 0.12,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: -2 },
+      },
+      android: { elevation: 6 },
+      default: {},
+    }),
+  },
+  selectionBtn: {
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+  },
+  modalScrim: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
+    paddingHorizontal: 24,
+  },
+  modalCard: {
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontFamily: Type.fontBold,
+  },
+  modalPrimary: {
+    marginTop: 20,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    paddingVertical: 12,
+  },
+  modalSecondary: {
+    marginTop: 8,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sectionHeader: {
     minHeight: 36,

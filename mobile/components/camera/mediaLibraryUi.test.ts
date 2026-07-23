@@ -88,7 +88,7 @@ test("library index wires RemoteDetailSheet and does not slide-detail Modal", ()
   assert.match(index, /RemoteDetailSheet/);
   assert.equal(index.includes("animationType=\"slide\""), false);
   assert.match(index, /styles\.stickyOverlay/);
-  assert.match(index, /onOpenDetail=\{setDetailFile\}/);
+  assert.match(index, /onOpenDetail=\{selecting \? undefined : setDetailFile\}/);
   assert.match(index, /shouldEnqueueOnDownloadPress/);
 });
 

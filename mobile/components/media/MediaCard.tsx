@@ -70,6 +70,7 @@ export const MediaCard = memo(function MediaCard({
           borderRadius: radius.md,
           borderColor: selected ? colors.brand : colors.border,
           borderWidth: selected ? 1.5 : StyleSheet.hairlineWidth,
+          backgroundColor: selected ? colors.brandSoft : colors.surface,
         },
       ]}
     >

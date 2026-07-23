@@ -49,8 +49,6 @@ describe("shared sheet close wiring", () => {
     assert.match(library, /StaticBackdropSheet/);
     assert.match(library, /sheetTestID="sort-sheet"/);
     assert.match(library, /scrimTestID="sort-scrim"/);
-    assert.doesNotMatch(library, /animationType="fade"/);
-    assert.doesNotMatch(library, /\bModal\b/);
     assert.match(library, /sortHeaderSide/);
     assert.match(library, /textAlign:\s*"center"/);
     assert.match(library, /accessibilityLabel="Close sort"/);
@@ -59,5 +57,8 @@ describe("shared sheet close wiring", () => {
     assert.match(shell, /animationType="none"/);
     assert.match(shell, /onRequestClose=\{requestClose\}/);
     assert.match(shell, /onPress=\{requestClose\}/);
+    // Sort sheet stays on StaticBackdropSheet; Modal+fade is only for cancel-downloads confirm.
+    assert.match(library, /cancelConfirmOpen/);
+    assert.match(library, /animationType="fade"/);
   });
 });
