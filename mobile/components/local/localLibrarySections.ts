@@ -14,7 +14,19 @@ export interface LocalLibrarySection {
   readonly data: readonly LocalMediaFile[];
 }
 
-/** Contract: Local Library SectionList must enable sticky section headers. */
+/** FlatList row — section metadata travels with each local file. */
+export interface LocalLibraryFileRow {
+  readonly key: string;
+  readonly sectionKey: string;
+  readonly sectionTitle: string;
+  readonly sectionCountLabel: string;
+  readonly file: LocalMediaFile;
+}
+
+/**
+ * Sticky date UX for Local Library (FlatList overlay — not native SectionList sticky).
+ * Kept for shared contracts / Local action density tests.
+ */
 export const LOCAL_LIBRARY_STICKY_HEADERS = true;
 
 /** Bottom inset so the last card clears the tab bar (+ home indicator). */
@@ -83,4 +95,43 @@ export function buildLocalLibrarySections(
     countLabel: formatCountLabel(data.length),
     data,
   }));
+}
+
+/**
+ * Flatten sections into file rows for FlatList.
+ * Days without files are omitted — non-consecutive calendar days stay adjacent.
+ */
+export function buildLocalLibraryFileRows(
+  sections: readonly LocalLibrarySection[],
+): LocalLibraryFileRow[] {
+  const rows: LocalLibraryFileRow[] = [];
+  for (const section of sections) {
+    for (const file of section.data) {
+      rows.push({
+        key: file.uri,
+        sectionKey: section.key,
+        sectionTitle: section.title,
+        sectionCountLabel: section.countLabel,
+        file,
+      });
+    }
+  }
+  return rows;
+}
+
+/**
+ * Section key for sticky overlay — first viewable LocalLibraryFileRow wins.
+ * Returns undefined when the viewport has no file tokens (keep previous key).
+ */
+export function stickySectionKeyFromLocalViewableItems(
+  viewableItems: ReadonlyArray<{ readonly item?: unknown }>,
+): string | undefined {
+  for (const token of viewableItems) {
+    const item = token.item;
+    if (!item || typeof item !== "object") continue;
+    if (!("sectionKey" in item)) continue;
+    const key = (item as { sectionKey: unknown }).sectionKey;
+    if (typeof key === "string" && key.length > 0) return key;
+  }
+  return undefined;
 }

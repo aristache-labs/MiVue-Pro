@@ -9,18 +9,23 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
+  FlatList,
   Modal,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
-  SectionList,
   StyleSheet,
   Text,
   View,
+  type ViewToken,
 } from "react-native";
 
 import { formatCountAbbrev } from "@/components/camera/cameraLibraryModel";
+import {
+  LIBRARY_LIST_VIRTUALIZATION,
+  LIBRARY_THUMB_VIEWABILITY,
+} from "@/components/camera/cameraLibraryViewability";
 import {
   deleteLocalA11yLabel,
   deleteLocalButtonLabel,
@@ -52,10 +57,12 @@ import {
 } from "@/components/local/localLibraryFilters";
 import { LocalLibraryCard } from "@/components/local/LocalLibraryCard";
 import {
+  buildLocalLibraryFileRows,
   buildLocalLibrarySections,
   LOCAL_ACTION_HIT,
   LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
-  LOCAL_LIBRARY_STICKY_HEADERS,
+  stickySectionKeyFromLocalViewableItems,
+  type LocalLibraryFileRow,
 } from "@/components/local/localLibrarySections";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
@@ -162,6 +169,38 @@ export default function LocalLibraryScreen() {
   const filteredFiles = useMemo(() => filtered.map((n) => n.file), [filtered]);
 
   const sections = useMemo(() => buildLocalLibrarySections(filteredFiles), [filteredFiles]);
+  const listRows = useMemo(() => buildLocalLibraryFileRows(sections), [sections]);
+  const [stickySectionKey, setStickySectionKey] = useState<string | null>(null);
+  const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<ViewToken> }) => {
+      const nextKey = stickySectionKeyFromLocalViewableItems(viewableItems);
+      if (!nextKey) return;
+      setStickySectionKey((previous) => (previous === nextKey ? previous : nextKey));
+    },
+  ).current;
+
+  useEffect(() => {
+    const firstKey = sections[0]?.key ?? null;
+    setStickySectionKey((previous) => {
+      if (previous && sections.some((section) => section.key === previous)) {
+        return previous;
+      }
+      return firstKey;
+    });
+  }, [sections]);
+
+  const stickySection = useMemo(
+    () => sections.find((section) => section.key === stickySectionKey) ?? sections[0] ?? null,
+    [sections, stickySectionKey],
+  );
+
+  const localListExtraData = useMemo(
+    () => ({ selecting, selected }),
+    [selecting, selected],
+  );
+
+  const listItemSeparator = useCallback(() => <View style={{ height: 8 }} />, []);
 
   useEffect(() => {
     setFilters((prev) => sanitizeLocalFiltersForCategoryScope(prev, category));
@@ -268,6 +307,66 @@ export default function LocalLibraryScreen() {
       ]);
     },
     [deleteLocalFile],
+  );
+
+  const renderSectionBreak = useCallback(
+    (row: LocalLibraryFileRow) => (
+      <View
+        collapsable={false}
+        style={[
+          styles.sectionHeader,
+          {
+            backgroundColor: colors.bg,
+            borderBottomColor: colors.border,
+          },
+        ]}
+      >
+        <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
+          {row.sectionTitle}
+        </Text>
+        <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+          {row.sectionCountLabel}
+        </Text>
+      </View>
+    ),
+    [colors.bg, colors.border, colors.textMuted],
+  );
+
+  const renderItem = useCallback(
+    ({ item, index }: { item: LocalLibraryFileRow; index: number }) => {
+      const file = item.file;
+      const fileCategory: FileCategory =
+        categoryByName.get(file.name) ?? categoryFromLocalName(file.name, file.kind);
+      const previous = index > 0 ? listRows[index - 1] : undefined;
+      const startsNewSection = Boolean(previous && previous.sectionKey !== item.sectionKey);
+      return (
+        <View collapsable={false} style={styles.localFileRow}>
+          {startsNewSection ? renderSectionBreak(item) : null}
+          {startsNewSection ? <View style={{ height: 8 }} /> : null}
+          <LocalLibraryCard
+            item={file}
+            category={fileCategory}
+            durationSec={durationByName.get(file.name)}
+            selecting={selecting}
+            selected={selected.has(file.uri)}
+            onToggleSelect={toggleSelect}
+            onShare={(f) => void actionGateRef.current(async () => shareLocalFile(f))}
+            onDelete={confirmSingleDelete}
+          />
+        </View>
+      );
+    },
+    [
+      listRows,
+      categoryByName,
+      durationByName,
+      selecting,
+      selected,
+      toggleSelect,
+      shareLocalFile,
+      confirmSingleDelete,
+      renderSectionBreak,
+    ],
   );
 
   const confirmBatchDelete = useCallback(() => {
@@ -569,62 +668,14 @@ export default function LocalLibraryScreen() {
         </Pressable>
       </Animated.View>
 
-      <SectionList
-        style={styles.list}
-        sections={sections}
-        keyExtractor={(item) => item.uri}
-        stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
-        extraData={{ selecting, selectedSize: selected.size }}
-        scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
-        alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
-        bounces={listBounceEnabled(canPullToRefresh)}
-        overScrollMode={listOverScrollMode(canPullToRefresh)}
-        showsVerticalScrollIndicator={hasOverflow}
-        onLayout={onViewportLayout}
-        onContentSizeChange={onContentSizeChange}
-        contentContainerStyle={{
-          paddingHorizontal: spacing.lg,
-          paddingTop: spacing.sm,
-          paddingBottom: listPadBottom,
-          flexGrow: 1,
-        }}
-        ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-        ListHeaderComponent={
-          demoMode ? (
-            <View style={styles.demoRow}>
-              <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
-            </View>
-          ) : null
-        }
-        ListEmptyComponent={
-          emptyFiltered ? (
-            <EmptyState
-              icon="funnel-outline"
-              title="No files match these filters"
-              subtitle="Try changing the date, time, category or media type."
-              actionLabel="Clear filters"
-              onAction={() => setFilters(EMPTY_FILTERS)}
-            />
-          ) : (
-            <EmptyState
-              icon="folder-open-outline"
-              title="No local files yet"
-              subtitle="Download from Library, then check back here."
-            />
-          )
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => void runRefresh()}
-            tintColor={colors.brand}
-            colors={[colors.brand]}
-          />
-        }
-        renderSectionHeader={({ section }) => (
+      <View style={styles.list}>
+        {stickySection && listRows.length > 0 ? (
           <View
+            collapsable={false}
+            pointerEvents="none"
             style={[
               styles.sectionHeader,
+              styles.stickyOverlay,
               {
                 backgroundColor: colors.bg,
                 borderBottomColor: colors.border,
@@ -632,28 +683,74 @@ export default function LocalLibraryScreen() {
             ]}
           >
             <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-              {section.title}
+              {stickySection.title}
             </Text>
-            <Text style={[styles.sectionCount, { color: colors.textMuted }]}>{section.countLabel}</Text>
+            <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
+              {stickySection.countLabel}
+            </Text>
           </View>
-        )}
-        renderItem={({ item }) => {
-          const category: FileCategory =
-            categoryByName.get(item.name) ?? categoryFromLocalName(item.name, item.kind);
-          return (
-            <LocalLibraryCard
-              item={item}
-              category={category}
-              durationSec={durationByName.get(item.name)}
-              selecting={selecting}
-              selected={selected.has(item.uri)}
-              onToggleSelect={toggleSelect}
-              onShare={(f) => void actionGateRef.current(async () => shareLocalFile(f))}
-              onDelete={confirmSingleDelete}
+        ) : null}
+        <FlatList
+          style={styles.list}
+          data={listRows}
+          keyExtractor={(row) => row.key}
+          removeClippedSubviews={false}
+          initialNumToRender={LIBRARY_LIST_VIRTUALIZATION.initialNumToRender}
+          maxToRenderPerBatch={LIBRARY_LIST_VIRTUALIZATION.maxToRenderPerBatch}
+          updateCellsBatchingPeriod={LIBRARY_LIST_VIRTUALIZATION.updateCellsBatchingPeriod}
+          windowSize={LIBRARY_LIST_VIRTUALIZATION.windowSize}
+          viewabilityConfig={viewabilityConfig}
+          onViewableItemsChanged={onViewableItemsChanged}
+          extraData={localListExtraData}
+          scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
+          alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
+          bounces={listBounceEnabled(canPullToRefresh)}
+          overScrollMode={listOverScrollMode(canPullToRefresh)}
+          showsVerticalScrollIndicator={hasOverflow}
+          onLayout={onViewportLayout}
+          onContentSizeChange={onContentSizeChange}
+          contentContainerStyle={{
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.sm,
+            paddingBottom: listPadBottom,
+            ...(listRows.length === 0 ? { flexGrow: 1 } : null),
+          }}
+          ItemSeparatorComponent={listItemSeparator}
+          ListHeaderComponent={
+            demoMode ? (
+              <View style={styles.demoRow}>
+                <Badge label="Demo Mode" tone="demo" icon="flask-outline" />
+              </View>
+            ) : null
+          }
+          ListEmptyComponent={
+            emptyFiltered ? (
+              <EmptyState
+                icon="funnel-outline"
+                title="No files match these filters"
+                subtitle="Try changing the date, time, category or media type."
+                actionLabel="Clear filters"
+                onAction={() => setFilters(EMPTY_FILTERS)}
+              />
+            ) : (
+              <EmptyState
+                icon="folder-open-outline"
+                title="No local files yet"
+                subtitle="Download from Library, then check back here."
+              />
+            )
+          }
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => void runRefresh()}
+              tintColor={colors.brand}
+              colors={[colors.brand]}
             />
-          );
-        }}
-      />
+          }
+          renderItem={renderItem}
+        />
+      </View>
 
       <Modal
         transparent
@@ -838,20 +935,35 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   sectionHeader: {
+    minHeight: 36,
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    // Above list cards; delete strip sits outside the list under the nav.
     zIndex: 3,
     ...Platform.select({
       android: { elevation: 3 },
       ios: {},
       default: {},
     }),
+  },
+  stickyOverlay: {
+    zIndex: 20,
+    paddingHorizontal: 16,
+    ...Platform.select({
+      android: { elevation: 12 },
+      ios: {},
+      default: {},
+    }),
+  },
+  localFileRow: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    alignSelf: "stretch",
   },
   sectionTitle: { flex: 1, fontSize: 11, fontFamily: Type.fontSemi, letterSpacing: 0.5 },
   sectionCount: { fontSize: 11, fontFamily: Type.font },

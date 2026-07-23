@@ -3,6 +3,7 @@ import test from "node:test";
 
 import type { LocalMediaFile } from "../../context/DemoModeContext";
 import {
+  buildLocalLibraryFileRows,
   buildLocalLibrarySections,
   dayKeyFromName,
   formatCompactDateTime,
@@ -11,6 +12,7 @@ import {
   LOCAL_ACTION_HIT,
   LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
+  stickySectionKeyFromLocalViewableItems,
 } from "./localLibrarySections";
 
 function file(name: string, uri = `file://${name}`): LocalMediaFile {
@@ -93,8 +95,46 @@ test("section keys are stable day keys", () => {
   assert.equal(sections[0]?.key, "2026-07-19");
 });
 
-test("sticky headers flag is enabled for Local Library", () => {
+test("sticky headers flag remains for Local sticky UX contract", () => {
   assert.equal(LOCAL_LIBRARY_STICKY_HEADERS, true);
+});
+
+test("flat rows omit empty calendar gaps and keep unique keys", () => {
+  const sections = buildLocalLibrarySections([
+    file("FILE260719-100000F.MP4"),
+    file("FILE260719-110000F.MP4"),
+    file("FILE260717-100000F.MP4"),
+  ]);
+  assert.deepEqual(
+    sections.map((s) => s.dayKey),
+    ["2026-07-19", "2026-07-17"],
+  );
+  const rows = buildLocalLibraryFileRows(sections);
+  assert.equal(rows.length, 3);
+  assert.equal(new Set(rows.map((r) => r.key)).size, 3);
+  assert.equal(rows.some((r) => r.sectionKey === "2026-07-18"), false);
+  let boundary = -1;
+  for (let i = 0; i < rows.length - 1; i += 1) {
+    if (rows[i]?.sectionKey === "2026-07-19" && rows[i + 1]?.sectionKey === "2026-07-17") {
+      boundary = i;
+      break;
+    }
+  }
+  assert.ok(boundary >= 0);
+  assert.equal(rows[0]?.sectionTitle, "SUNDAY, 19 JULY 2026");
+  assert.ok(rows.every((r) => r.file && r.sectionKey));
+});
+
+test("viewability without files keeps previous sticky key (helper returns undefined)", () => {
+  assert.equal(stickySectionKeyFromLocalViewableItems([]), undefined);
+  assert.equal(
+    stickySectionKeyFromLocalViewableItems([
+      { item: { sectionKey: "2026-07-19", file: file("FILE260719-100000F.MP4") } },
+      { item: { sectionKey: "2026-07-17", file: file("FILE260717-100000F.MP4") } },
+    ]),
+    "2026-07-19",
+  );
+  assert.equal(stickySectionKeyFromLocalViewableItems([{ item: { title: "header" } }]), undefined);
 });
 
 test("local action hit boxes are at least 44pt", () => {
