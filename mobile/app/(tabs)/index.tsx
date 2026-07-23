@@ -93,6 +93,7 @@ export default function LibraryScreen() {
     localFiles,
     enqueueDownload,
     resumeDownload,
+    retryDownload,
     refreshFiles,
     lastError,
     cameraLinkState,
@@ -244,10 +245,14 @@ export default function LibraryScreen() {
         localNames,
         queuePosition,
       });
+      if (state.kind === "failed") {
+        void retryDownload(state.queueId);
+        return;
+      }
       if (!shouldEnqueueOnDownloadPress(state)) return;
       void enqueueDownload(file);
     },
-    [enqueueDownload, queueItems, localNames, queuePosition],
+    [enqueueDownload, retryDownload, queueItems, localNames, queuePosition],
   );
 
   const onResume = useCallback(

@@ -77,6 +77,7 @@ export default function QueueScreen() {
     cancelDownload,
     pauseDownload,
     resumeDownload,
+    retryDownload,
     removeFromQueue,
     enqueueDownload,
     lastError,
@@ -167,15 +168,24 @@ export default function QueueScreen() {
             else await removeFromQueue(item.id);
           } else if (action === "retry") {
             const remote = files.find((f) => f.name === item.localName);
-            await removeFromQueue(item.id);
+            // Same queue row: enqueue reuses failed; fallback retry by id.
             if (remote) await enqueueDownload(remote);
+            else await retryDownload(item.id);
           }
         } finally {
           setActionBusy(false);
         }
       });
     },
-    [pauseDownload, resumeDownload, cancelDownload, removeFromQueue, enqueueDownload, files],
+    [
+      pauseDownload,
+      resumeDownload,
+      cancelDownload,
+      removeFromQueue,
+      enqueueDownload,
+      retryDownload,
+      files,
+    ],
   );
 
   const badgeColors = (status: QueueItem["status"]) => {

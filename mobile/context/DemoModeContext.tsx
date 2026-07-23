@@ -83,6 +83,8 @@ interface DemoModeContextValue {
   readonly cancelDownload: (id: string) => Promise<void>;
   readonly pauseDownload: (id: string) => Promise<void>;
   readonly resumeDownload: (id: string) => Promise<void>;
+  /** Re-queue a failed/cancelled item in place (same queue id). */
+  readonly retryDownload: (id: string) => Promise<void>;
   readonly removeFromQueue: (id: string) => Promise<void>;
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
   readonly shareLocalFile: (file: LocalMediaFile) => Promise<void>;
@@ -604,6 +606,43 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [queue],
   );
 
+  const retryDownload = useCallback(
+    async (id: string) => {
+      try {
+        const item = queue.list().find((entry) => entry.id === id);
+        if (!item || (item.status !== "failed" && item.status !== "cancelled")) return;
+        if (!demoMode) {
+          if (!isPrivateIpv4(cameraHost)) {
+            setLastError("Host must be a private IPv4 address.");
+            return;
+          }
+          try {
+            const probe = createLiveTransport(cameraHost, ENQUEUE_PROBE_TIMEOUT_MS);
+            const head = await probe.request({ method: "HEAD", path: item.remotePath });
+            if (head.statusCode !== 200) {
+              throw new Error(`HEAD HTTP ${head.statusCode}`);
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setCameraLinkState("connection_lost");
+            setLastError(message);
+            notifyCameraDisconnected(message);
+            return;
+          }
+          const timeoutMs = nativeTcpReady ? 5_000 : fetchTimeoutForBytes(item.expectedBytes);
+          queue.setTransport(createLiveTransport(cameraHost, timeoutMs));
+        } else {
+          queue.setTransport(new DemoTransport());
+        }
+        await queue.retry(id);
+        setLastError(undefined);
+      } catch (error) {
+        setLastError(error instanceof Error ? error.message : String(error));
+      }
+    },
+    [demoMode, cameraHost, queue, nativeTcpReady],
+  );
+
   const removeFromQueue = useCallback(
     async (id: string) => {
       try {
@@ -719,6 +758,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       cancelDownload,
       pauseDownload,
       resumeDownload,
+      retryDownload,
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
@@ -755,6 +795,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       cancelDownload,
       pauseDownload,
       resumeDownload,
+      retryDownload,
       removeFromQueue,
       shareCompleted,
       shareLocalFile,

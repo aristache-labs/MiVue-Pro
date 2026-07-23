@@ -285,6 +285,43 @@ test("progress stall aborts active transfer as connection lost", async () => {
   assert.equal(failed?.errorMessage, CAMERA_CONNECTION_LOST_MESSAGE);
 });
 
+test("enqueue reuses failed item instead of duplicating", async () => {
+  const store = new MemoryQueueStore();
+  const sink = new MemoryFileSink();
+  const queue = new DownloadQueue({
+    store,
+    transport: new FakeTransport(),
+    sink,
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+
+  const now = new Date().toISOString();
+  await store.save([
+    {
+      id: "failed-1",
+      remotePath: "/SD/Normal/F/FILE260723-090152F.MP4",
+      localName: "FILE260723-090152F.MP4",
+      expectedBytes: 100,
+      status: "failed",
+      errorMessage: CAMERA_CONNECTION_LOST_MESSAGE,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+  await queue.init();
+  assert.equal(queue.list().length, 1);
+
+  const again = await queue.enqueue({
+    remotePath: "/SD/Normal/F/FILE260723-090152F.MP4",
+    localName: "FILE260723-090152F.MP4",
+    expectedBytes: 100,
+  });
+  assert.equal(again.id, "failed-1");
+  assert.equal(queue.list().length, 1);
+  assert.ok(queue.list()[0]?.status === "queued" || queue.list()[0]?.status === "active");
+});
+
 async function waitUntil(
   predicate: (() => boolean) | (() => Promise<boolean>),
   timeoutMs = 2_000,

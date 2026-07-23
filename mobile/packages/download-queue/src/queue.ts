@@ -72,6 +72,25 @@ export class DownloadQueue {
       throw new Error("Duplicate transfer already queued");
     }
 
+    // Library Retry must reuse the failed/cancelled row — never spawn a second entry.
+    const retriable = this.items.find(
+      (item) =>
+        (item.remotePath === input.remotePath || item.localName === input.localName) &&
+        (item.status === "failed" || item.status === "cancelled"),
+    );
+    if (retriable) {
+      this.patch(retriable.id, {
+        status: "queued",
+        errorMessage: undefined,
+        remotePath: input.remotePath,
+        localName: input.localName,
+        expectedBytes: input.expectedBytes,
+      });
+      await this.persist();
+      void this.pump();
+      return this.items.find((item) => item.id === retriable.id)!;
+    }
+
     const dest = joinPath(this.options.downloadDir, input.localName);
     const part = `${dest}.part`;
     if (await this.options.sink.exists(dest)) {
@@ -142,6 +161,16 @@ export class DownloadQueue {
   async resume(id: string): Promise<void> {
     const item = this.items.find((i) => i.id === id);
     if (item === undefined || item.status !== "paused") return;
+    this.patch(id, { status: "queued", errorMessage: undefined });
+    await this.persist();
+    void this.pump();
+  }
+
+  /** Re-queue a failed/cancelled item in place (same id / session). */
+  async retry(id: string): Promise<void> {
+    const item = this.items.find((i) => i.id === id);
+    if (item === undefined) return;
+    if (item.status !== "failed" && item.status !== "cancelled") return;
     this.patch(id, { status: "queued", errorMessage: undefined });
     await this.persist();
     void this.pump();
