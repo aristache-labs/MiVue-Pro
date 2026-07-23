@@ -104,10 +104,11 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
 
 const styles = StyleSheet.create({
   hit: {
-    width: MEDIA_ACTION_HIT,
-    height: MEDIA_ACTION_HIT,
+    minWidth: MEDIA_ACTION_HIT,
+    minHeight: MEDIA_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
   },
   downloadChip: {
     flexDirection: "row",

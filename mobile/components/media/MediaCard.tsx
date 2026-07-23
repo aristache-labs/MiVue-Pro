@@ -131,14 +131,28 @@ export const MediaCard = memo(function MediaCard({
 });
 
 const styles = StyleSheet.create({
-  card: { overflow: "hidden", minHeight: 104 },
-  row: { flexDirection: "row", alignItems: "center", gap: MEDIA_CARD_GAP },
+  card: {
+    width: "100%",
+    maxWidth: "100%",
+    alignSelf: "stretch",
+    minWidth: 0,
+    overflow: "hidden",
+    minHeight: 104,
+  },
+  row: {
+    width: "100%",
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: MEDIA_CARD_GAP,
+  },
   thumbPress: {
     width: MEDIA_THUMB_W,
     height: MEDIA_THUMB_H,
     borderRadius: 8,
     overflow: "hidden",
     position: "relative",
+    flexShrink: 0,
   },
   durationBadge: {
     position: "absolute",

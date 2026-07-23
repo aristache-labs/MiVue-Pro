@@ -392,7 +392,7 @@ export default function LibraryScreen() {
       const prev = index > 0 ? listRows[index - 1] : undefined;
       const showSectionBreak = Boolean(prev && prev.sectionKey !== item.sectionKey);
       return (
-        <View collapsable={false}>
+        <View collapsable={false} style={styles.libraryFileRow}>
           {showSectionBreak ? renderSectionBreak(item) : null}
           {showSectionBreak ? <View style={{ height: spacing.sm }} /> : null}
           <RemoteRecordingCard
@@ -901,6 +901,12 @@ const styles = StyleSheet.create({
   },
   summaryText: { fontSize: 11, fontFamily: Type.font, flexShrink: 0 },
   list: { flex: 1 },
+  libraryFileRow: {
+    width: "100%",
+    maxWidth: "100%",
+    minWidth: 0,
+    alignSelf: "stretch",
+  },
   stickyOverlay: {
     zIndex: 20,
     paddingHorizontal: 16,

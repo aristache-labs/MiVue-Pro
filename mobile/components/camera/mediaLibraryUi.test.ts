@@ -94,10 +94,46 @@ test("library index wires RemoteDetailSheet and does not slide-detail Modal", ()
 
 test("compact action hit area contract", () => {
   const action = readFileSync(join(__dirname, "CompactDownloadAction.tsx"), "utf8");
-  assert.match(action, /MEDIA_ACTION_HIT/);
-  assert.match(action, /downloadChip/);
+  const hitStart = action.indexOf("hit:");
+  const chipStart = action.indexOf("downloadChip:");
+  assert.ok(hitStart >= 0 && chipStart > hitStart);
+  const hitStyle = action.slice(hitStart, chipStart);
+  assert.match(hitStyle, /minWidth:\s*MEDIA_ACTION_HIT/);
+  assert.match(hitStyle, /minHeight:\s*MEDIA_ACTION_HIT/);
+  assert.match(hitStyle, /flexShrink:\s*0/);
+  assert.doesNotMatch(hitStyle, /width:\s*MEDIA_ACTION_HIT/);
+  assert.doesNotMatch(hitStyle, /height:\s*MEDIA_ACTION_HIT/);
+  assert.doesNotMatch(hitStyle, /position:\s*"absolute"/);
+  assert.doesNotMatch(hitStyle, /marginRight:\s*-/);
+  assert.doesNotMatch(hitStyle, /right:\s*-/);
+  assert.doesNotMatch(hitStyle, /translateX/);
+
+  const chipEnd = action.indexOf("downloadText:", chipStart);
+  const chipStyle = action.slice(chipStart, chipEnd);
+  assert.match(chipStyle, /minWidth:\s*88/);
+  assert.match(chipStyle, /maxWidth:\s*100/);
   assert.match(action, /testID="compact-download-action"/);
+
   const media = readFileSync(join(__dirname, "../media/MediaCard.tsx"), "utf8");
-  assert.match(media, /MEDIA_ACTION_HIT/);
+  const cardStart = media.indexOf("card:");
+  const rowStart = media.indexOf("row:", cardStart);
+  const cardStyle = media.slice(cardStart, rowStart);
+  assert.match(cardStyle, /width:\s*"100%"/);
+  assert.match(cardStyle, /maxWidth:\s*"100%"/);
+  assert.match(cardStyle, /overflow:\s*"hidden"/);
+  assert.match(cardStyle, /minWidth:\s*0/);
+  assert.match(media, /body:\s*\{\s*flex:\s*1,\s*minWidth:\s*0/);
+  assert.match(media, /side:\s*\{[^}]*flexShrink:\s*0/s);
   assert.match(media, /numberOfLines=\{1\}/);
+
+  const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
+  assert.match(index, /style=\{styles\.libraryFileRow\}/);
+  const rowStyleStart = index.indexOf("libraryFileRow:");
+  const stickyStart = index.indexOf("stickyOverlay:", rowStyleStart);
+  assert.ok(rowStyleStart >= 0 && stickyStart > rowStyleStart);
+  const libraryRowStyle = index.slice(rowStyleStart, stickyStart);
+  assert.match(libraryRowStyle, /width:\s*"100%"/);
+  assert.match(libraryRowStyle, /maxWidth:\s*"100%"/);
+  assert.match(libraryRowStyle, /minWidth:\s*0/);
+  assert.doesNotMatch(libraryRowStyle, /paddingHorizontal/);
 });
