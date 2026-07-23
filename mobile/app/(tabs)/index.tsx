@@ -71,6 +71,7 @@ import {
   librarySelectionTitle,
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
+import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
@@ -91,9 +92,6 @@ import {
 } from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
-/** Compact bottom action bar while Library selection has items. */
-const LIBRARY_SELECTION_BAR_H = 52;
-const LIBRARY_SELECTION_BAR_GAP = 10;
 function SkeletonRow() {
   const { colors, radius } = useAppTheme();
   return (
@@ -296,13 +294,10 @@ export default function LibraryScreen() {
     itemCount: filtered.length,
   });
 
-  const listPadBottomBaseWithBar =
-    listPadBottomBase + (showSelectionBar ? LIBRARY_SELECTION_BAR_H + LIBRARY_SELECTION_BAR_GAP : 0);
-
   const listPadBottom = backToTopListBottomPadding(
     filtered.length,
     hasOverflow,
-    listPadBottomBaseWithBar,
+    listPadBottomBase,
   );
 
   const handleListLayout = useCallback(
@@ -783,6 +778,60 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
+      <SelectionActionBand
+        visible={showSelectionBar}
+        testID="library-selection-action-band"
+        mutedMessage={
+          selectionBreakdown.downloadEligibleCount === 0 &&
+          selectionBreakdown.cancelEligibleCount === 0
+            ? "Already downloaded"
+            : undefined
+        }
+        actions={[
+          ...(selectionBreakdown.downloadEligibleCount > 0
+            ? [
+                {
+                  key: "download",
+                  tone: "brand" as const,
+                  icon: "cloud-download-outline" as const,
+                  label: libraryDownloadActionLabel(
+                    selectionBreakdown.downloadEligibleCount,
+                    formatMediaSizeMbGb(
+                      selectionBreakdown.downloadEligible.reduce((n, f) => n + f.sizeBytes, 0),
+                    ),
+                  ),
+                  accessibilityLabel: libraryDownloadActionLabel(
+                    selectionBreakdown.downloadEligibleCount,
+                  ),
+                  accessibilityHint: `${selectionBreakdown.downloadEligibleCount} recordings will be added to Queue`,
+                  onPress: () => void runBatchDownload(),
+                  disabled: batchBusy,
+                  busy: batchBusy,
+                },
+              ]
+            : []),
+          ...(selectionBreakdown.cancelEligibleCount > 0
+            ? [
+                {
+                  key: "cancel",
+                  tone: "warn" as const,
+                  icon: "close-circle-outline" as const,
+                  label: libraryCancelActionLabel(
+                    selectionBreakdown.cancelEligibleCount,
+                    selectionBreakdown.downloadEligibleCount > 0,
+                  ),
+                  accessibilityLabel: libraryCancelActionLabel(
+                    selectionBreakdown.cancelEligibleCount,
+                  ),
+                  accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
+                  onPress: () => setCancelConfirmOpen(true),
+                  disabled: batchBusy,
+                },
+              ]
+            : []),
+        ]}
+      />
+
       {showSkeleton ? (
         <View style={{ padding: spacing.lg, gap: spacing.sm }}>
           <SkeletonRow />
@@ -857,107 +906,6 @@ export default function LibraryScreen() {
         visible={backToTopVisible && backToTopEnabled}
         onPress={onBackToTopPress}
       />
-
-      {showSelectionBar ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.selectionBarWrap,
-            {
-              bottom: tabBarHeight,
-              paddingHorizontal: spacing.lg,
-              paddingBottom: LIBRARY_SELECTION_BAR_GAP,
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.selectionBar,
-              {
-                backgroundColor: colors.surfaceElevated,
-                borderColor: colors.border,
-                borderRadius: radius.xl,
-              },
-            ]}
-          >
-            {selectionBreakdown.downloadEligibleCount === 0 &&
-            selectionBreakdown.cancelEligibleCount === 0 ? (
-              <Text
-                style={{
-                  color: colors.textMuted,
-                  fontFamily: Type.fontSemi,
-                  fontSize: 14,
-                  textAlign: "center",
-                  flex: 1,
-                }}
-              >
-                Already downloaded
-              </Text>
-            ) : (
-              <>
-                {selectionBreakdown.downloadEligibleCount > 0 ? (
-                  <Pressable
-                    onPress={() => void runBatchDownload()}
-                    disabled={batchBusy}
-                    accessibilityRole="button"
-                    accessibilityLabel={libraryDownloadActionLabel(
-                      selectionBreakdown.downloadEligibleCount,
-                    )}
-                    accessibilityHint={`${selectionBreakdown.downloadEligibleCount} recordings will be added to Queue`}
-                    style={({ pressed }) => [
-                      styles.selectionBtn,
-                      {
-                        flex: 1,
-                        backgroundColor: colors.brand,
-                        opacity: batchBusy || pressed ? 0.75 : 1,
-                      },
-                    ]}
-                  >
-                    {batchBusy ? (
-                      <ActivityIndicator size="small" color={colors.onBrand} />
-                    ) : (
-                      <Text
-                        style={{ color: colors.onBrand, fontFamily: Type.fontBold, fontSize: 15 }}
-                        numberOfLines={1}
-                      >
-                        {libraryDownloadActionLabel(selectionBreakdown.downloadEligibleCount)}
-                      </Text>
-                    )}
-                  </Pressable>
-                ) : null}
-                {selectionBreakdown.cancelEligibleCount > 0 ? (
-                  <Pressable
-                    onPress={() => setCancelConfirmOpen(true)}
-                    disabled={batchBusy}
-                    accessibilityRole="button"
-                    accessibilityLabel={libraryCancelActionLabel(
-                      selectionBreakdown.cancelEligibleCount,
-                    )}
-                    accessibilityHint={`${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`}
-                    style={({ pressed }) => [
-                      styles.selectionBtn,
-                      {
-                        flex: 1,
-                        borderWidth: StyleSheet.hairlineWidth,
-                        borderColor: colors.warn,
-                        backgroundColor: colors.warnSoft,
-                        opacity: batchBusy || pressed ? 0.75 : 1,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={{ color: colors.warn, fontFamily: Type.fontBold, fontSize: 14 }}
-                      numberOfLines={1}
-                    >
-                      {libraryCancelActionLabel(selectionBreakdown.cancelEligibleCount)}
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </>
-            )}
-          </View>
-        </View>
-      ) : null}
 
       <Modal
         visible={cancelConfirmOpen && selecting && selectionBreakdown.cancelEligibleCount > 0}
@@ -1182,38 +1130,6 @@ const styles = StyleSheet.create({
       ios: {},
       default: {},
     }),
-  },
-  selectionBarWrap: {
-    position: "absolute",
-    left: 0,
-    right: 0,
-    zIndex: 30,
-  },
-  selectionBar: {
-    minHeight: LIBRARY_SELECTION_BAR_H,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.12,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: -2 },
-      },
-      android: { elevation: 6 },
-      default: {},
-    }),
-  },
-  selectionBtn: {
-    minHeight: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 10,
-    paddingHorizontal: 12,
   },
   modalScrim: {
     flex: 1,

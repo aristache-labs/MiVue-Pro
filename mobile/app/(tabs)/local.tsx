@@ -72,6 +72,10 @@ import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
 import { LibraryListControls } from "@/components/library/LibraryListControls";
+import {
+  SelectionActionBand,
+  SELECTION_ACTION_BAND_H,
+} from "@/components/library/SelectionActionBand";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -92,9 +96,6 @@ import {
 } from "@/hooks/useVerticalOverflow";
 import type { FileCategory } from "@/packages/parsers/src/index";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-
-/** Compact sticky delete strip under the nav header (wide, not tall). */
-const SELECTION_DELETE_BAR_H = 44;
 
 export default function LocalLibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
@@ -650,42 +651,37 @@ export default function LocalLibraryScreen() {
         </View>
       ) : null}
 
-      <Animated.View
-        style={[
-          styles.selectionDeleteWrap,
-          {
-            height: deleteBarAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, SELECTION_DELETE_BAR_H],
-            }),
-            opacity: deleteBarAnim,
-            borderBottomColor: colors.border,
-            backgroundColor: colors.dangerSoft,
-          },
-        ]}
-        pointerEvents={showDeleteBar ? "auto" : "none"}
-      >
-        <Pressable
-          onPress={() => setDeleteConfirmOpen(true)}
-          disabled={!showDeleteBar || deleting}
-          accessibilityRole="button"
-          accessibilityLabel={deleteLocalA11yLabel(selected.size)}
-          style={({ pressed }) => [
-            styles.selectionDeleteBtn,
-            {
-              opacity: pressed || deleting ? 0.75 : 1,
-              minHeight: LOCAL_ACTION_HIT,
-            },
-          ]}
-        >
-          <Ionicons name="trash-outline" size={16} color={colors.danger} style={{ marginRight: 8 }} />
-          <Text style={{ color: colors.danger, fontFamily: Type.fontBold, fontSize: 14 }}>
-            Delete local
-            {selected.size > 0 ? ` · ${selected.size}` : ""}
-            {selectedBytes > 0 ? ` · ${formatSelectionSize(selectedBytes)}` : ""}
-          </Text>
-        </Pressable>
-      </Animated.View>
+      <SelectionActionBand
+        visible={showDeleteBar}
+        testID="local-selection-action-band"
+        style={{
+          height: deleteBarAnim.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0, SELECTION_ACTION_BAND_H],
+          }),
+          opacity: deleteBarAnim,
+          borderBottomColor: colors.border,
+          backgroundColor: colors.dangerSoft,
+        }}
+        actions={
+          showDeleteBar
+            ? [
+                {
+                  key: "delete",
+                  tone: "danger" as const,
+                  icon: "trash-outline" as const,
+                  label: `Delete local${selected.size > 0 ? ` · ${selected.size}` : ""}${
+                    selectedBytes > 0 ? ` · ${formatSelectionSize(selectedBytes)}` : ""
+                  }`,
+                  accessibilityLabel: deleteLocalA11yLabel(selected.size),
+                  onPress: () => setDeleteConfirmOpen(true),
+                  disabled: deleting,
+                  busy: deleting,
+                },
+              ]
+            : []
+        }
+      />
 
       <View style={styles.list}>
         {stickySection && listRows.length > 0 ? (
@@ -1015,18 +1011,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingVertical: 8,
-  },
-  selectionDeleteWrap: {
-    overflow: "hidden",
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 1,
-  },
-  selectionDeleteBtn: {
-    height: SELECTION_DELETE_BAR_H,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 16,
   },
   sectionHeader: {
     minHeight: 36,

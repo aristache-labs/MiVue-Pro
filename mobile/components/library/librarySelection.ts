@@ -31,14 +31,20 @@ export function librarySelectionTitle(selectedCount: number): string {
   return `${selectedCount} selected`;
 }
 
-export function libraryDownloadActionLabel(count: number): string {
-  if (count <= 1) return "Download";
-  return `Download ${count}`;
+export function libraryDownloadActionLabel(count: number, sizeLabel?: string): string {
+  const base = count <= 0 ? "Download" : `Download · ${count}`;
+  if (sizeLabel && sizeLabel.length > 0 && sizeLabel !== "—") {
+    return `${base} · ${sizeLabel}`;
+  }
+  return base;
 }
 
-export function libraryCancelActionLabel(count: number): string {
-  if (count <= 1) return "Cancel download";
-  return `Cancel ${count} downloads`;
+export function libraryCancelActionLabel(count: number, compact = false): string {
+  if (compact) {
+    return count <= 1 ? "Cancel · 1" : `Cancel · ${count}`;
+  }
+  if (count <= 1) return "Cancel download · 1";
+  return `Cancel downloads · ${count}`;
 }
 
 export function libraryCancelConfirmTitle(count: number): string {
