@@ -123,11 +123,11 @@ export default function SettingsMapsPrivacyScreen() {
           <SettingsValueRow
             icon="wifi-outline"
             title="Camera Wi-Fi"
-            subtitle="The camera is reached directly over the local Wi-Fi network. Laneory does not ask for or store the camera Wi-Fi password. Downloaded media remains in app storage until you export or delete it."
+            subtitle="Direct local connection. Laneory does not store the camera Wi-Fi password."
           />
         </SettingsSection>
 
-        <Text style={[styles.footnote, { color: colors.textFaint }]}>
+        <Text style={[styles.footnote, { color: colors.textMuted }]}>
           Browsing and downloading use GET/HEAD. Camera settings change only when you explicitly select
           a new value and confirm Apply.
         </Text>

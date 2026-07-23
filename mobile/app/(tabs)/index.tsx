@@ -68,6 +68,7 @@ import {
   libraryCancelConfirmMessage,
   libraryCancelConfirmTitle,
   libraryDownloadActionLabel,
+  libraryDownloadA11yLabel,
   librarySelectionTitle,
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
@@ -799,11 +800,13 @@ export default function LibraryScreen() {
                     formatMediaSizeMbGb(
                       selectionBreakdown.downloadEligible.reduce((n, f) => n + f.sizeBytes, 0),
                     ),
+                    selected.size,
                   ),
-                  accessibilityLabel: libraryDownloadActionLabel(
+                  accessibilityLabel: libraryDownloadA11yLabel(
                     selectionBreakdown.downloadEligibleCount,
+                    selected.size,
                   ),
-                  accessibilityHint: `${selectionBreakdown.downloadEligibleCount} recordings will be added to Queue`,
+                  accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
                   onPress: () => void runBatchDownload(),
                   disabled: batchBusy,
                   busy: batchBusy,

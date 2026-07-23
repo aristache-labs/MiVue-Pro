@@ -4,6 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -18,6 +19,7 @@ import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   actionsForStatus,
+  clearableQueueItems,
   createQueueActionGate,
   filterVisibleQueueItems,
   formatCompactDateTime,
@@ -28,6 +30,9 @@ import {
   QUEUE_ACTION_MIN_WIDTH,
   QUEUE_ACTION_VISUAL_HEIGHT,
   QUEUE_LIST_BOTTOM_PADDING,
+  queueClearedAnnouncement,
+  queueClearConfirmMessage,
+  queueClearConfirmTitle,
   queueDisplayPosition,
   queueStatusAnnouncement,
   queueThumbSize,
@@ -113,6 +118,8 @@ export default function QueueScreen() {
     [visibleItems],
   );
 
+  const clearableItems = useMemo(() => clearableQueueItems(visibleItems), [visibleItems]);
+
   const [errorDismissed, setErrorDismissed] = useState(false);
   useEffect(() => {
     setErrorDismissed(false);
@@ -125,16 +132,60 @@ export default function QueueScreen() {
       ? friendlyConnectionError(lastError)
       : undefined;
 
+  const clearCanceledOrFailed = useCallback(() => {
+    const ids = clearableItems.map((item) => item.id);
+    const count = ids.length;
+    if (count === 0) return;
+    Alert.alert(queueClearConfirmTitle(), queueClearConfirmMessage(count), [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: () => {
+          void actionGateRef.current(async () => {
+            setActionBusy(true);
+            try {
+              for (const id of ids) {
+                await removeFromQueue(id);
+              }
+              void AccessibilityInfo.announceForAccessibility(queueClearedAnnouncement(count));
+            } finally {
+              setActionBusy(false);
+            }
+          });
+        },
+      },
+    ]);
+  }, [clearableItems, removeFromQueue]);
+
   useLayoutEffect(() => {
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
           title="Download queue"
           left={<View style={{ width: 44 }} />}
+          right={
+            clearableItems.length > 0 ? (
+              <Pressable
+                onPress={clearCanceledOrFailed}
+                disabled={actionBusy}
+                accessibilityRole="button"
+                accessibilityLabel={`Clear ${clearableItems.length} canceled or failed items`}
+                hitSlop={8}
+                style={{ minWidth: 44, minHeight: 44, alignItems: "center", justifyContent: "center" }}
+              >
+                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}>
+                  Clear
+                </Text>
+              </Pressable>
+            ) : (
+              <View style={{ width: 44 }} />
+            )
+          }
         />
       ),
     });
-  }, [navigation]);
+  }, [navigation, clearableItems.length, clearCanceledOrFailed, actionBusy, colors.brand]);
 
   useEffect(() => {
     const hasActive = visibleItems.some((i) => i.status === "active");
@@ -387,6 +438,9 @@ export default function QueueScreen() {
           const active = isExpandedCard(item.status);
           const paused = item.status === "paused";
           const queued = item.status === "queued";
+          const terminal =
+            item.status === "failed" || item.status === "cancelled";
+          const compactSide = queued || terminal;
           const position = queueDisplayPosition(visibleItems, item.id);
           const tone = badgeColors(item.status);
           const label = statusLabel(item.status);
@@ -412,7 +466,7 @@ export default function QueueScreen() {
               const mib = smoothedBps / (1024 * 1024);
               rateLabel =
                 mib >= 0.1
-                  ? `${mib.toFixed(1).replace(".", ",")} MB/s`
+                  ? `${mib.toFixed(1)} MB/s`
                   : `${(smoothedBps / 1024).toFixed(0)} KB/s`;
             }
             const remaining = smoothedBps > 0 ? (total - received) / smoothedBps : Number.NaN;
@@ -448,7 +502,7 @@ export default function QueueScreen() {
               style={[
                 styles.card,
                 {
-                  padding: active ? 12 : queued ? 10 : 11,
+                  padding: active ? 12 : compactSide ? 10 : 11,
                   borderRadius: radius.md,
                   borderColor: colors.border,
                   borderWidth: StyleSheet.hairlineWidth,
@@ -489,7 +543,7 @@ export default function QueueScreen() {
                     <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
                       {item.localName}
                     </Text>
-                    {!queued ? (
+                    {!compactSide ? (
                       <View style={[styles.statusBadge, { backgroundColor: tone.bg }]}>
                         <Text style={[styles.statusBadgeText, { color: tone.fg }]}>{badgeText}</Text>
                       </View>
@@ -511,9 +565,26 @@ export default function QueueScreen() {
                       {metaSecond}
                     </Text>
                   ) : null}
+
+                  {terminal && item.errorMessage ? (
+                    <Pressable
+                      onPress={() =>
+                        Alert.alert(label, item.errorMessage ?? "", [{ text: "OK" }])
+                      }
+                      accessibilityRole="button"
+                      accessibilityLabel={`Error details: ${item.errorMessage}`}
+                    >
+                      <Text
+                        style={[styles.errorCompact, { color: colors.danger }]}
+                        numberOfLines={2}
+                      >
+                        {item.errorMessage}
+                      </Text>
+                    </Pressable>
+                  ) : null}
                 </View>
 
-                {queued ? (
+                {compactSide ? (
                   <View style={styles.queuedSide}>
                     <View style={[styles.statusBadge, { backgroundColor: tone.bg, marginBottom: 4 }]}>
                       <Text style={[styles.statusBadgeText, { color: tone.fg }]}>{badgeText}</Text>
@@ -586,15 +657,6 @@ export default function QueueScreen() {
                   {renderActions(item, false)}
                 </View>
               ) : null}
-
-              {item.status === "failed" || item.status === "cancelled" ? (
-                <View style={styles.failedBlock}>
-                  {item.errorMessage ? (
-                    <Text style={[styles.error, { color: colors.danger }]}>{item.errorMessage}</Text>
-                  ) : null}
-                  {renderActions(item, false)}
-                </View>
-              ) : null}
             </Card>
           );
         }}
@@ -621,6 +683,7 @@ const styles = StyleSheet.create({
   },
   bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4 },
+  errorCompact: { fontSize: 11, fontFamily: Type.font, marginTop: 2 },
   card: { overflow: "hidden" },
   row: { flexDirection: "row", alignItems: "center", gap: 10 },
   thumbWrap: { borderRadius: 8, overflow: "hidden" },
@@ -643,7 +706,6 @@ const styles = StyleSheet.create({
   queuedSide: { alignItems: "flex-end", justifyContent: "center", gap: 2 },
   progressBlock: { marginTop: 10 },
   pausedBlock: { marginTop: 8 },
-  failedBlock: { marginTop: 8 },
   progressMeta: { fontSize: 12, fontFamily: Type.monoMed, marginBottom: 4 },
   barRow: { flexDirection: "row", alignItems: "center", gap: 8 },
   track: { flex: 1, height: 5, borderRadius: 3, overflow: "hidden" },

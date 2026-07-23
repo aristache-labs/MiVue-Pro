@@ -82,9 +82,12 @@ export function aggregateStorageBreakdown(
   };
 }
 
-/** “1 file · 210 MB” / “23 files · 4.14 GB”. */
+/** “1 file · 210 MB” / “0 files” when empty. */
 export function formatStorageStatLine(count: number, bytes: number): string {
   const filesLabel = count === 1 ? "1 file" : `${count} files`;
+  if (count === 0 || !Number.isFinite(bytes) || bytes <= 0) {
+    return filesLabel;
+  }
   return `${filesLabel} · ${formatMediaSizeMbGb(bytes)}`;
 }
 

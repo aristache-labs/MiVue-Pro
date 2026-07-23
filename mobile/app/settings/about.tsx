@@ -77,7 +77,7 @@ export default function SettingsAboutScreen() {
           <Text style={[styles.heroSubtitle, { color: colors.textMuted }]} maxFontSizeMultiplier={1.3}>
             Your local dashcam library
           </Text>
-          <Text style={[styles.heroVersion, { color: colors.textFaint }]} maxFontSizeMultiplier={1.2}>
+          <Text style={[styles.heroVersion, { color: colors.textMuted }]} maxFontSizeMultiplier={1.2}>
             Version {version}
             {build ? ` · Build ${build}` : ""}
           </Text>

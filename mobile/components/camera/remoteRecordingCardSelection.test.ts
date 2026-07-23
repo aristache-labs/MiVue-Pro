@@ -47,6 +47,9 @@ describe("Library selection-mode card content consistency", () => {
     assert.match(action, /pointerEvents="none"/);
     assert.match(action, /accessibilityElementsHidden/);
     assert.match(action, /importantForAccessibility="no-hide-descendants"/);
+    assert.match(action, /Downloaded/);
+    assert.match(action, /cloud-done-outline/);
+    assert.match(action, /inert \? \(/);
   });
 
   it("selection mode clears nested thumb/body presses so parent owns the tap", () => {

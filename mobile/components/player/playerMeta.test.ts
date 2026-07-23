@@ -45,11 +45,14 @@ test("missing size and duration become em dash", () => {
   assert.equal(fields.duration, "—");
 });
 
-test("player size and duration helpers", () => {
+test("player size uses en-GB dots not commas", () => {
   assert.equal(formatPlayerSize(0), "—");
   assert.equal(formatPlayerDuration(undefined), "—");
   assert.equal(formatPlayerDuration(180), "3:00");
-  assert.ok(formatPlayerRecordedDate("FILE260719-135021F.MP4").includes("2026"));
+  assert.equal(formatPlayerRecordedDate("FILE260719-135021F.MP4"), "19 Jul 2026");
+  assert.doesNotMatch(formatPlayerRecordedDate("FILE260719-135021F.MP4"), /iul/i);
+  assert.match(formatPlayerSize(371_200_000), /\d+\.\d+ MB/);
+  assert.doesNotMatch(formatPlayerSize(371_200_000), /,/);
   assert.equal(formatPlayerRecordedTime("FILE260719-135021F.MP4"), "13:50:21");
 });
 
@@ -80,7 +83,7 @@ test("telemetry rejects NaN Infinity and impossible values", () => {
   assert.deepEqual(formatSpeedParts(Number.NaN), { value: "—", unit: "km/h" });
   assert.deepEqual(formatSpeedParts(-3), { value: "—", unit: "km/h" });
   assert.deepEqual(formatSpeedParts(86.4), { value: "86", unit: "km/h" });
-  assert.deepEqual(formatAltitudeParts(91.5), { value: "91,5", unit: "m" });
+  assert.deepEqual(formatAltitudeParts(91.5), { value: "91.5", unit: "m" });
 });
 
 test("telemetry a11y labels", () => {

@@ -13,7 +13,7 @@ export function formatAltitudeParts(m: number | undefined): { value: string; uni
   }
   // Impossible depths for dashcam road altitudes — still show finite negatives as —.
   if (m < -500 || m > 9000) return { value: "—", unit: "m" };
-  return { value: m.toFixed(1).replace(".", ","), unit: "m" };
+  return { value: m.toFixed(1), unit: "m" };
 }
 
 export function speedA11yLabel(kmh: number | undefined): string {
@@ -25,8 +25,7 @@ export function speedA11yLabel(kmh: number | undefined): string {
 export function altitudeA11yLabel(m: number | undefined): string {
   const { value } = formatAltitudeParts(m);
   if (value === "—") return "Altitude unavailable";
-  const spoken = value.replace(",", ".");
-  return `Altitude ${spoken} meters`;
+  return `Altitude ${value} meters`;
 }
 
 export function cameraTimeA11yLabel(hhmmss: string): string {

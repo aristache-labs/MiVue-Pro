@@ -88,7 +88,8 @@ describe("storageBreakdown", () => {
   it("formats singular and plural file labels", () => {
     assert.match(formatStorageStatLine(1, 1024 * 1024), /^1 file ·/);
     assert.match(formatStorageStatLine(2, 1024 * 1024), /^2 files ·/);
-    assert.match(formatStorageStatLine(0, 0), /^0 files ·/);
+    assert.equal(formatStorageStatLine(0, 0), "0 files");
+    assert.doesNotMatch(formatStorageStatLine(0, 0), /·/);
   });
 
   it("category sum equals Total", () => {

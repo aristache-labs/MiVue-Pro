@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 
 import { formatDuration } from "@/components/mediaMeta";
+import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
 import { formatCompactDateTime } from "@/components/local/localLibrarySections";
 import { MediaCard, mediaCardActionHitStyle } from "@/components/media/MediaCard";
 import { MEDIA_THUMB_H, MEDIA_THUMB_W } from "@/components/media/mediaCardTokens";
@@ -47,10 +48,7 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
 }: LocalLibraryCardProps) {
   const { colors, scheme } = useAppTheme();
   const when = formatCompactDateTime(item.name);
-  const sizeLabel =
-    item.sizeBytes > 0
-      ? `${(item.sizeBytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`
-      : "—";
+  const sizeLabel = item.sizeBytes > 0 ? formatMediaSizeMbGb(item.sizeBytes) : "—";
   const typeLabel = CATEGORY_LABEL[category];
   const catAccent = categoryColor(category, scheme);
   const playA11y = item.kind === "image" ? `View ${item.name}` : `Play ${item.name}`;

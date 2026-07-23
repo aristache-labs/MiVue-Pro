@@ -341,12 +341,6 @@ export default function OnboardingConnectScreen() {
         </Text>
       </View>
 
-      {Platform.OS === "ios" ? (
-        <Text style={[styles.hint, { color: colors.textMuted }]}>
-          Open Settings → Wi-Fi, join the camera network, then return here.
-        </Text>
-      ) : null}
-
       {facing ? (
         <InlineMessage
           title={facing.title}
@@ -369,7 +363,8 @@ export default function OnboardingConnectScreen() {
       ) : null}
 
       <PrimaryButton
-        label={checking ? "Checking camera…" : facing ? "Try again" : "Verify connection"}
+        label={facing ? "Try again" : "Verify connection"}
+        loadingLabel="Checking camera…"
         onPress={() => void runVerify()}
         loading={checking}
         disabled={checking}

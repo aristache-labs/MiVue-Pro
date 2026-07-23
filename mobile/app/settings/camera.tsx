@@ -278,7 +278,7 @@ export default function SettingsCameraScreen() {
           <SettingsValueRow
             icon="checkmark-circle-outline"
             title="Compatibility"
-            subtitle="Confirmed with Mio MiVue 866. Laneory uses read-only requests for browsing and downloading. Camera settings change only when you explicitly select a new value and confirm Apply. Independent app — not affiliated with Mio or MiTAC."
+            subtitle="Verified with Mio MiVue 866"
             compact
           />
         </SettingsSection>

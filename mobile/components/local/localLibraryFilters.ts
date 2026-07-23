@@ -1,4 +1,5 @@
 import { parseRecordedParts } from "@/components/mediaMeta";
+import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
 import { formatRecordingDate } from "@/components/media/recordingDateTime";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
@@ -325,18 +326,11 @@ export function clearFilterGroup(
 }
 
 export function formatResultsSummary(count: number, totalBytes: number): string {
-  const gb = totalBytes / (1024 * 1024 * 1024);
-  const size =
-    gb >= 0.1
-      ? `${gb.toFixed(1).replace(".", ",")} GB`
-      : `${(totalBytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
-  return `${count} results · ${size}`;
+  return `${count} results · ${formatMediaSizeMbGb(totalBytes)}`;
 }
 
 export function formatSelectionSize(totalBytes: number): string {
-  const gb = totalBytes / (1024 * 1024 * 1024);
-  if (gb >= 0.1) return `${gb.toFixed(1).replace(".", ",")} GB`;
-  return `${(totalBytes / (1024 * 1024)).toFixed(1).replace(".", ",")} MB`;
+  return formatMediaSizeMbGb(totalBytes);
 }
 
 export function sumBytes(files: readonly LocalMediaFile[]): number {

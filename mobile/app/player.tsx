@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as FileSystem from "expo-file-system/legacy";
-import { Stack, useLocalSearchParams } from "expo-router";
+import { Stack, router, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -560,7 +560,7 @@ function VideoWithGps({
                 isExploreUi
                   ? "Explore mode"
                   : isFollowingUi
-                    ? "Following GPS on map"
+                    ? "Following"
                     : gpsStatusA11yLabel(gpsWaiting ? "waiting" : gpsStatus)
               }
             >
@@ -633,11 +633,22 @@ function VideoWithGps({
           )}
 
           {track && track.samples.length > 0 ? (
-            <Text style={[styles.privacyInline, { color: colors.textFaint }]}>
-              Local schematic works entirely on this device. Online map requests only the visible map
-              area from the configured tile provider after you enable it. Laneory does not upload the
-              video or the complete GPS track.
-            </Text>
+            <View style={styles.privacyRow}>
+              <Text style={[styles.privacyInline, { color: colors.textMuted, flex: 1 }]}>
+                Online map loads visible tiles only. Video and the complete GPS track are not uploaded.
+              </Text>
+              <Pressable
+                onPress={() =>
+                  router.push("/settings/maps-privacy" as Parameters<typeof router.push>[0])
+                }
+                accessibilityRole="link"
+                accessibilityLabel="Privacy"
+                hitSlop={8}
+                style={styles.privacyLink}
+              >
+                <Text style={[styles.privacyLinkText, { color: colors.brand }]}>Privacy</Text>
+              </Pressable>
+            </View>
           ) : null}
         </View>
       ) : null}
@@ -809,7 +820,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontFamily: Type.font,
     lineHeight: 15,
+  },
+  privacyRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
     marginTop: 10,
+  },
+  privacyLink: {
+    minHeight: 44,
+    justifyContent: "center",
+    paddingTop: 0,
+  },
+  privacyLinkText: {
+    fontSize: 12,
+    fontFamily: Type.fontSemi,
   },
   noGps: {
     minHeight: 100,

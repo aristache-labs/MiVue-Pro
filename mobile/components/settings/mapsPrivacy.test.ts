@@ -41,8 +41,10 @@ describe("maps-privacy screen", () => {
 
   it("keeps local connection privacy and accurate camera-access footnote", () => {
     assert.match(mapsSrc, /Camera Wi-Fi/);
+    assert.match(mapsSrc, /Direct local connection\. Laneory does not store the camera Wi-Fi password\./);
     assert.match(mapsSrc, /GET\/HEAD/);
     assert.match(mapsSrc, /confirm Apply/);
+    assert.match(mapsSrc, /textMuted/);
     assert.doesNotMatch(mapsSrc, /\bPOST\b|\bPUT\b|\bDELETE\b/);
     assert.doesNotMatch(mapsSrc, /createLiveTransport|cameraMutate|formatSd|cgi/i);
     assert.doesNotMatch(mapsSrc, /setCameraSetting/);

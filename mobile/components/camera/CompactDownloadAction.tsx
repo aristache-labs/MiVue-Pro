@@ -69,9 +69,23 @@ export const CompactDownloadAction = memo(function CompactDownloadAction({
         </View>
       ) : null}
       {state.kind === "downloaded" ? (
-        <View style={[styles.checkWrap, { backgroundColor: colors.successSoft }]}>
-          <Ionicons name="checkmark" size={18} color={tone} />
-        </View>
+        inert ? (
+          <View
+            style={[
+              styles.downloadedBadge,
+              { backgroundColor: colors.successSoft, borderColor: colors.success },
+            ]}
+          >
+            <Ionicons name="cloud-done-outline" size={12} color={tone} />
+            <Text style={[styles.downloadedText, { color: tone }]} numberOfLines={1}>
+              Downloaded
+            </Text>
+          </View>
+        ) : (
+          <View style={[styles.checkWrap, { backgroundColor: colors.successSoft }]}>
+            <Ionicons name="checkmark" size={18} color={tone} />
+          </View>
+        )
       ) : null}
       {state.kind === "paused" ? <Ionicons name="pause" size={20} color={tone} /> : null}
       {state.kind === "downloading" ? (
@@ -157,6 +171,19 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  downloadedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 3,
+    minWidth: 88,
+    maxWidth: 104,
+    height: 28,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  downloadedText: { fontSize: 11, fontFamily: Type.fontSemi },
   progressWrap: { alignItems: "center", justifyContent: "center", gap: 1 },
   pct: { fontSize: 9, fontFamily: Type.monoMed, lineHeight: 11 },
   queueBadge: {

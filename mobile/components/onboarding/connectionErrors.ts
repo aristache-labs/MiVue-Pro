@@ -25,7 +25,7 @@ export function userFacingConnectionError(
     case "wrongNetwork":
       return {
         title: "Connect to camera Wi-Fi",
-        message: "Open Wi-Fi settings and select the network shown on the camera.",
+        message: "Select the camera network on this phone, then try again.",
         tone: "warn",
         ...(technical ? { technical } : {}),
       };

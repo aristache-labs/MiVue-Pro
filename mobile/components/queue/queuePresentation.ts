@@ -1,5 +1,8 @@
 import type { QueueItem, QueueItemStatus } from "@/packages/local-db/src/index";
 
+import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
+import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
+
 export type QueueAction = "pause" | "resume" | "cancel" | "remove" | "retry";
 
 export function isSidecarNmea(name: string): boolean {
@@ -114,10 +117,7 @@ export function formatQueueSummary(items: readonly QueueItem[]): string {
 }
 
 export function formatSizeMb(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  const mb = bytes / (1024 * 1024);
-  if (mb < 0.1) return `${(bytes / 1024).toFixed(0)} KB`;
-  return `${mb.toFixed(1).replace(".", ",")} MB`;
+  return formatMediaSizeMbGb(bytes);
 }
 
 /** Compact clip length: `3 min` / `1 min 5 sec`. */
@@ -164,19 +164,17 @@ export function resolveEtaDisplay(input: {
   return label === "" ? undefined : label;
 }
 
-export function formatCompactDateTime(name: string, parseParts: (n: string) => { isoLocal: string; date: string; time: string } | undefined): string | undefined {
+export function formatCompactDateTime(
+  name: string,
+  parseParts: (n: string) => { isoLocal: string; date: string; time: string } | undefined,
+): string | undefined {
   const parts = parseParts(name);
   if (!parts) return undefined;
-  const d = new Date(`${parts.isoLocal.replace(" ", "T")}`);
-  if (!Number.isFinite(d.getTime())) {
+  const formatted = formatRecordingDateTime(parts.isoLocal);
+  if (formatted.startsWith("Choose a valid")) {
     return `${parts.date} · ${parts.time.slice(0, 5)}`;
   }
-  const date = d.toLocaleDateString("ro-RO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-  return `${date} · ${parts.time.slice(0, 5)}`;
+  return formatted;
 }
 
 /** EMA helper to damp speed/ETA flicker. */
@@ -245,4 +243,26 @@ export function queueStatusAnnouncement(
   if (next === "cancelled") return `Download cancelled for ${localName}`;
   if (next === "completed") return `Download completed for ${localName}`;
   return undefined;
+}
+
+/** Cancelled or failed rows eligible for Clear (not active work). */
+export function isClearableQueueStatus(status: QueueItemStatus): boolean {
+  return status === "cancelled" || status === "failed";
+}
+
+export function clearableQueueItems(items: readonly QueueItem[]): QueueItem[] {
+  return items.filter((item) => isClearableQueueStatus(item.status));
+}
+
+export function queueClearConfirmTitle(): string {
+  return "Clear Queue items?";
+}
+
+export function queueClearConfirmMessage(count: number): string {
+  return `Removes ${count} canceled or failed items from Queue. Downloaded recordings are not deleted.`;
+}
+
+export function queueClearedAnnouncement(count: number): string {
+  if (count === 1) return "Removed 1 canceled or failed item from Queue";
+  return `Removed ${count} canceled or failed items from Queue`;
 }

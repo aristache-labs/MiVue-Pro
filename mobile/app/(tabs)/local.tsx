@@ -812,7 +812,7 @@ export default function LocalLibraryScreen() {
             <Text style={[styles.selectionSub, { color: colors.textMuted }]}>
               This will remove {formatSelectionSize(selectedBytes)} from this device.
             </Text>
-            <Text style={[styles.selectionHint, { color: colors.textFaint }]}>
+            <Text style={[styles.selectionHint, { color: colors.textMuted }]}>
               Files on the camera will not be deleted.
             </Text>
             <Pressable

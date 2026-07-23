@@ -221,13 +221,13 @@ export function CameraSettingSheet({
                 styles.btn,
                 {
                   backgroundColor: canApply ? colors.brand : colors.surfaceMuted,
-                  opacity: !canApply ? 0.55 : pressed ? 0.85 : 1,
+                  opacity: canApply && pressed ? 0.85 : 1,
                   borderRadius: radius.md,
                 },
               ]}
             >
               {applying ? (
-                <ActivityIndicator size="small" color={colors.onBrand} />
+                <ActivityIndicator size="small" color={canApply ? colors.onBrand : colors.textMuted} />
               ) : (
                 <Text
                   style={[

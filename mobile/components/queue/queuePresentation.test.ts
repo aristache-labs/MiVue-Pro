@@ -4,15 +4,20 @@ import test from "node:test";
 import type { QueueItem } from "../../packages/local-db/src/index";
 import {
   actionsForStatus,
+  clearableQueueItems,
   createQueueActionGate,
   filterVisibleQueueItems,
+  formatCompactDateTime,
   formatQueueSummary,
+  formatSizeMb,
+  isClearableQueueStatus,
   isExpandedCard,
   QUEUE_ACTION_GAP,
   QUEUE_ACTION_HIT_SLOP,
   QUEUE_LIST_BOTTOM_PADDING,
   queueActionHitHeight,
   queueActionHitWidth,
+  queueClearConfirmMessage,
   queueDisplayPosition,
   queueStatusAnnouncement,
   queueThumbSize,
@@ -21,6 +26,7 @@ import {
   showsProgress,
   sortQueueForDisplay,
 } from "./queuePresentation";
+import { parseRecordedParts } from "../mediaMeta";
 
 function item(
   id: string,
@@ -247,4 +253,41 @@ test("sort order is stable and unchanged by presentation helpers", () => {
     ordered.map((i) => i.id),
     ["a", "p", "q2", "q1"],
   );
+});
+
+test("Clear targets only cancelled and failed — never active queue work", () => {
+  const mix = [
+    item("a", "active"),
+    item("p", "paused"),
+    item("q", "queued"),
+    item("f", "failed"),
+    item("c", "cancelled"),
+  ];
+  const clearable = clearableQueueItems(mix);
+  assert.deepEqual(
+    clearable.map((i) => i.id).sort(),
+    ["c", "f"],
+  );
+  assert.equal(isClearableQueueStatus("active"), false);
+  assert.equal(isClearableQueueStatus("paused"), false);
+  assert.equal(isClearableQueueStatus("queued"), false);
+  assert.equal(isClearableQueueStatus("completed"), false);
+  assert.equal(isClearableQueueStatus("failed"), true);
+  assert.equal(isClearableQueueStatus("cancelled"), true);
+  assert.match(queueClearConfirmMessage(2), /2 canceled or failed/);
+  assert.match(queueClearConfirmMessage(2), /Downloaded recordings are not deleted/);
+});
+
+test("queue size and date use en-GB dots", () => {
+  assert.match(formatSizeMb(371_200_000), /\d+\.\d+ MB/);
+  assert.doesNotMatch(formatSizeMb(371_200_000), /,/);
+  const when = formatCompactDateTime("FILE260719-135021F.MP4", parseRecordedParts);
+  assert.match(when ?? "", /Jul/);
+  assert.doesNotMatch(when ?? "", /iul/i);
+});
+
+test("failed and cancelled stay compact cards — only active expands", () => {
+  assert.equal(isExpandedCard("failed"), false);
+  assert.equal(isExpandedCard("cancelled"), false);
+  assert.equal(isExpandedCard("active"), true);
 });

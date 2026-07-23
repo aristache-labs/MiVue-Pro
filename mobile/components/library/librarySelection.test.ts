@@ -45,9 +45,11 @@ describe("librarySelection helpers", () => {
     assert.equal(librarySelectionTitle(0), "Select recordings");
     assert.equal(librarySelectionTitle(1), "1 selected");
     assert.equal(librarySelectionTitle(4), "4 selected");
-    assert.equal(libraryDownloadActionLabel(1), "Download · 1");
-    assert.equal(libraryDownloadActionLabel(4), "Download · 4");
-    assert.equal(libraryDownloadActionLabel(4, "1.45 GB"), "Download · 4 · 1.45 GB");
+    assert.equal(libraryDownloadActionLabel(1), "Download 1");
+    assert.equal(libraryDownloadActionLabel(4), "Download 4");
+    assert.equal(libraryDownloadActionLabel(4, "1.45 GB"), "Download 4 · 1.45 GB");
+    assert.equal(libraryDownloadActionLabel(2, "210 MB", 5), "Download 2 of 5 · 210 MB");
+    assert.equal(libraryDownloadActionLabel(5, "1.45 GB", 5), "Download 5 · 1.45 GB");
     assert.equal(libraryCancelActionLabel(1), "Cancel download · 1");
     assert.equal(libraryCancelActionLabel(2), "Cancel downloads · 2");
     assert.equal(libraryCancelActionLabel(2, true), "Cancel · 2");

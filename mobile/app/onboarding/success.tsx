@@ -73,6 +73,7 @@ export default function OnboardingSuccessScreen() {
 
       <PrimaryButton
         label="Open Library"
+        loadingLabel="Opening Library…"
         onPress={() => void goToTabs("/(tabs)")}
         loading={busy}
       />

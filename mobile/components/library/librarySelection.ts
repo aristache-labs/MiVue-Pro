@@ -31,12 +31,42 @@ export function librarySelectionTitle(selectedCount: number): string {
   return `${selectedCount} selected`;
 }
 
-export function libraryDownloadActionLabel(count: number, sizeLabel?: string): string {
-  const base = count <= 0 ? "Download" : `Download · ${count}`;
+/**
+ * Bulk download CTA.
+ * - all actionable → `Download N · {size}`
+ * - partial → `Download {actionable} of {selected} · {size}`
+ */
+export function libraryDownloadActionLabel(
+  actionableCount: number,
+  sizeLabel?: string,
+  selectedCount?: number,
+): string {
+  const selected = selectedCount ?? actionableCount;
+  let base: string;
+  if (actionableCount <= 0) {
+    base = "Download";
+  } else if (actionableCount < selected) {
+    base = `Download ${actionableCount} of ${selected}`;
+  } else {
+    base = `Download ${actionableCount}`;
+  }
   if (sizeLabel && sizeLabel.length > 0 && sizeLabel !== "—") {
     return `${base} · ${sizeLabel}`;
   }
   return base;
+}
+
+export function libraryDownloadA11yLabel(
+  actionableCount: number,
+  selectedCount: number,
+): string {
+  if (actionableCount <= 0) {
+    return `${selectedCount} selected. None will be queued.`;
+  }
+  if (actionableCount < selectedCount) {
+    return `${selectedCount} selected. ${actionableCount} of ${selectedCount} will be queued.`;
+  }
+  return `${selectedCount} selected. ${actionableCount} will be queued.`;
 }
 
 export function libraryCancelActionLabel(count: number, compact = false): string {

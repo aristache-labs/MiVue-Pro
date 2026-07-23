@@ -1,7 +1,6 @@
+import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
+import { formatRecordingDate } from "@/components/media/recordingDateTime";
 import { formatDuration, parseRecordedParts } from "@/components/mediaMeta";
-
-/** Same locale family as Local Library card dates (`19 iul. 2026`). */
-const DATE_LOCALE = "ro-RO";
 
 export const PLAYER_META_LABELS = ["DATE", "TIME", "SIZE", "DURATION"] as const;
 
@@ -12,26 +11,17 @@ export interface PlayerMetaFields {
   readonly duration: string;
 }
 
-/** Localized size (`371,2 MB`) — same decimal style as Local Library. */
+/** Shared en-GB size (`371.2 MB`) — same helper as Library / Queue / Storage. */
 export function formatPlayerSize(bytes: number): string {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "—";
-  const mb = bytes / (1024 * 1024);
-  if (mb >= 1024) {
-    return `${(mb / 1024).toFixed(1).replace(".", ",")} GB`;
-  }
-  return `${mb.toFixed(1).replace(".", ",")} MB`;
+  return formatMediaSizeMbGb(bytes);
 }
 
 export function formatPlayerRecordedDate(name: string): string {
   const parts = parseRecordedParts(name);
   if (!parts) return "—";
-  const d = new Date(`${parts.isoLocal.replace(" ", "T")}`);
-  if (!Number.isFinite(d.getTime())) return parts.date;
-  return d.toLocaleDateString(DATE_LOCALE, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
+  const formatted = formatRecordingDate(parts.isoLocal);
+  if (formatted === "Choose a valid date") return parts.date;
+  return formatted;
 }
 
 export function formatPlayerRecordedTime(name: string): string {
