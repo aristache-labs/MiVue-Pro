@@ -44,6 +44,7 @@ import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 
 interface LocalFilterSheetProps {
   readonly visible: boolean;
@@ -191,6 +192,7 @@ export function LocalFilterSheet({
   const [iosTemp, setIosTemp] = useState<Date | null>(null);
   const showCategory = showLocalCategorySectionInFilters(categoryScope);
   const resetDisabled = isFiltersEmpty(draft);
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
   useEffect(() => {
     if (!visible) return;
@@ -270,7 +272,7 @@ export function LocalFilterSheet({
       }}
     >
       {({ requestClose }) => (
-        <>
+        <View style={styles.sheetBody}>
           <View style={styles.handleRow}>
             <View style={[styles.handle, { backgroundColor: colors.border }]} />
           </View>
@@ -314,8 +316,16 @@ export function LocalFilterSheet({
           </View>
 
           <ScrollView
+            style={styles.scroll}
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ paddingHorizontal: MEDIA_SHEET_PAD_H, paddingBottom: 16 }}
+            scrollEnabled={hasOverflow}
+            alwaysBounceVertical={false}
+            bounces={false}
+            overScrollMode="never"
+            showsVerticalScrollIndicator={hasOverflow}
+            onLayout={onViewportLayout}
+            onContentSizeChange={onContentSizeChange}
           >
             <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
             <View style={styles.rowWrap}>
@@ -622,13 +632,15 @@ export function LocalFilterSheet({
               </View>
             </Modal>
           ) : null}
-        </>
+        </View>
       )}
     </StaticBackdropSheet>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetBody: { flexShrink: 1 },
+  scroll: { flexShrink: 1 },
   handleRow: { alignItems: "center", paddingTop: 8 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   sheetHeader: {

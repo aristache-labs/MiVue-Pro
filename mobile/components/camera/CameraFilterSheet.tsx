@@ -40,6 +40,7 @@ import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
 interface CameraFilterSheetProps {
@@ -185,6 +186,7 @@ export function CameraFilterSheet({
   const showCategory = showCategorySectionInFilters(categoryScope);
   const resetDisabled = isCameraFiltersEmpty(draft);
   const draftIssue = cameraFilterDraftIssue(draft);
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
   useEffect(() => {
     if (!visible) return;
@@ -282,7 +284,7 @@ export function CameraFilterSheet({
       }}
     >
       {({ requestClose }) => (
-        <>
+        <View style={styles.sheetBody}>
             <View style={styles.handleRow}>
               <View style={[styles.handle, { backgroundColor: colors.border }]} />
             </View>
@@ -329,8 +331,16 @@ export function CameraFilterSheet({
             </View>
 
             <ScrollView
+              style={styles.scroll}
               keyboardShouldPersistTaps="handled"
               contentContainerStyle={{ paddingHorizontal: MEDIA_SHEET_PAD_H, paddingBottom: 12 }}
+              scrollEnabled={hasOverflow}
+              alwaysBounceVertical={false}
+              bounces={false}
+              overScrollMode="never"
+              showsVerticalScrollIndicator={hasOverflow}
+              onLayout={onViewportLayout}
+              onContentSizeChange={onContentSizeChange}
             >
               <Text style={[styles.sectionLabel, { color: colors.textMuted }]}>Date</Text>
               <View style={styles.rowWrap}>
@@ -647,13 +657,15 @@ export function CameraFilterSheet({
                 </View>
               </Modal>
             ) : null}
-          </>
+          </View>
       )}
     </StaticBackdropSheet>
   );
 }
 
 const styles = StyleSheet.create({
+  sheetBody: { flexShrink: 1 },
+  scroll: { flexShrink: 1 },
   handleRow: { alignItems: "center", paddingTop: 8 },
   handle: { width: 36, height: 4, borderRadius: 2 },
   sheetHeader: {

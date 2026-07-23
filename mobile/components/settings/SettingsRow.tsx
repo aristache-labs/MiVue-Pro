@@ -37,7 +37,10 @@ export function SettingsRow({
   compact = false,
 }: SettingsRowBaseProps) {
   const { colors, radius } = useAppTheme();
-  const titleColor = destructive ? colors.danger : colors.text;
+  const titleColor =
+    disabled ? colors.textMuted : destructive ? colors.danger : colors.text;
+  const iconColor =
+    disabled ? colors.textMuted : destructive ? colors.danger : colors.brand;
   const interactive = Boolean(onPress) && !disabled && !loading;
   const tall = variant === "category";
 
@@ -49,11 +52,7 @@ export function SettingsRow({
           { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm },
         ]}
       >
-        <Ionicons
-          name={icon}
-          size={18}
-          color={destructive ? colors.danger : colors.brand}
-        />
+        <Ionicons name={icon} size={18} color={iconColor} />
       </View>
       <View style={styles.body}>
         <Text style={[styles.title, { color: titleColor }]} numberOfLines={2}>

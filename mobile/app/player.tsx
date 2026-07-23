@@ -42,6 +42,7 @@ import { IconButton } from "@/components/ui";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 import type { FileCategory, GpsSample } from "@/packages/parsers/src/index";
 
 type PlaybackUiStatus = "loading" | "ready" | "buffering" | "error" | "unsupported";
@@ -65,6 +66,7 @@ export default function PlayerScreen() {
   const [durationSec, setDurationSec] = useState<number | undefined>();
   const [fileMissing, setFileMissing] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
+  const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
   const category: FileCategory | undefined = useMemo(() => {
     if (isImage) return "photo";
@@ -183,9 +185,17 @@ export default function PlayerScreen() {
 
       <ScrollView
         style={[styles.scroll, { backgroundColor: colors.bg }]}
-        contentContainerStyle={[styles.scrollContent, { paddingBottom: 24 + insets.bottom }]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          { paddingBottom: Math.max(insets.bottom, 12) },
+        ]}
+        scrollEnabled={!fullscreen && hasOverflow}
+        alwaysBounceVertical={false}
         bounces={false}
-        scrollEnabled={!fullscreen}
+        overScrollMode="never"
+        showsVerticalScrollIndicator={!fullscreen && hasOverflow}
+        onLayout={onViewportLayout}
+        onContentSizeChange={onContentSizeChange}
       >
         {!fullscreen && !fileMissing ? (
           <PlayerMetaCard name={name} sizeBytes={sizeBytes} durationSeconds={durationSec} />

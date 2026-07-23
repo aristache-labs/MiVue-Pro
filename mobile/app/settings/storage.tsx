@@ -1,7 +1,8 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Alert,
   BackHandler,
@@ -26,6 +27,13 @@ import {
   storageBreakdownRows,
   type StorageSizedItem,
 } from "@/components/settings/storageBreakdown";
+import {
+  deleteLocalLibraryConfirmButton,
+  deleteLocalLibraryConfirmMessage,
+  deleteLocalLibrarySubtitle,
+  isDeleteLocalLibraryDisabled,
+  runDeleteLocalLibraryBatch,
+} from "@/components/settings/deleteLocalLibraryCopy";
 import { normalizeLocalFiles } from "@/components/local/localLibraryFilters";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -92,10 +100,13 @@ function CameraSdPlaceholder({
 export default function SettingsStorageScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { localFiles, files, cameraLinkState, clearThumbCache } = useDemoMode();
+  const { localFiles, files, cameraLinkState, clearThumbCache, deleteLocalFilesBatch } =
+    useDemoMode();
   const cameraStatus = visibleConnectionStatus(cameraLinkState);
   const cameraConnected = cameraStatus === "connected";
   const cameraConnecting = cameraStatus === "connecting";
+  const [deletingLibrary, setDeletingLibrary] = useState(false);
+  const deletingRef = useRef(false);
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -134,6 +145,9 @@ export default function SettingsStorageScreen() {
       ? "Connecting…"
       : "Not connected";
 
+  const localEmpty = localFiles.length === 0;
+  const deleteDisabled = isDeleteLocalLibraryDisabled(localFiles.length, deletingLibrary);
+
   useFocusEffect(
     useCallback(() => {
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
@@ -143,6 +157,45 @@ export default function SettingsStorageScreen() {
       return () => sub.remove();
     }, []),
   );
+
+  const runDeleteLocalLibrary = useCallback(async () => {
+    setDeletingLibrary(true);
+    try {
+      const outcome = await runDeleteLocalLibraryBatch(
+        deletingRef,
+        localFiles,
+        deleteLocalFilesBatch,
+      );
+      if (outcome.skipped) return;
+      void AccessibilityInfo.announceForAccessibility(outcome.message);
+      Alert.alert(
+        outcome.deleted > 0 && outcome.failed === 0 ? "Local library" : "Delete local library",
+        outcome.message,
+        [{ text: "OK" }],
+      );
+    } finally {
+      setDeletingLibrary(false);
+    }
+  }, [deleteLocalFilesBatch, localFiles]);
+
+  const onDeleteLocalLibrary = useCallback(() => {
+    if (deleteDisabled) return;
+    const count = localBreakdown.total.count;
+    const bytes = localBreakdown.total.bytes;
+    Alert.alert("Delete local library?", deleteLocalLibraryConfirmMessage(count, bytes), [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: deleteLocalLibraryConfirmButton(count),
+        style: "destructive",
+        onPress: () => void runDeleteLocalLibrary(),
+      },
+    ]);
+  }, [
+    deleteDisabled,
+    localBreakdown.total.count,
+    localBreakdown.total.bytes,
+    runDeleteLocalLibrary,
+  ]);
 
   const onClearCache = useCallback(() => {
     Alert.alert(
@@ -193,6 +246,22 @@ export default function SettingsStorageScreen() {
               compact
             />
           ))}
+          <SettingsDangerRow
+            icon="trash-outline"
+            title={deletingLibrary ? "Deleting…" : "Delete local library"}
+            subtitle={deleteLocalLibrarySubtitle(localFiles.length)}
+            compact
+            loading={deletingLibrary}
+            disabled={deleteDisabled}
+            onPress={deleteDisabled ? undefined : onDeleteLocalLibrary}
+            accessibilityLabel={
+              localEmpty
+                ? "Delete local library, no local files to delete"
+                : deletingLibrary
+                  ? "Deleting local library"
+                  : "Delete local library"
+            }
+          />
         </SettingsSection>
 
         <SettingsSection title="Camera SD card" summary={cameraSummary} style={styles.section}>

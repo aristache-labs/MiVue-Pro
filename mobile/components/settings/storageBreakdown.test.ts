@@ -138,5 +138,8 @@ describe("storageBreakdown", () => {
     assert.doesNotMatch(src, /STAT_ICONS\.total|total: "albums/);
     // Camera SD card section is always present (not gated by connected for the section itself)
     assert.match(src, /summary=\{cameraSummary\}/);
+    assert.match(src, /Delete local library/);
+    assert.match(src, /deleteLocalFilesBatch/);
+    assert.match(src, /runDeleteLocalLibraryBatch/);
   });
 });
