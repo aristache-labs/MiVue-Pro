@@ -72,8 +72,7 @@ export function CameraConnectionSheet({
   const [busy, setBusy] = useState(false);
 
   const connected = linkState === "connected";
-  const unstable = linkState === "unstable";
-  const showConnectedUi = connected || unstable;
+  const showConnectedUi = connected;
 
   useEffect(() => {
     if (visible) setSheetError(undefined);
@@ -142,10 +141,10 @@ export function CameraConnectionSheet({
             <>
               <Text style={[styles.title, { color: colors.text }]}>Camera connection</Text>
               <Text
-                style={[styles.status, { color: unstable ? colors.warn : colors.brand }]}
+                style={[styles.status, { color: colors.brand }]}
                 accessibilityLiveRegion="polite"
               >
-                {unstable ? "Unstable" : "Connected"}
+                Connected
               </Text>
 
               <View style={{ marginTop: spacing.md, gap: 10 }}>

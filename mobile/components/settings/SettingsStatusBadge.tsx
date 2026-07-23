@@ -1,4 +1,4 @@
-import { StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 
 import type { ConnectionHubKind } from "@/components/settings/settingsSummaries";
 import { Type, useAppTheme } from "@/constants/Theme";
@@ -8,7 +8,7 @@ interface SettingsStatusBadgeProps {
   readonly label: string;
 }
 
-/** Compact connection chip — teal when connected, muted when connecting, warn when unavailable. */
+/** Compact connection chip — teal when connected, muted+spinner when connecting, amber when disconnected. */
 export function SettingsStatusBadge({ kind, label }: SettingsStatusBadgeProps) {
   const { colors, radius } = useAppTheme();
   const bg =
@@ -29,8 +29,13 @@ export function SettingsStatusBadge({ kind, label }: SettingsStatusBadgeProps) {
       style={[styles.badge, { backgroundColor: bg, borderRadius: radius.sm }]}
       accessibilityRole="text"
       accessibilityLabel={label}
+      accessibilityLiveRegion="polite"
     >
-      <View style={[styles.dot, { backgroundColor: fg }]} />
+      {kind === "connecting" ? (
+        <ActivityIndicator size="small" color={fg} />
+      ) : (
+        <View style={[styles.dot, { backgroundColor: fg }]} />
+      )}
       <Text style={[styles.label, { color: fg }]} numberOfLines={1}>
         {label}
       </Text>

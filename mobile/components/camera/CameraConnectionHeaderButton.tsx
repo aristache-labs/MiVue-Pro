@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Pressable, StyleSheet, View } from "react-native";
 
 import type { CameraLinkState } from "@/components/camera/cameraLibraryModel";
+import { visibleConnectionStatus } from "@/components/settings/settingsSummaries";
 import { HitSlop44, useAppTheme } from "@/constants/Theme";
 
 interface CameraConnectionHeaderButtonProps {
@@ -10,36 +11,27 @@ interface CameraConnectionHeaderButtonProps {
   readonly onPress: () => void;
 }
 
-function a11yFor(state: CameraLinkState, refreshing: boolean): {
+function a11yFor(
+  status: ReturnType<typeof visibleConnectionStatus>,
+  refreshing: boolean,
+): {
   label: string;
   hint?: string;
   disabled: boolean;
 } {
-  if (refreshing || state === "connecting") {
+  if (refreshing || status === "connecting") {
     return { label: "Connecting to camera", disabled: true };
   }
-  switch (state) {
+  switch (status) {
     case "connected":
       return {
         label: "Camera connected",
         hint: "Opens camera connection details",
         disabled: false,
       };
-    case "unstable":
-      return {
-        label: "Camera connection unstable",
-        hint: "Opens camera connection details",
-        disabled: false,
-      };
-    case "connection_lost":
-      return {
-        label: "Camera connection lost",
-        hint: "Opens camera connection options",
-        disabled: false,
-      };
     default:
       return {
-        label: "Camera not connected",
+        label: "Camera disconnected",
         hint: "Opens camera connection options",
         disabled: false,
       };
@@ -56,22 +48,15 @@ export function CameraConnectionHeaderButton({
   onPress,
 }: CameraConnectionHeaderButtonProps) {
   const { colors } = useAppTheme();
-  const busy = refreshing || linkState === "connecting";
-  const { label, hint, disabled } = a11yFor(linkState, refreshing);
+  const status = visibleConnectionStatus(linkState);
+  const busy = refreshing || status === "connecting";
+  const { label, hint, disabled } = a11yFor(status, refreshing);
 
   const iconName: keyof typeof Ionicons.glyphMap =
-    linkState === "connected" || linkState === "unstable"
-      ? "videocam"
-      : "videocam-off";
+    status === "connected" ? "videocam" : "videocam-off";
 
   const badgeColor =
-    linkState === "connected"
-      ? colors.brand
-      : linkState === "unstable"
-        ? colors.warn
-        : linkState === "connection_lost"
-          ? colors.danger
-          : colors.warn;
+    status === "connected" ? colors.brand : status === "connecting" ? colors.textMuted : colors.warn;
 
   return (
     <Pressable
@@ -99,10 +84,8 @@ export function CameraConnectionHeaderButton({
             ]}
             accessibilityElementsHidden
           >
-            {linkState === "connected" ? (
+            {status === "connected" ? (
               <Ionicons name="checkmark" size={8} color={colors.onBrand} />
-            ) : linkState === "unstable" ? (
-              <Ionicons name="alert" size={7} color={colors.bg} />
             ) : null}
           </View>
         </View>

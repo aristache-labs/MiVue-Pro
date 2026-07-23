@@ -1,31 +1,39 @@
-import { router } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from "react-native";
+import { Stack, router, useFocusEffect } from "expo-router";
+import { useCallback, useState } from "react";
+import { Alert, BackHandler, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { CameraIpSheet } from "@/components/settings/CameraIpSheet";
 import {
   SettingsActionRow,
   SettingsSection,
   SettingsStatusBadge,
   SettingsValueRow,
+  cameraStatusTitle,
   connectionHubKind,
   connectionStatusLabel,
+  formatLastConnected,
+  lastConnectedSummaryLine,
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
-import { Type, useAppTheme } from "@/constants/Theme";
+import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
-import { isPrivateIpv4 } from "@/packages/camera-transport/src/index";
+
+type CameraAction = "refresh" | "reconnect";
+
+function navigateBackToSettings(): void {
+  if (router.canGoBack()) {
+    router.back();
+    return;
+  }
+  router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
+}
 
 export default function SettingsCameraScreen() {
   const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const {
     cameraHost,
     setCameraHost,
@@ -36,29 +44,48 @@ export default function SettingsCameraScreen() {
     refreshFiles,
     isRefreshingCamera,
   } = useDemoMode();
-  const { state: onboardingState, startChangeCamera, reopenCameraSetup } = useOnboarding();
+  const { state: onboardingState, startChangeCamera } = useOnboarding();
+  const [pendingAction, setPendingAction] = useState<CameraAction | null>(null);
+  const [ipSheetOpen, setIpSheetOpen] = useState(false);
 
   const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
-  const [hostDraft, setHostDraft] = useState(cameraHost);
-  const [editingHost, setEditingHost] = useState(false);
-
-  useEffect(() => {
-    if (!editingHost) setHostDraft(cameraHost);
-  }, [cameraHost, editingHost]);
-
+  const cameraConfigured =
+    Boolean(onboardingState.selectedCameraProfileId) || onboardingState.cameraSetupCompleted;
   const statusLabel = connectionStatusLabel(cameraLinkState);
   const kind = connectionHubKind(cameraLinkState);
-  const modelLabel = selectedProfile?.displayName ?? cameraModel ?? "—";
+  const modelName = selectedProfile?.displayName ?? cameraModel;
+  const statusTitle = cameraStatusTitle(cameraConfigured, modelName);
+  const modelRowValue = modelName?.trim()
+    ? modelName
+    : cameraConfigured
+      ? "—"
+      : "No camera configured";
+  const lastConnectedValue = formatLastConnected(lastConnectedAt);
+  const lastConnectedLine = lastConnectedSummaryLine(lastConnectedAt);
 
-  const saveHost = useCallback(() => {
-    const trimmed = hostDraft.trim();
-    if (!isPrivateIpv4(trimmed)) {
-      Alert.alert("Invalid IP", "Enter a private IPv4 address such as 192.72.1.1.");
-      return;
-    }
-    setCameraHost(trimmed);
-    setEditingHost(false);
-  }, [hostDraft, setCameraHost]);
+  useFocusEffect(
+    useCallback(() => {
+      if (ipSheetOpen) return undefined;
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        navigateBackToSettings();
+        return true;
+      });
+      return () => sub.remove();
+    }, [ipSheetOpen]),
+  );
+
+  const runAction = useCallback(
+    async (action: CameraAction) => {
+      if (pendingAction || isRefreshingCamera) return;
+      setPendingAction(action);
+      try {
+        await refreshFiles();
+      } finally {
+        setPendingAction(null);
+      }
+    },
+    [isRefreshingCamera, pendingAction, refreshFiles],
+  );
 
   const onChangeCamera = useCallback(() => {
     Alert.alert(
@@ -78,142 +105,174 @@ export default function SettingsCameraScreen() {
     );
   }, [startChangeCamera]);
 
+  const actionsBusy = pendingAction !== null || isRefreshingCamera;
+
   return (
-    <SettingsScroll>
-      <SettingsSection title="Status">
-        <View style={styles.statusBlock}>
-          <SettingsStatusBadge kind={kind} label={statusLabel} />
-          <Text style={[styles.statusMeta, { color: colors.text }]} numberOfLines={1}>
-            {modelLabel}
-          </Text>
-          <Text style={[styles.statusMetaMuted, { color: colors.textMuted }]} numberOfLines={1}>
-            {cameraHost}
-          </Text>
-          {lastConnectedAt ? (
-            <Text style={[styles.statusMetaMuted, { color: colors.textMuted }]} numberOfLines={2}>
-              Last success · {new Date(lastConnectedAt).toLocaleString()}
+    <>
+      <Stack.Screen
+        options={{
+          title: "Camera & Connection",
+          headerTitleAlign: "center",
+          headerBackVisible: false,
+          headerTintColor: colors.text,
+          headerLeft: () => (
+            <Pressable
+              onPress={navigateBackToSettings}
+              accessibilityRole="button"
+              accessibilityLabel="Back"
+              hitSlop={HitSlop44}
+              style={styles.headerBack}
+            >
+              <Text style={[styles.headerBackGlyph, { color: colors.text }]}>‹</Text>
+            </Pressable>
+          ),
+        }}
+      />      <SettingsScroll
+        showsVerticalScrollIndicator={false}
+        alwaysBounceVertical={false}
+        bounces={false}
+        overScrollMode="never"
+        contentContainerStyle={{
+          paddingHorizontal: 12,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 12),
+          flexGrow: 1,
+        }}
+      >
+        <SettingsSection title="Status" style={styles.section}>
+          <View style={styles.statusBlock}>
+            <SettingsStatusBadge kind={kind} label={statusLabel} />
+            <Text style={[styles.statusMeta, { color: colors.text }]} numberOfLines={1}>
+              {statusTitle}
             </Text>
-          ) : null}
-        </View>
-      </SettingsSection>
-
-      <SettingsSection title="Camera information">
-        <SettingsValueRow icon="wifi" title="Connection status" value={statusLabel} />
-        <SettingsValueRow icon="videocam-outline" title="Camera model" value={modelLabel} />
-        <SettingsActionRow
-          icon="globe-outline"
-          title="Camera IP"
-          value={editingHost ? undefined : cameraHost}
-          subtitle={editingHost ? undefined : "Private Wi‑Fi address of the camera"}
-          onPress={() => {
-            setHostDraft(cameraHost);
-            setEditingHost(true);
-          }}
-          accessibilityLabel="Edit camera IP"
-        />
-        {editingHost ? (
-          <View style={styles.hostEdit}>
-            <TextInput
-              value={hostDraft}
-              onChangeText={setHostDraft}
-              autoCapitalize="none"
-              autoCorrect={false}
-              keyboardType="numbers-and-punctuation"
-              style={[styles.hostInput, { color: colors.text, borderColor: colors.border }]}
-              accessibilityLabel="Camera IP address"
-            />
-            <View style={styles.hostActions}>
-              <Pressable onPress={() => setEditingHost(false)} hitSlop={8}>
-                <Text style={{ color: colors.textMuted, fontFamily: Type.fontSemi }}>Cancel</Text>
-              </Pressable>
-              <Pressable onPress={saveHost} hitSlop={8}>
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi }}>Save</Text>
-              </Pressable>
-            </View>
+            <Text
+              style={[styles.statusMetaMuted, styles.tabular, { color: colors.textMuted }]}
+              numberOfLines={1}
+            >
+              {cameraHost}
+            </Text>
+            {lastConnectedLine ? (
+              <Text
+                style={[styles.statusMetaMuted, styles.tabular, { color: colors.textMuted }]}
+                numberOfLines={1}
+              >
+                {lastConnectedLine}
+              </Text>
+            ) : null}
           </View>
-        ) : null}
-        <SettingsValueRow
-          icon="time-outline"
-          title="Last successful connection"
-          value={lastConnectedAt ? new Date(lastConnectedAt).toLocaleString() : "—"}
-        />
-        {cameraProperties["Camera.Menu.VideoRes"] ? (
-          <SettingsValueRow
-            icon="film-outline"
-            title="Video resolution"
-            value={cameraProperties["Camera.Menu.VideoRes"]}
-          />
-        ) : null}
-        <SettingsValueRow
-          icon="checkmark-circle-outline"
-          title="Compatibility"
-          subtitle="Confirmed read-only with Mio MiVue 866. Independent app — not affiliated with Mio or MiTAC."
-        />
-      </SettingsSection>
+        </SettingsSection>
 
-      <SettingsSection title="Actions">
-        <SettingsActionRow
-          icon="refresh"
-          title="Refresh camera information"
-          subtitle="Read-only status and library metadata"
-          loading={isRefreshingCamera}
-          disabled={isRefreshingCamera}
-          onPress={() => void refreshFiles()}
-          accessibilityLabel="Refresh camera information"
-        />
-        <SettingsActionRow
-          icon="sync-outline"
-          title="Reconnect camera"
-          subtitle="Read-only status and library refresh"
-          loading={isRefreshingCamera}
-          disabled={isRefreshingCamera}
-          onPress={() => void refreshFiles()}
-          accessibilityLabel="Reconnect camera"
-        />
-        <SettingsActionRow
-          icon="swap-horizontal-outline"
-          title="Change camera"
-          subtitle="Does not delete local recordings or clear the queue"
-          onPress={onChangeCamera}
-        />
-        <SettingsActionRow
-          icon="construct-outline"
-          title="Run camera setup"
-          subtitle="Reopen Wi‑Fi connection guide"
-          onPress={() => {
-            void reopenCameraSetup().then(() => {
-              router.push("/onboarding" as Parameters<typeof router.push>[0]);
-            });
-          }}
-        />
-        <SettingsActionRow
-          icon="help-circle-outline"
-          title="Connection help"
-          onPress={() => router.push("/connection-help" as Parameters<typeof router.push>[0])}
-        />
-      </SettingsSection>
-    </SettingsScroll>
+        <SettingsSection title="Camera information" style={styles.section}>
+          <SettingsValueRow icon="wifi" title="Connection status" value={statusLabel} compact />
+          <SettingsValueRow
+            icon="videocam-outline"
+            title="Camera model"
+            value={modelRowValue}
+            compact
+          />
+          <SettingsActionRow
+            icon="globe-outline"
+            title="Camera IP"
+            value={cameraHost}
+            subtitle="Private Wi‑Fi address of the camera"
+            compact
+            onPress={() => setIpSheetOpen(true)}
+            accessibilityLabel="Camera IP"
+          />
+          <SettingsValueRow
+            icon="time-outline"
+            title="Last connected"
+            value={lastConnectedValue}
+            compact
+          />
+          {cameraProperties["Camera.Menu.VideoRes"] ? (
+            <SettingsValueRow
+              icon="film-outline"
+              title="Video resolution"
+              value={cameraProperties["Camera.Menu.VideoRes"]}
+              compact
+            />
+          ) : null}
+          <SettingsValueRow
+            icon="checkmark-circle-outline"
+            title="Compatibility"
+            subtitle="Confirmed read-only with Mio MiVue 866. Independent app — not affiliated with Mio or MiTAC."
+            compact
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Actions" style={styles.sectionLast}>
+          <SettingsActionRow
+            icon="refresh"
+            title="Refresh camera information"
+            subtitle="Read-only status and library metadata"
+            compact
+            loading={pendingAction === "refresh"}
+            disabled={actionsBusy}
+            onPress={() => void runAction("refresh")}
+            accessibilityLabel="Refresh camera information"
+          />
+          <SettingsActionRow
+            icon="sync-outline"
+            title="Reconnect camera"
+            subtitle="Read-only status and library refresh"
+            compact
+            loading={pendingAction === "reconnect"}
+            disabled={actionsBusy}
+            onPress={() => void runAction("reconnect")}
+            accessibilityLabel="Reconnect camera"
+          />
+          <SettingsActionRow
+            icon="swap-horizontal-outline"
+            title="Change camera"
+            subtitle="Does not delete local recordings or clear the queue"
+            compact
+            disabled={actionsBusy}
+            onPress={onChangeCamera}
+            accessibilityLabel="Change camera"
+          />
+          <SettingsActionRow
+            icon="help-circle-outline"
+            title="Connection help"
+            compact
+            disabled={actionsBusy}
+            onPress={() => router.push("/connection-help" as Parameters<typeof router.push>[0])}
+            accessibilityLabel="Connection help"
+          />
+        </SettingsSection>
+      </SettingsScroll>
+
+      <CameraIpSheet
+        visible={ipSheetOpen}
+        currentHost={cameraHost}
+        onClose={() => setIpSheetOpen(false)}
+        onSave={(host) => {
+          setCameraHost(host);
+          setIpSheetOpen(false);
+        }}
+      />
+    </>
   );
 }
 
 const styles = StyleSheet.create({
-  statusBlock: { paddingHorizontal: 14, paddingVertical: 14, gap: 6 },
-  statusMeta: { fontSize: 16, fontFamily: Type.fontSemi, marginTop: 4 },
-  statusMetaMuted: { fontSize: 13, fontFamily: Type.font },
-  hostEdit: { paddingHorizontal: 14, paddingBottom: 12, gap: 8 },
-  hostInput: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 15,
-    fontFamily: Type.mono,
-  },
-  hostActions: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    gap: 16,
+  headerBack: {
+    minWidth: 44,
     minHeight: 44,
     alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
   },
+  headerBackGlyph: {
+    fontSize: 34,
+    lineHeight: 38,
+    fontWeight: "300",
+    marginTop: -2,
+  },
+  section: { marginBottom: 10 },
+  sectionLast: { marginBottom: 0 },
+  statusBlock: { paddingHorizontal: 12, paddingVertical: 10, gap: 4 },
+  statusMeta: { fontSize: 15, fontFamily: Type.fontSemi, marginTop: 2 },
+  statusMetaMuted: { fontSize: 12, fontFamily: Type.font },
+  tabular: { fontFamily: Type.mono, fontVariant: ["tabular-nums"] },
 });

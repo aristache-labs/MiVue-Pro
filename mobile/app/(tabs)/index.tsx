@@ -200,8 +200,7 @@ export default function LibraryScreen() {
     setErrorDismissed(false);
   }, [lastError, cameraLinkState]);
 
-  const showConnectionError =
-    cameraLinkState === "unstable" || cameraLinkState === "connection_lost";
+  const showConnectionError = cameraLinkState === "connection_lost";
   const errorBanner =
     showConnectionError && !errorDismissed
       ? friendlyConnectionError(lastError)
@@ -516,7 +515,7 @@ export default function LibraryScreen() {
           keyExtractor={(item) => item.path}
           stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
           refreshControl={
-            cameraLinkState === "connected" || cameraLinkState === "unstable" ? (
+            cameraLinkState === "connected" ? (
               <RefreshControl
                 refreshing={isRefreshingCamera}
                 onRefresh={() => void runRefresh()}

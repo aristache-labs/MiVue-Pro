@@ -342,6 +342,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     const trimmed = host.trim();
     setCameraHostState(trimmed);
     void AsyncStorage.setItem(HOST_KEY, trimmed);
+    // IP change is local only — do not probe the camera; require explicit Reconnect/Refresh.
+    setCameraLinkState("disconnected");
+    setLastError(undefined);
+    setConnectionNote(undefined);
   }, []);
 
   const setMapPreference = useCallback((value: MapPreference) => {
@@ -408,7 +412,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         if (!isPrivateIpv4(host)) {
           const error = "Host must be a private IPv4 address (e.g. 192.72.1.1).";
           setLastError(error);
-          setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
+          setCameraLinkState("disconnected");
           return { ok: false, error };
         }
 
@@ -430,7 +434,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         setLastError(message);
-        setCameraLinkState(filesLenRef.current > 0 ? "unstable" : "disconnected");
+        // Never keep Connected/Unstable after timeout or network failure.
+        setCameraLinkState("disconnected");
         return { ok: false, error: message };
       } finally {
         refreshInflightRef.current = false;
@@ -485,10 +490,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       if (prev === "active" || next !== "active") return;
       if (demoMode) return;
       if (!isPrivateIpv4(cameraHost)) return;
+      // Do not assume Connected after background — clear until a live probe succeeds.
+      if (linkStateRef.current === "connected" || linkStateRef.current === "unstable") {
+        setCameraLinkState("disconnected");
+      }
       if (refreshInflightRef.current) return;
-      const link = linkStateRef.current;
-      // Re-probe when returning from background if the session is not already healthy.
-      if (link === "connected" || link === "connecting") return;
       cancelVerify?.();
       cancelVerify = scheduleOneShotVerify(() => {
         void refreshFilesRef.current();

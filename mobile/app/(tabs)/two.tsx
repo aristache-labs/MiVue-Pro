@@ -113,7 +113,7 @@ export default function QueueScreen() {
   }, [lastError]);
 
   const showConnectionError =
-    cameraLinkState === "unstable" || cameraLinkState === "connection_lost";
+    cameraLinkState === "connection_lost";
   const queueErrorBanner =
     hasQueueWork && showConnectionError && !errorDismissed
       ? friendlyConnectionError(lastError)

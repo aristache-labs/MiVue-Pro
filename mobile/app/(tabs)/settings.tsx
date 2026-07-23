@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { router } from "expo-router";
 import { useMemo } from "react";
 
+import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import {
   SettingsCategoryRow,
@@ -26,6 +27,10 @@ export default function SettingsHubScreen() {
     mapPreference,
   } = useDemoMode();
   const { state: onboardingState } = useOnboarding();
+  const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
+  const cameraConfigured =
+    Boolean(onboardingState.selectedCameraProfileId) || onboardingState.cameraSetupCompleted;
+  const cameraModelLabel = selectedProfile?.displayName ?? cameraModel;
 
   const downloadedBytes = useMemo(
     () => localFiles.reduce((sum, f) => sum + (f.sizeBytes > 0 ? f.sizeBytes : 0), 0),
@@ -47,7 +52,7 @@ export default function SettingsHubScreen() {
         <SettingsCategoryRow
           icon="videocam-outline"
           title="Camera & Connection"
-          summary={cameraConnectionSummary(cameraLinkState, cameraModel)}
+          summary={cameraConnectionSummary(cameraLinkState, cameraModelLabel, cameraConfigured)}
           onPress={() => push("/settings/camera")}
           accessibilityLabel="Camera and Connection"
         />

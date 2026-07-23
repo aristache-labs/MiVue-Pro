@@ -15,8 +15,19 @@ export {
   connectionStatusLabel,
   diagnosticsRequestStatus,
   diagnosticsSummary,
+  formatLastConnected,
+  lastConnectedSummaryLine,
+  cameraStatusTitle,
   legalSummary,
   mapsPreferenceSummary,
   storageSummary,
   transportLabel,
+  visibleConnectionStatus,
 } from "./settingsSummaries";
+export type { ConnectionHubKind, VisibleConnectionStatus } from "./settingsSummaries";
+export {
+  canSaveCameraIpv4,
+  isStrictIpv4,
+  parseCameraIpv4Input,
+} from "./cameraIp";
+export { CameraIpSheet } from "./CameraIpSheet";

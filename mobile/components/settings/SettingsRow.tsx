@@ -15,6 +15,8 @@ export interface SettingsRowBaseProps {
   readonly accessibilityLabel?: string;
   /** Hub category rows use taller min height. */
   readonly variant?: "default" | "category";
+  /** Tighter vertical padding for dense Settings detail screens (keeps ≥44 hit). */
+  readonly compact?: boolean;
 }
 
 /**
@@ -32,6 +34,7 @@ export function SettingsRow({
   disabled = false,
   accessibilityLabel,
   variant = "default",
+  compact = false,
 }: SettingsRowBaseProps) {
   const { colors, radius } = useAppTheme();
   const titleColor = destructive ? colors.danger : colors.text;
@@ -57,7 +60,10 @@ export function SettingsRow({
           {title}
         </Text>
         {subtitle ? (
-          <Text style={[styles.subtitle, { color: colors.textMuted }]} numberOfLines={tall ? 2 : 3}>
+          <Text
+            style={[styles.subtitle, { color: colors.textMuted }]}
+            numberOfLines={tall ? 2 : compact ? 2 : 3}
+          >
             {subtitle}
           </Text>
         ) : null}
@@ -77,6 +83,7 @@ export function SettingsRow({
 
   const wrapStyle = [
     styles.wrap,
+    compact ? styles.wrapCompact : null,
     tall ? styles.wrapCategory : null,
     { borderBottomColor: colors.borderSoft, opacity: disabled ? 0.45 : 1 },
   ];
@@ -121,7 +128,7 @@ export function SettingsDangerRow(props: Omit<SettingsRowBaseProps, "destructive
 }
 
 export function SettingsCategoryRow(
-  props: Omit<SettingsRowBaseProps, "variant" | "destructive" | "loading"> & {
+  props: Omit<SettingsRowBaseProps, "variant" | "destructive" | "loading" | "compact"> & {
     readonly summary: string;
   },
 ) {
@@ -137,6 +144,11 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
   },
+  wrapCompact: {
+    minHeight: 44,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+  },
   wrapCategory: {
     minHeight: 76,
     paddingVertical: 14,
@@ -150,6 +162,13 @@ const styles = StyleSheet.create({
   },
   body: { flex: 1, minWidth: 0 },
   title: { fontSize: 15, fontFamily: Type.fontSemi },
-  subtitle: { fontSize: 12, fontFamily: Type.font, marginTop: 2, lineHeight: 16 },
-  value: { fontSize: 13, fontFamily: Type.font, maxWidth: 130, textAlign: "right" },
+  subtitle: { fontSize: 12, fontFamily: Type.font, marginTop: 1, lineHeight: 15 },
+  value: {
+    fontSize: 13,
+    fontFamily: Type.mono,
+    fontVariant: ["tabular-nums"],
+    maxWidth: 168,
+    flexShrink: 0,
+    textAlign: "right",
+  },
 });

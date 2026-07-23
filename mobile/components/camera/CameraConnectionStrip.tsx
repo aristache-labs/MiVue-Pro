@@ -25,24 +25,28 @@ export function CameraConnectionStrip({
 }: CameraConnectionStripProps) {
   const { colors, radius } = useAppTheme();
 
-  const connected = linkState === "connected";
-  const connecting = linkState === "connecting" || refreshing;
-  const lost = linkState === "connection_lost" || linkState === "unstable";
-  const disconnected = linkState === "disconnected" || linkState === "idle";
+  const status =
+    refreshing || linkState === "connecting"
+      ? "connecting"
+      : linkState === "connected"
+        ? "connected"
+        : "disconnected";
+  const connected = status === "connected";
+  const connecting = status === "connecting";
+  const disconnected = status === "disconnected";
+  const lost = linkState === "connection_lost";
 
   const label = connected
     ? modelName
-      ? `Camera connected · ${modelName}`
-      : "Camera connected"
+      ? `Connected · ${modelName}`
+      : "Connected"
     : connecting
       ? "Connecting…"
-      : lost
-        ? "Connection lost"
-        : "Camera unavailable";
+      : "Disconnected";
 
   const dotColor = connected ? colors.brand : connecting ? colors.textFaint : colors.warn;
   const showRefresh = connected || lost;
-  const showConnect = disconnected && !connecting;
+  const showConnect = disconnected && !connecting && !lost;
   const showRetry = lost && !refreshing;
 
   return (
