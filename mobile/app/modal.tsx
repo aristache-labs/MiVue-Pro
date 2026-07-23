@@ -50,8 +50,9 @@ export default function ModalScreen() {
       <Section icon="shield-checkmark-outline" title="Compatibility & disclaimer">
         <Text style={[styles.body, { color: colors.textMuted, marginBottom: 10 }]}>{DISCLAIMER_EN}</Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Compatible (tested): Mio MiVue 866. Read-only list and download — Laneory never changes camera
-          settings or deletes files on the camera.
+          Compatible (tested): Mio MiVue 866. List and download stay read-only. Camera settings change
+          only when you explicitly select a new value and confirm Apply. Laneory does not delete files
+          on the camera.
         </Text>
       </Section>
 

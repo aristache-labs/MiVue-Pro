@@ -37,7 +37,7 @@ export const PRIVACY_SUMMARY_ROWS: readonly PrivacySummaryRow[] = Object.freeze(
   {
     icon: "lock-closed-outline",
     title: "Read-only camera access",
-    body: "Laneory does not change settings or delete camera recordings.",
+    body: "Laneory browses and downloads with read-only requests. Camera settings change only when you explicitly select a new value and confirm Apply. It does not delete camera recordings.",
   },
   {
     icon: "ribbon-outline",
@@ -116,8 +116,8 @@ export const TERMS_OF_USE_DOCUMENT: LegalDocument = Object.freeze({
     Object.freeze({
       title: "6. Camera access",
       paragraphs: Object.freeze([
-        "The mobile product is designed for read-only camera access using HTTP GET and HEAD requests only.",
-        "Laneory does not change camera settings, delete files on the camera, format the SD card, or update camera firmware through the app.",
+        "The mobile product uses HTTP GET and HEAD for browsing and downloading. Camera settings change only when you explicitly select a new value and confirm Apply.",
+        "Laneory does not delete files on the camera, format the SD card, or update camera firmware through the app.",
       ]),
     }),
     Object.freeze({
@@ -245,7 +245,7 @@ export const PRIVACY_POLICY_DOCUMENT: LegalDocument = Object.freeze({
       title: "4. Camera connection",
       paragraphs: Object.freeze([
         "The camera is reached over the phone’s local Wi-Fi network using limited cleartext HTTP to the camera.",
-        "Requests are GET/HEAD read-only. Laneory does not ask for or store the camera Wi-Fi password.",
+        "Requests use GET/HEAD. Browsing and downloading stay read-only. Camera settings change only when you explicitly select a new value and confirm Apply. Laneory does not ask for or store the camera Wi-Fi password.",
       ]),
     }),
     Object.freeze({

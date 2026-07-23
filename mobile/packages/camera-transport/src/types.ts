@@ -3,6 +3,11 @@ export interface TransportRequest {
   readonly path: string;
   readonly headers?: Readonly<Record<string, string>>;
   readonly signal?: AbortSignal;
+  /**
+   * Documented contract: `"mutation"` means one attempt only (never retry).
+   * Mobile transports already perform a single request; callers must not loop.
+   */
+  readonly retryPolicy?: "readonly" | "mutation";
 }
 
 export interface TransportResponse {

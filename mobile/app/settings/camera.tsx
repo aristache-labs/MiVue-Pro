@@ -1,12 +1,28 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
-import { useCallback, useState } from "react";
-import { Alert, BackHandler, StyleSheet, Text, View } from "react-native";
+import { useCallback, useMemo, useState } from "react";
+import {
+  AccessibilityInfo,
+  Alert,
+  BackHandler,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { CameraIpSheet } from "@/components/settings/CameraIpSheet";
+import { CameraSettingSheet } from "@/components/settings/CameraSettingSheet";
+import {
+  CAMERA_SETTING_ICONS,
+  CAMERA_SETTING_TITLE,
+  CAMERA_SETTINGS_KEYS,
+  cameraClockDisplay,
+  cameraSettingOptions,
+  displayCameraSettingValue,
+  rawCameraSettingValue,
+} from "@/components/settings/cameraSettingsUi";
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
@@ -22,6 +38,12 @@ import {
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import {
+  cameraSettingConfirmMessage,
+  cameraSettingSuccessMessage,
+  type CameraSettingKey,
+  type CameraSettingValueMap,
+} from "@/packages/protocol/src/index";
 
 function navigateBackToSettings(): void {
   if (router.canGoBack()) {
@@ -41,12 +63,18 @@ export default function SettingsCameraScreen() {
     cameraModel,
     lastConnectedAt,
     cameraProperties,
-    refreshFiles,
+    refreshCameraInformation,
+    setCameraSetting,
+    isApplyingCameraSetting,
+    applyingCameraSettingKey,
     isRefreshingCamera,
+    demoMode,
   } = useDemoMode();
   const { state: onboardingState, startChangeCamera } = useOnboarding();
   const [refreshPending, setRefreshPending] = useState(false);
   const [ipSheetOpen, setIpSheetOpen] = useState(false);
+  const [activeSetting, setActiveSetting] = useState<CameraSettingKey | null>(null);
+  const [toast, setToast] = useState<string | undefined>();
 
   const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
   const cameraConfigured =
@@ -62,27 +90,40 @@ export default function SettingsCameraScreen() {
       : "No camera configured";
   const lastConnectedValue = formatLastConnected(lastConnectedAt);
   const lastConnectedLine = lastConnectedSummaryLine(lastConnectedAt);
+  const connected = cameraLinkState === "connected" && !demoMode;
+  const clockValue = cameraClockDisplay(cameraProperties);
+
+  const sheetOptions = useMemo(
+    () => (activeSetting ? cameraSettingOptions(activeSetting) : []),
+    [activeSetting],
+  );
+  const sheetCurrent = activeSetting
+    ? rawCameraSettingValue(cameraProperties, activeSetting)
+    : undefined;
 
   useFocusEffect(
     useCallback(() => {
-      if (ipSheetOpen) return undefined;
+      if (ipSheetOpen || activeSetting) return undefined;
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
         navigateBackToSettings();
         return true;
       });
       return () => sub.remove();
-    }, [ipSheetOpen]),
+    }, [ipSheetOpen, activeSetting]),
   );
 
   const onRefresh = useCallback(async () => {
-    if (refreshPending || isRefreshingCamera) return;
+    if (refreshPending || isRefreshingCamera || isApplyingCameraSetting) return;
     setRefreshPending(true);
     try {
-      await refreshFiles();
+      const result = await refreshCameraInformation();
+      if (!result.ok && result.error) {
+        void AccessibilityInfo.announceForAccessibility(result.error);
+      }
     } finally {
       setRefreshPending(false);
     }
-  }, [isRefreshingCamera, refreshFiles, refreshPending]);
+  }, [isRefreshingCamera, isApplyingCameraSetting, refreshCameraInformation, refreshPending]);
 
   const onChangeCamera = useCallback(() => {
     Alert.alert(
@@ -102,7 +143,41 @@ export default function SettingsCameraScreen() {
     );
   }, [startChangeCamera]);
 
-  const actionsBusy = refreshPending || isRefreshingCamera;
+  const requestApply = useCallback(
+    (key: CameraSettingKey, nextRaw: string) => {
+      const fromRaw = rawCameraSettingValue(cameraProperties, key) ?? "—";
+      Alert.alert("Change camera setting?", cameraSettingConfirmMessage(key, fromRaw, nextRaw), [
+        { text: "Keep current", style: "cancel" },
+        {
+          text: "Apply change",
+          onPress: () => {
+            void (async () => {
+              const result = await setCameraSetting(
+                key,
+                nextRaw as CameraSettingValueMap[typeof key],
+              );
+              if (result.ok) {
+                const msg = cameraSettingSuccessMessage(key, nextRaw);
+                setToast(msg);
+                void AccessibilityInfo.announceForAccessibility(msg);
+                setActiveSetting(null);
+                setTimeout(() => setToast(undefined), 2800);
+                return;
+              }
+              Alert.alert(
+                "Could not change setting",
+                result.error ?? "Try again after refreshing camera information.",
+              );
+            })();
+          },
+        },
+      ]);
+    },
+    [cameraProperties, setCameraSetting],
+  );
+
+  const actionsBusy = refreshPending || isRefreshingCamera || isApplyingCameraSetting;
+  const demoBlocked = demoMode ? "Camera settings are unavailable in Demo Mode." : undefined;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -175,19 +250,65 @@ export default function SettingsCameraScreen() {
               compact
             />
           ) : null}
+          {clockValue ? (
+            <SettingsValueRow
+              icon="alarm-outline"
+              title="Camera clock"
+              value={clockValue}
+              compact
+            />
+          ) : null}
           <SettingsValueRow
             icon="checkmark-circle-outline"
             title="Compatibility"
-            subtitle="Confirmed read-only with Mio MiVue 866. Independent app — not affiliated with Mio or MiTAC."
+            subtitle="Confirmed with Mio MiVue 866. Laneory uses read-only requests for browsing and downloading. Camera settings change only when you explicitly select a new value and confirm Apply. Independent app — not affiliated with Mio or MiTAC."
             compact
           />
+        </SettingsSection>
+
+        <SettingsSection title="Camera settings" style={styles.section}>
+          {!connected ? (
+            <View style={styles.placeholder} accessibilityRole="summary">
+              <Text style={[styles.placeholderTitle, { color: colors.text }]}>
+                Camera settings unavailable
+              </Text>
+              <Text style={[styles.placeholderBody, { color: colors.textMuted }]}>
+                {demoMode
+                  ? "Camera settings are unavailable in Demo Mode."
+                  : "Connect to the camera to view and change its settings."}
+              </Text>
+            </View>
+          ) : (
+            CAMERA_SETTINGS_KEYS.map((key) => {
+              const raw = rawCameraSettingValue(cameraProperties, key);
+              const reported = Boolean(raw);
+              const loading = applyingCameraSettingKey === key;
+              return (
+                <SettingsActionRow
+                  key={key}
+                  icon={CAMERA_SETTING_ICONS[key]}
+                  title={CAMERA_SETTING_TITLE[key]}
+                  value={displayCameraSettingValue(cameraProperties, key)}
+                  compact
+                  loading={loading}
+                  disabled={!reported || isApplyingCameraSetting}
+                  onPress={
+                    reported
+                      ? () => setActiveSetting(key)
+                      : undefined
+                  }
+                  accessibilityLabel={CAMERA_SETTING_TITLE[key]}
+                />
+              );
+            })
+          )}
         </SettingsSection>
 
         <SettingsSection title="Actions" style={styles.sectionLast}>
           <SettingsActionRow
             icon="refresh"
             title="Refresh camera information"
-            subtitle="Reconnects and refreshes read-only camera data"
+            subtitle="Updates connection status and camera setting values without changing Library files"
             compact
             loading={refreshPending}
             disabled={actionsBusy}
@@ -219,6 +340,17 @@ export default function SettingsCameraScreen() {
         </SettingsSection>
       </SettingsScroll>
 
+      {toast ? (
+        <View
+          pointerEvents="none"
+          style={[styles.toast, { backgroundColor: colors.successSoft, borderColor: colors.success }]}
+        >
+          <Text style={{ color: colors.success, fontFamily: Type.fontSemi, fontSize: 13 }}>
+            {toast}
+          </Text>
+        </View>
+      ) : null}
+
       <CameraIpSheet
         visible={ipSheetOpen}
         currentHost={cameraHost}
@@ -226,6 +358,29 @@ export default function SettingsCameraScreen() {
         onSave={(host) => {
           setCameraHost(host);
           setIpSheetOpen(false);
+        }}
+      />
+
+      <CameraSettingSheet
+        visible={activeSetting !== null}
+        title={activeSetting ? CAMERA_SETTING_TITLE[activeSetting] : ""}
+        description={
+          activeSetting === "dateTimeMode"
+            ? "Chooses the camera’s date/time source. Manual does not sync the clock from this phone."
+            : undefined
+        }
+        currentValue={sheetCurrent}
+        options={sheetOptions}
+        applying={isApplyingCameraSetting}
+        applyDisabledReason={
+          demoBlocked ??
+          (cameraLinkState !== "connected" ? "Camera disconnected." : undefined)
+        }
+        onClose={() => {
+          if (!isApplyingCameraSetting) setActiveSetting(null);
+        }}
+        onApply={(value) => {
+          if (activeSetting) requestApply(activeSetting, value);
         }}
       />
     </View>
@@ -240,4 +395,17 @@ const styles = StyleSheet.create({
   statusMeta: { fontSize: 15, fontFamily: Type.fontSemi, marginTop: 2 },
   statusMetaMuted: { fontSize: 12, fontFamily: Type.font },
   tabular: { fontFamily: Type.mono, fontVariant: ["tabular-nums"] },
+  placeholder: { paddingHorizontal: 14, paddingVertical: 14, gap: 6 },
+  placeholderTitle: { fontFamily: Type.fontSemi, fontSize: 15 },
+  placeholderBody: { fontFamily: Type.font, fontSize: 13, lineHeight: 18 },
+  toast: {
+    position: "absolute",
+    left: 16,
+    right: 16,
+    bottom: 24,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
 });

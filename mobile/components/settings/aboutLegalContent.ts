@@ -21,7 +21,7 @@ export const ABOUT_SHEET_SECTIONS: readonly AboutLegalSection[] = Object.freeze(
   Object.freeze({
     title: "Read-only by design",
     paragraphs: Object.freeze([
-      "Laneory uses read-only GET and HEAD requests when communicating with the camera. It does not change camera settings, delete camera files, format storage cards or install firmware.",
+      "Laneory uses GET and HEAD requests when communicating with the camera. Browsing and downloading stay read-only. Camera settings change only when you explicitly select a new value and confirm Apply. Laneory does not delete camera files, format storage cards or install firmware.",
     ]),
   }),
   Object.freeze({

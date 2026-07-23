@@ -6,6 +6,7 @@ import { HitSlop44, useAppTheme } from "@/constants/Theme";
 export type SheetCloseButtonProps = {
   readonly onPress: () => void;
   readonly accessibilityLabel?: string;
+  readonly disabled?: boolean;
 };
 
 /**
@@ -14,15 +15,21 @@ export type SheetCloseButtonProps = {
 export function SheetCloseButton({
   onPress,
   accessibilityLabel = "Close",
+  disabled = false,
 }: SheetCloseButtonProps) {
   const { colors } = useAppTheme();
   return (
     <Pressable
       onPress={onPress}
+      disabled={disabled}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
+      accessibilityState={{ disabled }}
       hitSlop={HitSlop44}
-      style={({ pressed }) => [styles.hit, { opacity: pressed ? 0.7 : 1 }]}
+      style={({ pressed }) => [
+        styles.hit,
+        { opacity: disabled ? 0.4 : pressed ? 0.7 : 1 },
+      ]}
     >
       <Ionicons name="close" size={22} color={colors.textMuted} />
     </Pressable>

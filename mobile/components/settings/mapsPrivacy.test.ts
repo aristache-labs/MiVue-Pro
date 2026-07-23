@@ -39,11 +39,13 @@ describe("maps-privacy screen", () => {
     assert.match(legalSrc, /legal-document\?doc=privacy/);
   });
 
-  it("keeps local connection privacy and read-only footnote", () => {
+  it("keeps local connection privacy and accurate camera-access footnote", () => {
     assert.match(mapsSrc, /Camera Wi-Fi/);
-    assert.match(mapsSrc, /GET\/HEAD read-only/);
+    assert.match(mapsSrc, /GET\/HEAD/);
+    assert.match(mapsSrc, /confirm Apply/);
     assert.doesNotMatch(mapsSrc, /\bPOST\b|\bPUT\b|\bDELETE\b/);
     assert.doesNotMatch(mapsSrc, /createLiveTransport|cameraMutate|formatSd|cgi/i);
+    assert.doesNotMatch(mapsSrc, /setCameraSetting/);
   });
 
   it("exposes accessible radio options for map preference", () => {

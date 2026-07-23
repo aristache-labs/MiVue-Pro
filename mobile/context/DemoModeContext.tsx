@@ -56,7 +56,16 @@ import {
   friendlyConnectionError,
 } from "../components/camera/cameraLibraryModel";
 import type { RemoteFile } from "../packages/parsers/src/index";
-import { CameraClient } from "../packages/protocol/src/index";
+import {
+  applyCameraSetting,
+  CameraClient,
+  CAMERA_SETTING_PROPERTY,
+  fetchCameraSettingProperties,
+  isAllowedCameraSettingValue,
+  isCameraSettingKey,
+  type CameraSettingKey,
+  type CameraSettingValueMap,
+} from "../packages/protocol/src/index";
 
 const DEFAULT_HOST = "192.72.1.1";
 const HOST_KEY = "@laneory/camera_host_v1";
@@ -132,6 +141,16 @@ interface DemoModeContextValue {
   readonly lastConnectedAt: string | undefined;
   readonly cameraModel: string | undefined;
   readonly cameraProperties: Readonly<Record<string, string>>;
+  /** Targeted settings refresh — does not replace Library files. */
+  readonly refreshCameraSettings: () => Promise<{ ok: boolean; error?: string }>;
+  /** Status + settings properties without listAllFiles. */
+  readonly refreshCameraInformation: () => Promise<{ ok: boolean; error?: string }>;
+  readonly setCameraSetting: <K extends CameraSettingKey>(
+    key: K,
+    value: CameraSettingValueMap[K],
+  ) => Promise<{ ok: boolean; error?: string }>;
+  readonly isApplyingCameraSetting: boolean;
+  readonly applyingCameraSettingKey: CameraSettingKey | undefined;
   readonly mapPreference: MapPreference;
   readonly setMapPreference: (value: MapPreference) => void;
   readonly clearThumbCache: () => Promise<void>;
@@ -212,6 +231,13 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const [cameraModel, setCameraModel] = useState<string | undefined>();
   const [cameraProperties, setCameraProperties] = useState<Readonly<Record<string, string>>>({});
   const [mapPreference, setMapPreferenceState] = useState<MapPreference>("online");
+  const [isApplyingCameraSetting, setIsApplyingCameraSetting] = useState(false);
+  const [applyingCameraSettingKey, setApplyingCameraSettingKey] = useState<
+    CameraSettingKey | undefined
+  >(undefined);
+  const settingApplyInflightRef = useRef(false);
+  const cameraPropertiesRef = useRef(cameraProperties);
+  cameraPropertiesRef.current = cameraProperties;
   const queueStatusRef = useRef<Map<string, QueueItem["status"]>>(new Map());
   const disconnectAlertAtRef = useRef(0);
   const refreshInflightRef = useRef(false);
@@ -465,7 +491,16 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
           return { ok: false, error: "Camera session changed." };
         }
-        setCameraProperties(status.properties);
+        let settingsProps: Readonly<Record<string, string>> = {};
+        try {
+          settingsProps = await fetchCameraSettingProperties(transport);
+        } catch {
+          // status properties still usable
+        }
+        if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+          return { ok: false, error: "Camera session changed." };
+        }
+        setCameraProperties({ ...status.properties, ...settingsProps });
         setFiles(page.files);
         setCameraLinkState("connected");
         setCameraModel(COMPAT_MODEL);
@@ -486,6 +521,135 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   );
   const refreshFilesRef = useRef(refreshFiles);
   refreshFilesRef.current = refreshFiles;
+
+  const refreshCameraSettings = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
+    if (demoMode) {
+      return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
+    }
+    if (cameraLinkState !== "connected") {
+      return { ok: false, error: "Connect to the camera to view and change its settings." };
+    }
+    if (!isPrivateIpv4(cameraHost)) {
+      return { ok: false, error: "Host must be a private IPv4 address." };
+    }
+    const requestGen = cameraSessionGenRef.current;
+    try {
+      const transport = createLiveTransport(cameraHost, 12_000);
+      const settingsProps = await fetchCameraSettingProperties(transport);
+      if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+        return { ok: false, error: "Camera session changed." };
+      }
+      setCameraProperties((prev) => ({ ...prev, ...settingsProps }));
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, error: message };
+    }
+  }, [demoMode, cameraLinkState, cameraHost]);
+
+  const refreshCameraInformation = useCallback(async (): Promise<{
+    ok: boolean;
+    error?: string;
+  }> => {
+    if (demoMode) {
+      return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
+    }
+    if (!isPrivateIpv4(cameraHost)) {
+      const error = "Host must be a private IPv4 address.";
+      clearRemoteCameraLibrary("disconnected", error);
+      return { ok: false, error };
+    }
+    if (refreshInflightRef.current) {
+      return { ok: false, error: CAMERA_REFRESH_IN_PROGRESS };
+    }
+    refreshInflightRef.current = true;
+    setIsRefreshingCamera(true);
+    const requestGen = cameraSessionGenRef.current;
+    try {
+      const transport = createLiveTransport(cameraHost, 12_000);
+      // Do not replace Queue transport — settings use a short-lived client.
+      const client = new CameraClient({ host: cameraHost, httpPort: 80, rtspPort: 554 }, transport);
+      const status = await client.getStatus();
+      const settingsProps = await fetchCameraSettingProperties(transport);
+      if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+        return { ok: false, error: "Camera session changed." };
+      }
+      setCameraProperties({ ...status.properties, ...settingsProps });
+      setCameraLinkState("connected");
+      setCameraModel(COMPAT_MODEL);
+      setLastConnectedAt(new Date().toISOString());
+      setLastError(undefined);
+      setConnectionNote(undefined);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      clearRemoteCameraLibrary("disconnected", message);
+      return { ok: false, error: message };
+    } finally {
+      refreshInflightRef.current = false;
+      setIsRefreshingCamera(false);
+    }
+  }, [demoMode, cameraHost, clearRemoteCameraLibrary]);
+
+  const setCameraSetting = useCallback(
+    async <K extends CameraSettingKey>(
+      key: K,
+      value: CameraSettingValueMap[K],
+    ): Promise<{ ok: boolean; error?: string }> => {
+      if (demoMode) {
+        return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
+      }
+      if (cameraLinkState !== "connected") {
+        return { ok: false, error: "Camera disconnected." };
+      }
+      if (!isPrivateIpv4(cameraHost)) {
+        return { ok: false, error: "Host must be a private IPv4 address." };
+      }
+      if (!isCameraSettingKey(key) || !isAllowedCameraSettingValue(key, value)) {
+        return { ok: false, error: "Unsupported camera setting." };
+      }
+      const property = CAMERA_SETTING_PROPERTY[key];
+      if (!(property in cameraPropertiesRef.current)) {
+        return { ok: false, error: "This setting is not reported by the camera." };
+      }
+      if (settingApplyInflightRef.current) {
+        return { ok: false, error: "Another setting change is already in progress." };
+      }
+
+      settingApplyInflightRef.current = true;
+      setIsApplyingCameraSetting(true);
+      setApplyingCameraSettingKey(key);
+      const requestGen = cameraSessionGenRef.current;
+      try {
+        const transport = createLiveTransport(cameraHost, 15_000);
+        const result = await applyCameraSetting(transport, key, value);
+        if (
+          !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
+          linkStateRef.current !== "connected"
+        ) {
+          return { ok: false, error: "Camera disconnected." };
+        }
+        setCameraProperties((prev) => ({
+          ...prev,
+          ...result.properties,
+          [property]: value,
+        }));
+        setLastError(undefined);
+        return { ok: true };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (linkStateRef.current !== "connected") {
+          return { ok: false, error: "Camera disconnected." };
+        }
+        return { ok: false, error: message };
+      } finally {
+        settingApplyInflightRef.current = false;
+        setIsApplyingCameraSetting(false);
+        setApplyingCameraSettingKey(undefined);
+      }
+    },
+    [demoMode, cameraLinkState, cameraHost],
+  );
 
   React.useEffect(() => {
     if (bootOnceRef.current) return;
@@ -922,6 +1086,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       lastConnectedAt,
       cameraModel,
       cameraProperties,
+      refreshCameraSettings,
+      refreshCameraInformation,
+      setCameraSetting,
+      isApplyingCameraSetting,
+      applyingCameraSettingKey,
       mapPreference,
       setMapPreference,
       clearThumbCache,
@@ -961,6 +1130,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       lastConnectedAt,
       cameraModel,
       cameraProperties,
+      refreshCameraSettings,
+      refreshCameraInformation,
+      setCameraSetting,
+      isApplyingCameraSetting,
+      applyingCameraSettingKey,
       mapPreference,
       setMapPreference,
       clearThumbCache,

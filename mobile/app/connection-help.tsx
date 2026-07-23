@@ -130,8 +130,8 @@ export default function ConnectionHelpScreen() {
         }}
       >
         <Text style={[styles.intro, { color: colors.textMuted }]}>
-          Laneory uses read-only requests to list and download files you choose. It does not change
-          camera settings.
+          Laneory uses read-only requests to list and download files you choose. Camera settings change
+          only when you explicitly select a new value and confirm Apply.
         </Text>
 
         <HelpBlock

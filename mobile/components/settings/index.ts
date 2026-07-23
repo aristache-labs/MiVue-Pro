@@ -33,6 +33,7 @@ export {
   sanitizeCameraIpv4Draft,
 } from "./cameraIp";
 export { CameraIpSheet } from "./CameraIpSheet";
+export { CameraSettingSheet } from "./CameraSettingSheet";
 export { SettingsChromeHeader } from "./SettingsChromeHeader";
 export { LegalInfoSheet } from "./LegalInfoSheet";
 export type { LegalInfoSheetKind } from "./LegalInfoSheet";

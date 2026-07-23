@@ -128,7 +128,8 @@ export default function SettingsMapsPrivacyScreen() {
         </SettingsSection>
 
         <Text style={[styles.footnote, { color: colors.textFaint }]}>
-          Communication with the camera is GET/HEAD read-only.
+          Browsing and downloading use GET/HEAD. Camera settings change only when you explicitly select
+          a new value and confirm Apply.
         </Text>
       </SettingsScroll>
     </View>
