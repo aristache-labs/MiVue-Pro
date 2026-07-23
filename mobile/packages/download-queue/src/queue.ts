@@ -176,10 +176,14 @@ export class DownloadQueue {
     void this.pump();
   }
 
-  /** Remove a finished (failed/cancelled/completed) item from the visible queue. */
+  /** Remove a finished (failed/cancelled/completed/paused) item from the visible queue. */
   async remove(id: string): Promise<void> {
     const item = this.items.find((i) => i.id === id);
     if (item === undefined || item.status === "queued" || item.status === "active") return;
+    // Drop temporary partials — never delete completed Local destination files.
+    if (item.status !== "completed") {
+      await this.cleanupPartial(item.localName);
+    }
     this.items = this.items.filter((i) => i.id !== id);
     await this.persist();
   }

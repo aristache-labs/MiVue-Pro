@@ -81,7 +81,7 @@ export function SelectionActionBand({
     return null;
   }
 
-  const dual = actionable.length > 1;
+  const multi = actionable.length > 1;
 
   return (
     <Animated.View
@@ -100,7 +100,7 @@ export function SelectionActionBand({
         showActions && actionable.length === 1
           ? { backgroundColor: toneColors(actionable[0]!.tone, colors).bg }
           : null,
-        showActions && dual ? { backgroundColor: colors.surface } : null,
+        showActions && multi ? { backgroundColor: colors.surface } : null,
         style as StyleProp<ViewStyle>,
       ]}
     >
@@ -112,13 +112,18 @@ export function SelectionActionBand({
         </View>
       ) : null}
 
-      {showActions && !dual ? <ActionHalf item={actionable[0]!} fullWidth /> : null}
+      {showActions && !multi ? <ActionHalf item={actionable[0]!} fullWidth /> : null}
 
-      {showActions && dual ? (
+      {showActions && multi ? (
         <View style={styles.row}>
-          <ActionHalf item={actionable[0]!} />
-          <View style={[styles.divider, { backgroundColor: colors.border }]} />
-          <ActionHalf item={actionable[1]!} />
+          {actionable.map((item, index) => (
+            <View key={item.key} style={styles.segment}>
+              {index > 0 ? (
+                <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              ) : null}
+              <ActionHalf item={item} compact={actionable.length >= 3} />
+            </View>
+          ))}
         </View>
       ) : null}
     </Animated.View>
@@ -128,9 +133,11 @@ export function SelectionActionBand({
 function ActionHalf({
   item,
   fullWidth = false,
+  compact = false,
 }: {
   readonly item: SelectionActionItem;
   readonly fullWidth?: boolean;
+  readonly compact?: boolean;
 }) {
   const { colors } = useAppTheme();
   const tone = toneColors(item.tone, colors);
@@ -156,9 +163,17 @@ function ActionHalf({
       ) : (
         <>
           {item.icon ? (
-            <Ionicons name={item.icon} size={16} color={tone.fg} style={{ marginRight: 8 }} />
+            <Ionicons
+              name={item.icon}
+              size={compact ? 14 : 16}
+              color={tone.fg}
+              style={{ marginRight: compact ? 4 : 8 }}
+            />
           ) : null}
-          <Text style={[styles.label, { color: tone.fg }]} numberOfLines={1}>
+          <Text
+            style={[styles.label, compact ? styles.labelCompact : null, { color: tone.fg }]}
+            numberOfLines={1}
+          >
             {item.label}
           </Text>
         </>
@@ -180,6 +195,12 @@ const styles = StyleSheet.create({
     alignItems: "stretch",
     minHeight: SELECTION_ACTION_BAND_H,
   },
+  segment: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "stretch",
+    minWidth: 0,
+  },
   divider: {
     width: StyleSheet.hairlineWidth,
     alignSelf: "stretch",
@@ -196,11 +217,15 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 8,
+    minWidth: 0,
   },
   label: {
     fontFamily: Type.fontBold,
     fontSize: 14,
     flexShrink: 1,
+  },
+  labelCompact: {
+    fontSize: 12,
   },
 });

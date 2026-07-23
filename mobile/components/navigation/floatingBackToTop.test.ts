@@ -57,6 +57,7 @@ describe("FloatingBackToTop wiring", () => {
     assert.match(local, /!deleting/);
     assert.match(local, /!filterOpen/);
     assert.match(queue, /!actionBusy/);
+    assert.match(queue, /!selecting/);
   });
 
   it("Library and Local keep deterministic sticky-date FlatList overlay", () => {

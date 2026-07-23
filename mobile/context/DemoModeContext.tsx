@@ -25,6 +25,10 @@ import {
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
 import {
+  filterShareEligibleLocalFiles,
+  supportsNativeMultiFileShare,
+} from "../components/local/localShareSelection";
+import {
   cameraThumbCacheFileName,
   cameraThumbRequestPath,
   isJpegMagic,
@@ -102,7 +106,15 @@ interface DemoModeContextValue {
   readonly retryDownload: (id: string) => Promise<void>;
   readonly removeFromQueue: (id: string) => Promise<void>;
   readonly shareCompleted: (item: QueueItem) => Promise<void>;
-  readonly shareLocalFile: (file: LocalMediaFile) => Promise<void>;
+  readonly shareLocalFile: (file: LocalMediaFile) => Promise<boolean>;
+  /**
+   * Share one Local file via the installed native sheet.
+   * Multi-file requires a native multi-URI API (not available in expo-sharing).
+   */
+  readonly shareLocalFiles: (files: readonly LocalMediaFile[]) => Promise<{
+    readonly initiated: boolean;
+    readonly unsupportedMulti?: boolean;
+  }>;
   readonly deleteLocalFile: (file: LocalMediaFile) => Promise<void>;
   /** Sequential local-only deletes; never mutates the camera. */
   readonly deleteLocalFilesBatch: (
@@ -763,16 +775,16 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [queue],
   );
 
-  const shareUri = useCallback(async (uri: string, name: string) => {
+  const shareUri = useCallback(async (uri: string, name: string): Promise<boolean> => {
     const info = await FileSystem.getInfoAsync(uri);
     if (!info.exists) {
       setLastError("Local file missing. Download again.");
-      return;
+      return false;
     }
     const available = await Sharing.isAvailableAsync();
     if (!available) {
       setLastError("Sharing is not available on this device.");
-      return;
+      return false;
     }
     await Sharing.shareAsync(uri, {
       mimeType: mimeForName(name),
@@ -780,6 +792,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       dialogTitle: `Save ${name}`,
     });
     setLastError(undefined);
+    return true;
   }, []);
 
   const shareCompleted = useCallback(
@@ -801,14 +814,37 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   );
 
   const shareLocalFile = useCallback(
-    async (file: LocalMediaFile) => {
+    async (file: LocalMediaFile): Promise<boolean> => {
       try {
-        await shareUri(file.uri, file.name);
+        return await shareUri(file.uri, file.name);
       } catch (error) {
         setLastError(error instanceof Error ? error.message : String(error));
+        return false;
       }
     },
     [shareUri],
+  );
+
+  const shareLocalFiles = useCallback(
+    async (
+      files: readonly LocalMediaFile[],
+    ): Promise<{ readonly initiated: boolean; readonly unsupportedMulti?: boolean }> => {
+      const eligible = filterShareEligibleLocalFiles(files);
+      if (eligible.length === 0) {
+        setLastError("No complete local recordings selected to share.");
+        return { initiated: false };
+      }
+      if (eligible.length === 1) {
+        const ok = await shareLocalFile(eligible[0]!);
+        return { initiated: ok };
+      }
+      if (!supportsNativeMultiFileShare()) {
+        return { initiated: false, unsupportedMulti: true };
+      }
+      setLastError("Multi-file sharing is not available in this build.");
+      return { initiated: false, unsupportedMulti: true };
+    },
+    [shareLocalFile],
   );
 
   const deleteLocalFile = useCallback(
@@ -871,6 +907,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
+      shareLocalFiles,
       deleteLocalFile,
       deleteLocalFilesBatch,
       queuePosition: (id) => queue.queuePosition(id),
@@ -909,6 +946,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       removeFromQueue,
       shareCompleted,
       shareLocalFile,
+      shareLocalFiles,
       deleteLocalFile,
       deleteLocalFilesBatch,
       queue,

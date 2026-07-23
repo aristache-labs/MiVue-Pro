@@ -122,7 +122,8 @@ describe("librarySelection helpers", () => {
     assert.doesNotMatch(index, /bottom:\s*tabBarHeight/);
     assert.match(local, /SelectionActionBand/);
     assert.match(local, /local-selection-action-band/);
-    assert.match(local, /Delete local/);
+    assert.match(local, /localDeleteSelectionLabel|Delete local/);
+    assert.match(local, /localShareActionLabel|shareLocalFiles/);
     assert.match(band, /SELECTION_ACTION_BAND_H = 44/);
     assert.match(card, /selecting/);
     assert.match(card, /accessibilityRole="checkbox"/);
