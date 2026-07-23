@@ -3,7 +3,6 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
-  Modal,
   Platform,
   Pressable,
   RefreshControl,
@@ -14,11 +13,11 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CameraConnectionHeaderButton } from "@/components/camera/CameraConnectionHeaderButton";
 import { CameraConnectionSheet } from "@/components/camera/CameraConnectionSheet";
 import { CameraFilterSheet } from "@/components/camera/CameraFilterSheet";
-import { CameraUnavailableBanner } from "@/components/camera/CameraUnavailableBanner";
 import {
   buildCameraFilterChips,
   buildCameraLibrarySections,
@@ -33,10 +32,9 @@ import {
   friendlyConnectionError,
   isCameraFiltersEmpty,
   isCameraLibraryInteractive,
-  libraryEmptyInstruction,
+  libraryEmptyPresentation,
   librarySubtitle,
   sanitizeFiltersForCategoryScope,
-  shouldShowCameraUnavailableBanner,
   sumRemoteBytes,
   type CameraLibraryFilters,
   type CameraLibrarySort,
@@ -52,6 +50,8 @@ import {
   LOCAL_LIBRARY_LIST_BOTTOM_PADDING,
   LOCAL_LIBRARY_STICKY_HEADERS,
 } from "@/components/local/localLibrarySections";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -92,6 +92,7 @@ function SkeletonRow() {
 
 export default function LibraryScreen() {
   const { colors, spacing, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const tabBarHeight = useBottomTabBarHeight();
   const {
@@ -137,6 +138,12 @@ export default function LibraryScreen() {
     }
     return names;
   }, [queueItems]);
+  const queuedNamesKey = useMemo(
+    () => [...queuedNames].sort().join("\0"),
+    [queuedNames],
+  );
+  /** Stable Set identity while queue membership is unchanged (progress ticks must not rebuild sections). */
+  const stableQueuedNames = useMemo(() => queuedNames, [queuedNamesKey]);
   const counts = useMemo(() => countCategories(files), [files]);
   const hasAdvanced = !isCameraFiltersEmpty(filters);
   const hasSecondaryFilters = hasAdvanced || search.trim().length > 0;
@@ -171,12 +178,16 @@ export default function LibraryScreen() {
         filters,
         sort,
         downloadedNames: localNames,
-        queuedNames,
+        queuedNames: stableQueuedNames,
       }),
-    [files, category, search, filters, sort, localNames, queuedNames],
+    [files, category, search, filters, sort, localNames, stableQueuedNames],
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
+  const listItemSeparator = useCallback(
+    () => <View style={{ height: spacing.sm }} />,
+    [spacing.sm],
+  );
   const filteredBytes = useMemo(() => sumRemoteBytes(filtered), [filtered]);
   const filterChips = useMemo(() => buildCameraFilterChips(filters), [filters]);
 
@@ -187,19 +198,37 @@ export default function LibraryScreen() {
     hasActiveFilters,
   });
 
-  const showUnavailableBanner = shouldShowCameraUnavailableBanner(
-    cameraLinkState,
-    files.length,
-  );
-  const libraryInteractive = isCameraLibraryInteractive(cameraLinkState, files.length);
+  const libraryInteractive = isCameraLibraryInteractive(cameraLinkState);
   const canPullToRefresh = cameraLinkState === "connected";
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
+  const {
+    hasOverflow: sortHasOverflow,
+    onViewportLayout: onSortViewportLayout,
+    onContentSizeChange: onSortContentSizeChange,
+  } = useVerticalOverflow();
   const listFilledPad = Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING);
   const listPadBottom = listContentBottomPadding(
     filtered.length,
     listFilledPad,
     Math.max(spacing.lg, 12),
   );
+
+  useEffect(() => {
+    if (
+      cameraLinkState !== "idle" &&
+      cameraLinkState !== "disconnected" &&
+      cameraLinkState !== "connection_lost"
+    ) {
+      return;
+    }
+    setDetailFile(null);
+    setFilterOpen(false);
+    setSortOpen(false);
+    setSearchInput("");
+    setSearch("");
+    setFilters(EMPTY_CAMERA_FILTERS);
+    setCategory("all");
+  }, [cameraLinkState]);
 
   const openConnectionSheet = useCallback(() => {
     if (cameraLinkState === "connecting" || isRefreshingCamera) return;
@@ -310,16 +339,22 @@ export default function LibraryScreen() {
   const showSkeleton =
     isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
 
-  const emptyInstruction = libraryEmptyInstruction(cameraLinkState);
+  const emptyPresentation =
+    files.length === 0 && !showSkeleton ? libraryEmptyPresentation(cameraLinkState) : undefined;
 
   const listEmpty =
-    files.length === 0 && !showSkeleton ? (
+    emptyPresentation ? (
       <EmptyState
-        icon="cloud-offline-outline"
-        title={
-          cameraLinkState === "connected"
-            ? "No recordings found on this camera."
-            : (emptyInstruction ?? "Connect to the camera Wi-Fi to view recordings.")
+        icon={emptyPresentation.icon}
+        title={emptyPresentation.title}
+        subtitle={emptyPresentation.subtitle}
+        actionLabel={emptyPresentation.actionLabel}
+        onAction={
+          emptyPresentation.actionLabel
+            ? () => {
+                setConnectionSheetOpen(true);
+              }
+            : undefined
         }
       />
     ) : filtered.length === 0 && files.length > 0 ? (
@@ -339,16 +374,7 @@ export default function LibraryScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
-        {showUnavailableBanner ? (
-          <CameraUnavailableBanner
-            connecting={isRefreshingCamera}
-            onConnect={() => {
-              setConnectionSheetOpen(true);
-            }}
-          />
-        ) : null}
-
-        {errorBanner && !showUnavailableBanner ? (
+        {errorBanner ? (
           <Pressable
             onPress={() => setErrorDismissed(true)}
             style={[styles.banner, { backgroundColor: colors.dangerSoft, borderColor: colors.danger }]}
@@ -526,9 +552,10 @@ export default function LibraryScreen() {
       ) : (
         <SectionList
           style={styles.list}
-          sections={sections.map((s) => ({ ...s, data: [...s.data] }))}
+          sections={sections}
           keyExtractor={(item) => item.path}
           stickySectionHeadersEnabled={LOCAL_LIBRARY_STICKY_HEADERS}
+          removeClippedSubviews={false}
           scrollEnabled={listScrollEnabled(hasOverflow, canPullToRefresh)}
           alwaysBounceVertical={listBounceEnabled(canPullToRefresh)}
           bounces={listBounceEnabled(canPullToRefresh)}
@@ -554,6 +581,7 @@ export default function LibraryScreen() {
           ListEmptyComponent={listEmpty}
           renderSectionHeader={({ section }) => (
             <View
+              collapsable={false}
               style={[
                 styles.sectionHeader,
                 { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
@@ -567,7 +595,7 @@ export default function LibraryScreen() {
               </Text>
             </View>
           )}
-          ItemSeparatorComponent={() => <View style={{ height: spacing.sm }} />}
+          ItemSeparatorComponent={listItemSeparator}
           renderItem={({ item }) => {
             const downloadState = resolveRemoteDownloadState({
               file: item,
@@ -614,41 +642,76 @@ export default function LibraryScreen() {
         onApply={setFilters}
       />
 
-      <Modal visible={sortOpen} animationType="fade" transparent onRequestClose={() => setSortOpen(false)}>
-        <Pressable style={styles.sortBackdrop} onPress={() => setSortOpen(false)}>
-          <View
-            style={[
-              styles.sortSheet,
-              { backgroundColor: colors.surfaceElevated, borderColor: colors.border },
-            ]}
-          >
-            <Text style={[styles.sortTitle, { color: colors.text }]}>Sort</Text>
-            {sortOptions.map((opt) => (
-              <Pressable
-                key={opt.id}
-                onPress={() => {
-                  setSort(opt.id);
-                  setSortOpen(false);
-                }}
-                accessibilityRole="button"
-                accessibilityState={{ selected: sort === opt.id }}
-                style={styles.sortRow}
+      <StaticBackdropSheet
+        visible={sortOpen}
+        onClose={() => setSortOpen(false)}
+        sheetTestID="sort-sheet"
+        scrimTestID="sort-scrim"
+        scrimAccessibilityLabel="Close sort"
+        sheetStyle={[
+          styles.sortSheet,
+          {
+            backgroundColor: colors.surfaceElevated,
+            borderColor: colors.border,
+            paddingBottom: Math.max(insets.bottom, 16),
+            borderTopLeftRadius: radius.xl,
+            borderTopRightRadius: radius.xl,
+          },
+        ]}
+      >
+        {({ requestClose }) => (
+          <View style={styles.sortBody}>
+            <View style={styles.sortHeader}>
+              <View style={styles.sortHeaderSide} />
+              <Text
+                style={[styles.sortTitle, { color: colors.text }]}
+                accessibilityRole="header"
               >
-                <Text
-                  style={{
-                    color: sort === opt.id ? colors.brand : colors.text,
-                    fontFamily: Type.fontSemi,
-                    fontSize: 15,
+                Sort
+              </Text>
+              <View style={styles.sortHeaderSide}>
+                <SheetCloseButton onPress={requestClose} accessibilityLabel="Close sort" />
+              </View>
+            </View>
+            <ScrollView
+              style={styles.sortScroll}
+              scrollEnabled={sortHasOverflow}
+              alwaysBounceVertical={false}
+              bounces={false}
+              overScrollMode="never"
+              showsVerticalScrollIndicator={sortHasOverflow}
+              onLayout={onSortViewportLayout}
+              onContentSizeChange={onSortContentSizeChange}
+            >
+              {sortOptions.map((opt) => (
+                <Pressable
+                  key={opt.id}
+                  onPress={() => {
+                    setSort(opt.id);
+                    requestClose();
                   }}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: sort === opt.id }}
+                  style={styles.sortRow}
                 >
-                  {opt.label}
-                </Text>
-                {sort === opt.id ? <Ionicons name="checkmark" size={18} color={colors.brand} /> : null}
-              </Pressable>
-            ))}
+                  <Text
+                    style={{
+                      color: sort === opt.id ? colors.brand : colors.text,
+                      fontFamily: Type.fontSemi,
+                      fontSize: 15,
+                    }}
+                  >
+                    {opt.label}
+                  </Text>
+                  {sort === opt.id ? (
+                    <Ionicons name="checkmark" size={18} color={colors.brand} />
+                  ) : null}
+                </Pressable>
+              ))}
+            </ScrollView>
           </View>
-        </Pressable>
-      </Modal>
+        )}
+      </StaticBackdropSheet>
 
       <RemoteDetailSheet
         file={detailFile}
@@ -746,16 +809,17 @@ const styles = StyleSheet.create({
   summaryText: { fontSize: 11, fontFamily: Type.font, flexShrink: 0 },
   list: { flex: 1 },
   sectionHeader: {
+    minHeight: 36,
     flexDirection: "row",
-    alignItems: "baseline",
+    alignItems: "center",
     justifyContent: "space-between",
     gap: 12,
     paddingTop: 10,
     paddingBottom: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    zIndex: 3,
+    zIndex: 10,
     ...Platform.select({
-      android: { elevation: 3 },
+      android: { elevation: 10 },
       ios: {},
       default: {},
     }),
@@ -770,19 +834,29 @@ const styles = StyleSheet.create({
   },
   skelThumb: { width: 84, height: 63 },
   skelLine: { height: 10, borderRadius: 4 },
-  sortBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "flex-end",
-  },
   sortSheet: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 16,
-    paddingBottom: 28,
+    paddingHorizontal: 16,
+    paddingTop: 8,
   },
-  sortTitle: { fontSize: 17, fontFamily: Type.fontBold, marginBottom: 8 },
+  sortBody: { flexShrink: 1 },
+  sortHeader: {
+    minHeight: 52,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sortHeaderSide: {
+    width: 44,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sortTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 17,
+    fontFamily: Type.fontBold,
+  },
+  sortScroll: { flexShrink: 1 },
   sortRow: {
     minHeight: 44,
     flexDirection: "row",

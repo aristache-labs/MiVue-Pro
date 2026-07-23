@@ -17,6 +17,10 @@ import {
   APP_STATE_VERIFY_DEBOUNCE_MS,
   scheduleOneShotVerify,
 } from "@/components/onboarding/appStateVerify";
+import {
+  bumpCameraSessionGeneration,
+  isCameraSessionCurrent,
+} from "@/components/camera/cameraLibraryModel";
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
@@ -205,6 +209,18 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   linkStateRef.current = cameraLinkState;
   const filesLenRef = useRef(0);
   filesLenRef.current = files.length;
+  /** Bumped on every remote-library clear so in-flight list responses cannot repopulate. */
+  const cameraSessionGenRef = useRef(0);
+
+  const clearRemoteCameraLibrary = useCallback(
+    (nextState: "disconnected" | "connection_lost", error?: string) => {
+      cameraSessionGenRef.current = bumpCameraSessionGeneration(cameraSessionGenRef.current);
+      setFiles([]);
+      setCameraLinkState(nextState);
+      if (error !== undefined) setLastError(error);
+    },
+    [],
+  );
 
   const downloadDir =
     FileSystem.documentDirectory !== null && FileSystem.documentDirectory !== undefined
@@ -338,16 +354,18 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }
   const queue = queueRef.current;
 
-  const setCameraHost = useCallback((host: string) => {
-    const trimmed = host.trim();
-    setCameraHostState(trimmed);
-    void AsyncStorage.setItem(HOST_KEY, trimmed);
-    // IP change is local only — do not probe the camera; require explicit Reconnect/Refresh.
-    setCameraLinkState("disconnected");
-    setLastError(undefined);
-    setConnectionNote(undefined);
-  }, []);
-
+  const setCameraHost = useCallback(
+    (host: string) => {
+      const trimmed = host.trim();
+      setCameraHostState(trimmed);
+      void AsyncStorage.setItem(HOST_KEY, trimmed);
+      // IP change is local only — clear stale remote list; require explicit Reconnect/Refresh.
+      clearRemoteCameraLibrary("disconnected");
+      setLastError(undefined);
+      setConnectionNote(undefined);
+    },
+    [clearRemoteCameraLibrary],
+  );
   const setMapPreference = useCallback((value: MapPreference) => {
     setMapPreferenceState(value);
     void AsyncStorage.setItem(MAP_PREF_KEY, value);
@@ -365,6 +383,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setCameraModel(COMPAT_MODEL);
         setLastConnectedAt(new Date().toISOString());
       } else {
+        cameraSessionGenRef.current = bumpCameraSessionGeneration(cameraSessionGenRef.current);
         setFiles([]);
         setCameraLinkState("idle");
         setCameraModel(undefined);
@@ -374,7 +393,6 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     },
     [queue],
   );
-
   const clearThumbCache = useCallback(async () => {
     try {
       await FileSystem.deleteAsync(thumbDir, { idempotent: true });
@@ -390,9 +408,15 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         return { ok: false, error: CAMERA_REFRESH_IN_PROGRESS };
       }
       const host = (opts?.host ?? cameraHost).trim();
+      const requestGen = cameraSessionGenRef.current;
       refreshInflightRef.current = true;
       setIsRefreshingCamera(true);
+      const prevLink = linkStateRef.current;
       setCameraLinkState("connecting");
+      // Never show a stale remote list while reconnecting from an unavailable state.
+      if (prevLink !== "connected" && prevLink !== "unstable") {
+        setFiles([]);
+      }
       setLastError(undefined);
       try {
         if (demoMode) {
@@ -401,6 +425,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             new DemoTransport(),
           );
           const page = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
+          if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+            return { ok: false, error: "Camera session changed." };
+          }
           setFiles(page.files);
           setCameraLinkState("connected");
           setCameraModel(COMPAT_MODEL);
@@ -411,8 +438,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
 
         if (!isPrivateIpv4(host)) {
           const error = "Host must be a private IPv4 address (e.g. 192.72.1.1).";
-          setLastError(error);
-          setCameraLinkState("disconnected");
+          clearRemoteCameraLibrary("disconnected", error);
           return { ok: false, error };
         }
 
@@ -423,8 +449,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           transport,
         );
         const status = await client.getStatus();
-        setCameraProperties(status.properties);
         const page = await client.listAllFiles({ pageSize: 32, maxFiles: 500 });
+        if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+          return { ok: false, error: "Camera session changed." };
+        }
+        setCameraProperties(status.properties);
         setFiles(page.files);
         setCameraLinkState("connected");
         setCameraModel(COMPAT_MODEL);
@@ -433,18 +462,16 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        setLastError(message);
-        // Never keep Connected/Unstable after timeout or network failure.
-        setCameraLinkState("disconnected");
+        // Never keep Connected/Unstable or a stale list after timeout or network failure.
+        clearRemoteCameraLibrary("disconnected", message);
         return { ok: false, error: message };
       } finally {
         refreshInflightRef.current = false;
         setIsRefreshingCamera(false);
       }
     },
-    [demoMode, cameraHost, queue],
+    [demoMode, cameraHost, queue, clearRemoteCameraLibrary],
   );
-
   const refreshFilesRef = useRef(refreshFiles);
   refreshFilesRef.current = refreshFiles;
 
@@ -490,9 +517,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       if (prev === "active" || next !== "active") return;
       if (demoMode) return;
       if (!isPrivateIpv4(cameraHost)) return;
-      // Do not assume Connected after background — clear until a live probe succeeds.
+      // Do not assume Connected after background — clear stale list until a live probe succeeds.
       if (linkStateRef.current === "connected" || linkStateRef.current === "unstable") {
-        setCameraLinkState("disconnected");
+        clearRemoteCameraLibrary("disconnected");
       }
       if (refreshInflightRef.current) return;
       cancelVerify?.();
@@ -505,7 +532,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       cancelVerify?.();
       sub.remove();
     };
-  }, [demoMode, cameraHost]);
+  }, [demoMode, cameraHost, clearRemoteCameraLibrary]);
 
   useEffect(() => {
     let sawDrop = false;
@@ -527,6 +554,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
     if (!sawDrop) return;
 
+    cameraSessionGenRef.current = bumpCameraSessionGeneration(cameraSessionGenRef.current);
+    setFiles([]);
     setCameraLinkState((prev) =>
       prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
     );
@@ -544,15 +573,13 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [queueItems, queue]);
 
   const disconnectSession = useCallback(() => {
-    setFiles([]);
-    setCameraLinkState("disconnected");
+    clearRemoteCameraLibrary("disconnected");
     setCameraModel(undefined);
     setCameraProperties({});
     setLastConnectedAt(undefined);
     setLastError(undefined);
     setConnectionNote(undefined);
-  }, []);
-
+  }, [clearRemoteCameraLibrary]);
   const enqueueNmeaSidecar = useCallback(
     async (remotePath: string, localName: string) => {
       const nmeaPath = remotePath.replace(/\.[^.]+$/u, ".NMEA");
@@ -606,8 +633,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             setLastError(undefined);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            setCameraLinkState("connection_lost");
-            setLastError(message);
+            clearRemoteCameraLibrary("connection_lost", message);
             notifyCameraDisconnected(message);
             return;
           }
@@ -634,7 +660,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setLastError(error instanceof Error ? error.message : String(error));
       }
     },
-    [demoMode, cameraHost, queue, nativeTcpReady, enqueueNmeaSidecar],
+    [demoMode, cameraHost, queue, nativeTcpReady, enqueueNmeaSidecar, clearRemoteCameraLibrary],
   );
 
   const cancelDownload = useCallback(
@@ -708,8 +734,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             setLastError(undefined);
           } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
-            setCameraLinkState("connection_lost");
-            setLastError(message);
+            clearRemoteCameraLibrary("connection_lost", message);
             notifyCameraDisconnected(message);
             return;
           }
@@ -724,7 +749,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setLastError(error instanceof Error ? error.message : String(error));
       }
     },
-    [demoMode, cameraHost, queue, nativeTcpReady],
+    [demoMode, cameraHost, queue, nativeTcpReady, clearRemoteCameraLibrary],
   );
 
   const removeFromQueue = useCallback(

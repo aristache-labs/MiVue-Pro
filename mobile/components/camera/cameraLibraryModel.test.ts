@@ -9,6 +9,9 @@ import {
   isCameraLibraryInteractive,
   librarySubtitle,
   libraryEmptyInstruction,
+  libraryEmptyPresentation,
+  bumpCameraSessionGeneration,
+  isCameraSessionCurrent,
   friendlyConnectionError,
   matchesSearch,
   PRODUCTION_LIBRARY_FORBIDDEN_UI,
@@ -106,9 +109,33 @@ describe("cameraLibraryModel", () => {
     const dated = buildCameraLibrarySections(files, "newest");
     assert.equal(dated.length, 2);
     assert.equal(dated[0]?.dayKey, "2026-07-19");
+    assert.equal(dated[0]?.key, dated[0]?.dayKey);
+    assert.equal(dated[1]?.dayKey, "2026-07-18");
+    const oldest = buildCameraLibrarySections(files, "oldest");
+    assert.equal(oldest[0]?.dayKey, "2026-07-18");
+    assert.equal(oldest[1]?.dayKey, "2026-07-19");
     const flat = buildCameraLibrarySections(files, "nameAsc");
     assert.equal(flat.length, 1);
-    assert.equal(flat[0]?.key, "all");
+    assert.equal(flat[0]?.key, "all-nameAsc");
+    assert.equal(flat[0]?.dayKey, "all-nameAsc");
+  });
+
+  it("section keys stay stable and match dayKey for date groups", () => {
+    const files = [
+      remote({ name: "A.MP4", path: "/SD/A.MP4", recordedAt: "2026-07-19 10:00:00" }),
+      remote({ name: "B.MP4", path: "/SD/B.MP4", recordedAt: "2026-07-19 11:00:00" }),
+      remote({ name: "C.MP4", path: "/SD/C.MP4", recordedAt: "2026-07-18 10:00:00" }),
+    ];
+    const a = buildCameraLibrarySections(files, "newest");
+    const b = buildCameraLibrarySections(files, "newest");
+    assert.deepEqual(
+      a.map((s) => s.key),
+      b.map((s) => s.key),
+    );
+    for (const section of a) {
+      assert.equal(section.key, section.dayKey);
+      assert.notEqual(section.key, String(a.indexOf(section)));
+    }
   });
 
   it("filters downloaded state", () => {
@@ -176,6 +203,15 @@ describe("cameraLibraryModel", () => {
       }),
       "Camera not connected",
     );
+    assert.equal(
+      librarySubtitle({
+        linkState: "connection_lost",
+        totalCount: 379,
+        filteredCount: 379,
+        hasActiveFilters: false,
+      }),
+      "Connection lost",
+    );
   });
 
   it("dedupes empty-state instruction", () => {
@@ -186,25 +222,47 @@ describe("cameraLibraryModel", () => {
     assert.equal(libraryEmptyInstruction("connected"), undefined);
   });
 
+  it("library empty presentation uses title/subtitle/action", () => {
+    const disconnected = libraryEmptyPresentation("disconnected");
+    assert.equal(disconnected?.title, "Camera not connected");
+    assert.match(disconnected?.subtitle ?? "", /Wi-Fi/);
+    assert.equal(disconnected?.actionLabel, "Connect camera");
+    assert.equal(disconnected?.icon, "cloud-offline-outline");
+
+    const lost = libraryEmptyPresentation("connection_lost");
+    assert.equal(lost?.title, "Camera connection lost");
+    assert.equal(lost?.actionLabel, "Reconnect");
+
+    const emptySd = libraryEmptyPresentation("connected");
+    assert.equal(emptySd?.title, "No recordings found");
+    assert.equal(emptySd?.actionLabel, undefined);
+    assert.equal(emptySd?.icon, "folder-open-outline");
+  });
+
   it("never shows a connected success banner", () => {
     assert.equal(SHOW_CONNECTED_SUCCESS_BANNER, false);
   });
 
-  it("shows unavailable banner only when disconnected", () => {
-    assert.equal(shouldShowCameraUnavailableBanner("disconnected", 0), true);
-    assert.equal(shouldShowCameraUnavailableBanner("idle", 0), true);
+  it("disables unavailable banner so list placeholder is primary", () => {
+    assert.equal(shouldShowCameraUnavailableBanner("disconnected", 0), false);
+    assert.equal(shouldShowCameraUnavailableBanner("idle", 0), false);
+    assert.equal(shouldShowCameraUnavailableBanner("connection_lost", 0), false);
     assert.equal(shouldShowCameraUnavailableBanner("connected", 10), false);
-    assert.equal(shouldShowCameraUnavailableBanner("connecting", 0), false);
-    assert.equal(shouldShowCameraUnavailableBanner("unstable", 5), false);
-    assert.equal(shouldShowCameraUnavailableBanner("connection_lost", 0), true);
-    assert.equal(shouldShowCameraUnavailableBanner("connection_lost", 3), false);
   });
 
-  it("keeps filters interactive when a list exists", () => {
-    assert.equal(isCameraLibraryInteractive("disconnected", 0), false);
-    assert.equal(isCameraLibraryInteractive("connected", 0), true);
-    assert.equal(isCameraLibraryInteractive("unstable", 2), true);
-    assert.equal(isCameraLibraryInteractive("connection_lost", 4), true);
+  it("filters are interactive only for a live remote session", () => {
+    assert.equal(isCameraLibraryInteractive("disconnected"), false);
+    assert.equal(isCameraLibraryInteractive("idle"), false);
+    assert.equal(isCameraLibraryInteractive("connection_lost"), false);
+    assert.equal(isCameraLibraryInteractive("connected"), true);
+    assert.equal(isCameraLibraryInteractive("unstable"), true);
+  });
+
+  it("camera session generation blocks stale list application", () => {
+    const next = bumpCameraSessionGeneration(3);
+    assert.equal(next, 4);
+    assert.equal(isCameraSessionCurrent(3, 4), false);
+    assert.equal(isCameraSessionCurrent(4, 4), true);
   });
 
   it("prevents concurrent camera refresh", () => {

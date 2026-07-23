@@ -15,7 +15,7 @@ test("Local Filters header is Reset / Filters / X", () => {
   const src = readFileSync(join(__dirname, "LocalFilterSheet.tsx"), "utf8");
   assert.match(src, /Reset filters/);
   assert.match(src, /Close filters/);
-  assert.match(src, /name="close"/);
+  assert.match(src, /SheetCloseButton/);
   assert.match(src, /headerSide/);
   assert.match(src, /sheetTitle/);
   assert.equal(src.includes(">Close<"), false);

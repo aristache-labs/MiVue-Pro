@@ -18,6 +18,7 @@ import {
   type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 interface CameraConnectionSheetProps {
@@ -136,6 +137,7 @@ export function CameraConnectionSheet({
     <StaticBackdropSheet
       visible={visible}
       onClose={handleClosed}
+      enableSwipeToDismiss
       sheetTestID="camera-connection-sheet"
       scrimTestID="camera-connection-scrim"
       scrimAccessibilityLabel="Close camera connection"
@@ -150,17 +152,28 @@ export function CameraConnectionSheet({
         },
       ]}
     >
-      {({ requestClose }) => {
+      {({ requestClose, dragHandleProps }) => {
         requestCloseRef.current = requestClose;
+        const title = showConnectedUi ? "Camera connection" : "Connect camera";
         return (
           <>
-            <View style={styles.handleWrap}>
-              <View style={[styles.handle, { backgroundColor: colors.border }]} />
+            <View style={styles.dragRegion} {...dragHandleProps}>
+              <View style={styles.handleWrap}>
+                <View style={[styles.handle, { backgroundColor: colors.border }]} />
+              </View>
+              <View style={styles.titleRow}>
+                <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
+                  {title}
+                </Text>
+                <SheetCloseButton
+                  onPress={requestClose}
+                  accessibilityLabel="Close camera connection"
+                />
+              </View>
             </View>
 
             {showConnectedUi ? (
               <>
-                <Text style={[styles.title, { color: colors.text }]}>Camera connection</Text>
                 <Text
                   style={[styles.status, { color: colors.brand }]}
                   accessibilityLiveRegion="polite"
@@ -220,7 +233,6 @@ export function CameraConnectionSheet({
               </>
             ) : (
               <>
-                <Text style={[styles.title, { color: colors.text }]}>Connect camera</Text>
                 <Text style={[styles.lead, { color: colors.textMuted }]}>
                   Use the camera’s Wi‑Fi hotspot, then return to Laneory.
                 </Text>
@@ -319,9 +331,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 8,
   },
-  handleWrap: { alignItems: "center", marginBottom: 8 },
+  dragRegion: {
+    paddingBottom: 4,
+  },
+  handleWrap: { alignItems: "center", paddingTop: 4, paddingBottom: 8 },
   handle: { width: 36, height: 4, borderRadius: 2 },
-  title: { fontSize: 18, fontFamily: Type.fontBold },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    minHeight: 44,
+    gap: 8,
+  },
+  title: {
+    flex: 1,
+    fontSize: 18,
+    fontFamily: Type.fontBold,
+    minWidth: 0,
+  },
   status: { fontSize: 14, fontFamily: Type.fontSemi, marginTop: 4 },
   lead: { fontSize: 14, fontFamily: Type.font, marginTop: 6, lineHeight: 20 },
   metaRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },

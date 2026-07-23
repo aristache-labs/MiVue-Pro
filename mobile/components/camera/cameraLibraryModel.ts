@@ -419,10 +419,11 @@ export function buildCameraLibrarySections(
   sort: CameraLibrarySort,
 ): CameraLibrarySection[] {
   if (!isDateBasedSort(sort)) {
+    const flatKey = `all-${sort}`;
     return [
       {
-        key: "all",
-        dayKey: "all",
+        key: flatKey,
+        dayKey: flatKey,
         title: CAMERA_SORT_OPTIONS.find((o) => o.id === sort)?.label.toUpperCase() ?? "RESULTS",
         count: files.length,
         countLabel: formatCameraCountLabel(files.length),
@@ -593,12 +594,8 @@ export function librarySubtitle(options: {
   const { linkState, totalCount, filteredCount, hasActiveFilters } = options;
   if (linkState === "connecting") return "Connecting to camera…";
   if (linkState === "idle" || linkState === "disconnected") return "Camera not connected";
-  if (linkState === "connection_lost") {
-    if (totalCount > 0 && hasActiveFilters) return `${filteredCount} of ${totalCount} recordings`;
-    if (totalCount > 0) return `${totalCount} recordings on camera`;
-    return "Camera not connected";
-  }
-  // connected or unstable — show counts when we have a list
+  if (linkState === "connection_lost") return "Connection lost";
+  // connected or unstable — show counts only for a live remote session
   if (linkState === "unstable" || linkState === "connected") {
     if (hasActiveFilters || filteredCount !== totalCount) {
       return `${filteredCount} of ${totalCount} recordings`;
@@ -611,6 +608,44 @@ export function librarySubtitle(options: {
 export function libraryEmptyInstruction(linkState: CameraLinkState): string | undefined {
   if (linkState === "idle" || linkState === "disconnected" || linkState === "connection_lost") {
     return "Connect to the camera Wi-Fi to view recordings.";
+  }
+  return undefined;
+}
+
+export type LibraryEmptyPresentation = {
+  readonly icon: "cloud-offline-outline" | "folder-open-outline";
+  readonly title: string;
+  readonly subtitle: string;
+  readonly actionLabel?: "Connect camera" | "Reconnect";
+};
+
+/** Primary empty-state copy for the Library list (not the instruction-as-title). */
+export function libraryEmptyPresentation(
+  linkState: CameraLinkState,
+): LibraryEmptyPresentation | undefined {
+  if (linkState === "connecting") return undefined;
+  if (linkState === "idle" || linkState === "disconnected") {
+    return {
+      icon: "cloud-offline-outline",
+      title: "Camera not connected",
+      subtitle: "Connect to the camera Wi-Fi, then refresh to view recordings.",
+      actionLabel: "Connect camera",
+    };
+  }
+  if (linkState === "connection_lost") {
+    return {
+      icon: "cloud-offline-outline",
+      title: "Camera connection lost",
+      subtitle: "Reconnect to the camera Wi-Fi and try again.",
+      actionLabel: "Reconnect",
+    };
+  }
+  if (linkState === "connected" || linkState === "unstable") {
+    return {
+      icon: "folder-open-outline",
+      title: "No recordings found",
+      subtitle: "No supported recordings are currently available on the camera.",
+    };
   }
   return undefined;
 }
@@ -645,24 +680,29 @@ export function canStartCameraRefresh(inflight: boolean): boolean {
   return !inflight;
 }
 
-/** Compact unavailable strip — never when connected/connecting/unstable. */
+/**
+ * Compact unavailable strip — disabled when the list empty-state is the primary message.
+ * Kept for callers; always false so Library does not stack duplicate disconnect chrome.
+ */
 export function shouldShowCameraUnavailableBanner(
-  linkState: CameraLinkState,
-  fileCount: number,
+  _linkState: CameraLinkState,
+  _fileCount: number,
 ): boolean {
-  if (linkState === "idle" || linkState === "disconnected") return true;
-  if (linkState === "connection_lost" && fileCount === 0) return true;
   return false;
 }
 
-/** Filters/search enabled when a library list is available. */
-export function isCameraLibraryInteractive(
-  linkState: CameraLinkState,
-  fileCount: number,
-): boolean {
-  return (
-    linkState === "connected" || linkState === "unstable" || fileCount > 0
-  );
+/** Filters/search only when a live remote session is valid — never because stale files remain. */
+export function isCameraLibraryInteractive(linkState: CameraLinkState): boolean {
+  return linkState === "connected" || linkState === "unstable";
+}
+
+/** Generation token so stale list/refresh responses cannot repopulate after disconnect. */
+export function bumpCameraSessionGeneration(current: number): number {
+  return current + 1;
+}
+
+export function isCameraSessionCurrent(requestGeneration: number, currentGeneration: number): boolean {
+  return requestGeneration === currentGeneration;
 }
 
 /** Sanitize diagnostics — never include secrets or full sensitive URLs. */

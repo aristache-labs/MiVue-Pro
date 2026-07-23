@@ -1,7 +1,6 @@
 import DateTimePicker, {
   type DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Modal,
@@ -42,6 +41,7 @@ import {
 } from "@/components/local/localLibraryFilters";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
@@ -297,7 +297,7 @@ export function LocalFilterSheet({
               Filters
             </Text>
             <View style={[styles.headerSide, styles.headerSideRight]}>
-              <Pressable
+              <SheetCloseButton
                 onPress={() => {
                   if (activePicker) {
                     dismissPicker();
@@ -305,13 +305,8 @@ export function LocalFilterSheet({
                   }
                   requestClose();
                 }}
-                accessibilityRole="button"
                 accessibilityLabel="Close filters"
-                hitSlop={HitSlop44}
-                style={styles.headerHit}
-              >
-                <Ionicons name="close" size={22} color={colors.textMuted} />
-              </Pressable>
+              />
             </View>
           </View>
 
