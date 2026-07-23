@@ -109,13 +109,20 @@ describe("resolveCameraSoftwareFields", () => {
     assert.equal(fields.cameraWifi.display, DEMO_CAMERA_SOFTWARE.cameraWifiSsid);
   });
 
-  it("live connected without CGI keys shows Not reported by camera", () => {
+  it("live connected without matching CGI values shows Not reported by camera", () => {
     const fields = resolveCameraSoftwareFields({
       connected: true,
       demoMode: false,
       loading: false,
       properties: { CameraModel: "MiVue 866" },
       wifiSsid: undefined,
+      cgiKeys: {
+        firmware: [],
+        safetyCameraData: [],
+        voiceVersion: [],
+        voiceLanguage: [],
+        cameraWifiSsid: [],
+      },
     });
     assert.equal(fields.firmware.display, NOT_REPORTED_BY_CAMERA);
     assert.equal(fields.safetyCameraData.display, NOT_REPORTED_BY_CAMERA);
@@ -136,6 +143,7 @@ describe("resolveCameraSoftwareFields", () => {
       cgiKeys: {
         firmware: ["ConfirmedFirmware"],
         safetyCameraData: ["ConfirmedSafety"],
+        cameraWifiSsid: [],
       },
     });
     assert.equal(fields.firmware.display, "VI100.24.50.BE1WD.10");
@@ -192,9 +200,36 @@ describe("resolveCameraSoftwareFields", () => {
       loading: false,
       properties: {},
       wifiSsid: undefined,
+      cgiKeys: {
+        firmware: [],
+        safetyCameraData: [],
+        voiceVersion: [],
+        voiceLanguage: [],
+        cameraWifiSsid: [],
+      },
     });
     assert.notEqual(live.firmware.display, DEMO_CAMERA_SOFTWARE.firmware);
     assert.notEqual(live.cameraWifi.display, DEMO_CAMERA_SOFTWARE.cameraWifiSsid);
+  });
+
+  it("maps live MiVue 866 CGI property names", () => {
+    const fields = resolveCameraSoftwareFields({
+      connected: true,
+      demoMode: false,
+      loading: false,
+      properties: {
+        "Vendor.DeviceInfo.Version.Firmware": "VI100.24.50.BE1WD.10",
+        "Vendor.DeviceInfo.Version.SpeedCam": "V82.0706.01.25",
+        "Vendor.DeviceInfo.Version.Voice": "V01.0829.01.RO",
+        "Net.WIFI_AP.SSID": "MiVue_db:8c",
+      },
+      wifiSsid: undefined,
+    });
+    assert.equal(fields.firmware.display, "VI100.24.50.BE1WD.10");
+    assert.equal(fields.safetyCameraData.display, "V82.0706.01.25");
+    assert.equal(fields.voicePackage.display, "V01.0829.01.RO");
+    assert.equal(fields.cameraWifi.display, "MiVue_db:8c");
+    assert.equal(fields.cameraWifi.source, "cgi");
   });
 });
 

@@ -108,7 +108,7 @@ Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conțin
 
 ## Comenzi observate în APK (probe experimental)
 
-> **CARANTINĂ JURIDICĂ / MOBIL:** această secțiune provine din analiză statică APK (`apk-observed`) și include operații mutabile (`set`/`del`). Nu se promovează în production doar pe baza APK. Observațiile pot informa implementarea independentă numai după documentare, validare pe cameră deținută legal și, unde e necesar, opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/mobile/phase0-audit.md](mobile/phase0-audit.md).
+> **CARANTINĂ JURIDICĂ / MOBIL:** această secțiune provine din analiză statică APK (`apk-observed`) și include operații mutabile (`set`/`del`). Nu se promovează în production doar pe baza APK. Observațiile pot informa o implementare independentă numai după documentare, validare pe o cameră deținută legal și, unde este necesar, opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/mobile/phase0-audit.md](mobile/phase0-audit.md).
 
 ```text
 /cgi-bin/Config.cgi?action=del&property=
@@ -135,42 +135,30 @@ npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --confirm
 - Dashboard mutate: `MIVUE_ALLOW_MUTATE=1`.
 - Firmware update rămâne dezactivat.
 
-## Software identity (Firmware / SafetyCam / Voice) — Laneory Settings
+## Software identity (Firmware / SafetyCam / Voice / SSID) — Laneory Settings
 
-Status: **confirmat absente din interfața CGI `get` / `getInfo` cunoscută** (MiVue 866, 2026-07-24).
+Status: **camera-confirmed** pe Mio MiVue 866 (GET only, 2026-07-24).
 
-### Endpoint-uri încercate (`action=get` / GET)
+### Endpoint-uri confirmate (GET only — fără `set` / `del`)
 
-| Endpoint | Rezultat sanitizat |
-|---|---|
-| `GET /cgi-bin/Config.cgi?action=get&property=status` | HTTP 200, `0 OK`, body `status=` (gol) |
-| `getInfo` CLI (`status` + `READABLE_CAMERA_PROPERTIES`) | vezi lista de mai jos — **fără** firmware / SafetyCam / voice |
+| Proprietate | UI | Exemplu observat |
+|---|---|---|
+| `Vendor.DeviceInfo.Version.Firmware` | Firmware | `VI100.24.50.BE1WD.10` |
+| `Vendor.DeviceInfo.Version.SpeedCam` | Safety camera data | `V82.0706.01.25` |
+| `Vendor.DeviceInfo.Version.Voice` | Voice package | `V01.0829.01.RO` |
+| `Net.WIFI_AP.SSID` | Camera Wi-Fi | `MiVue_db:8c` |
 
-### Proprietăți returnate live (`npm run dev -- info --host 192.72.1.1`)
+`GET /cgi-bin/Config.cgi?action=get&property=<name>` → `0 OK` + valoarea.
 
-```text
-Server: AIT Multimedia Network Solution, UPnP/1.0 devices/1.6.19
-status=
-broadcast=broadcasting
-Camera.Menu.Flicker=60Hz
-Camera.Menu.EV=EV0
-Camera.Menu.RtcGps=USEGPS
-Camera.Menu.RtcTimezone=P03
-Camera.Menu.RtcDaylight=OFF
-Camera.Preview.MJPEG.TimeStamp.day=15
-Camera.Preview.MJPEG.TimeStamp.hour=14
-Camera.Preview.MJPEG.TimeStamp.minute=41
-Camera.Preview.MJPEG.TimeStamp.month=1
-Camera.Preview.MJPEG.TimeStamp.second=15
-Camera.Preview.MJPEG.TimeStamp.year=2019
-Camera.Preview.Source.1.Camid=
-```
+**Siguranță:** se cer numai aceste nume exacte. Nu se folosește `Net.*` (poate expune chei Wi-Fi). Nu se mapează header-ul `Server` AIT ca firmware. Nu se fac mutații pentru aceste câmpuri.
 
-Model observat: Mio MiVue 866. Header-ul `Server` AIT (`1.6.19`) **nu** este versiunea de firmware Dashcam info și **nu** se mapează în UI ca Firmware.
+### Note
 
-Concluzie pentru Laneory Settings:
+- `status` și lista scurtă `READABLE_CAMERA_PROPERTIES` (CLI) **nu** includ aceste chei; refresh-ul Settings le citește separat.
+- SSID: prioritate CGI `Net.WIFI_AP.SSID`; fallback OS dacă lipsește.
+- Limba voice nu e o proprietate CGI separată pe 866; se afișează `Version.Voice`.
+- `Camera.Menu.FWversion` (numeric) există, dar Dashcam info folosește `Vendor.DeviceInfo.Version.Firmware`.
 
-- Firmware, Safety camera data, Voice package → UI `Not reported by camera` când e conectat.
-- `CAMERA_SOFTWARE_CGI_KEYS` rămâne gol; nu se inventează nume de proprietăți.
-- SSID-ul telefonului vine din OS (`NEHotspotNetwork.fetchCurrent` / Android WifiManager), nu din CGI.
-- Nu s-a făcut enumerare agresivă de proprietăți necunoscute.
+### Verificare anterioară (înlocuită)
+
+Probele din 2026-07-24 pe `status` + lista scurtă au raportat greșit absența — cheile erau pe `Vendor.DeviceInfo.Version.*` / `Net.WIFI_AP.SSID`, necerute atunci.

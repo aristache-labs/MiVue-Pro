@@ -1,10 +1,9 @@
 /**
  * Camera software / network identity for Settings → Camera & Connection.
  *
- * Live MiVue 866 (2026-07-24): getInfo + status GET returned no Firmware /
- * SafetyCam / Voice properties (see docs/protocol.md). Connected UI shows
- * "Not reported by camera" — never invent CGI names or reuse Demo samples.
- * Demo Mode uses explicit synthetic samples only and never feeds the live path.
+ * Live MiVue 866 (2026-07-24): confirmed read-only CGI keys below via GET
+ * Config.cgi on an owned camera (see docs/protocol.md). Demo Mode uses
+ * synthetic samples only and never feeds the live path. Never invent keys.
  */
 
 export type SoftwareFieldState =
@@ -41,14 +40,15 @@ export const DEMO_CAMERA_SOFTWARE = Object.freeze({
 });
 
 /**
- * Confirmed CGI keys that MAY back a software field once observed live.
- * Empty until a live GET on the owned MiVue 866 confirms the exact names.
+ * CGI keys confirmed live on owned MiVue 866 (GET only, 2026-07-24).
+ * Fetch only these exact names — never Net.* wildcards (Wi-Fi secrets).
  */
 export const CAMERA_SOFTWARE_CGI_KEYS = Object.freeze({
-  firmware: [] as readonly string[],
-  safetyCameraData: [] as readonly string[],
-  voiceVersion: [] as readonly string[],
+  firmware: ["Vendor.DeviceInfo.Version.Firmware"] as readonly string[],
+  safetyCameraData: ["Vendor.DeviceInfo.Version.SpeedCam"] as readonly string[],
+  voiceVersion: ["Vendor.DeviceInfo.Version.Voice"] as readonly string[],
   voiceLanguage: [] as readonly string[],
+  cameraWifiSsid: ["Net.WIFI_AP.SSID"] as readonly string[],
 });
 
 export const NOT_REPORTED_BY_CAMERA = "Not reported by camera";
@@ -137,6 +137,8 @@ export function resolveCameraWifiDisplay(input: {
   readonly ssid: string | undefined;
   readonly demoMode: boolean;
   readonly ssidStatus?: WifiSsidRead["status"];
+  /** Prefer camera CGI SSID when present; OS is fallback only. */
+  readonly ssidSource?: "cgi" | "os";
 }): SoftwareFieldView {
   if (input.demoMode) {
     return {
@@ -162,7 +164,7 @@ export function resolveCameraWifiDisplay(input: {
       state: "available",
       display: ssid,
       raw: ssid,
-      source: "os",
+      source: input.ssidSource === "cgi" ? "cgi" : "os",
     };
   }
   return {
@@ -171,7 +173,7 @@ export function resolveCameraWifiDisplay(input: {
     display: SSID_UNAVAILABLE,
     source: "none",
     accessibilityHint:
-      "The operating system did not provide the Wi‑Fi network name. On iPhone this usually requires When-In-Use location access and a development build with Wi‑Fi Information entitlement.",
+      "The camera did not report an SSID and the operating system did not provide one. On iPhone, OS fallback usually requires When-In-Use location access and a development build with Wi‑Fi Information entitlement.",
   };
 }
 
@@ -390,6 +392,7 @@ export function resolveCameraSoftwareFields(input: {
     readonly safetyCameraData?: readonly string[];
     readonly voiceVersion?: readonly string[];
     readonly voiceLanguage?: readonly string[];
+    readonly cameraWifiSsid?: readonly string[];
   };
 }): Readonly<Record<SoftwareFieldKey, SoftwareFieldView>> {
   const cgiKeys = {
@@ -397,13 +400,16 @@ export function resolveCameraSoftwareFields(input: {
     safetyCameraData: input.cgiKeys?.safetyCameraData ?? CAMERA_SOFTWARE_CGI_KEYS.safetyCameraData,
     voiceVersion: input.cgiKeys?.voiceVersion ?? CAMERA_SOFTWARE_CGI_KEYS.voiceVersion,
     voiceLanguage: input.cgiKeys?.voiceLanguage ?? CAMERA_SOFTWARE_CGI_KEYS.voiceLanguage,
+    cameraWifiSsid: input.cgiKeys?.cameraWifiSsid ?? CAMERA_SOFTWARE_CGI_KEYS.cameraWifiSsid,
   };
+  const cgiSsid = firstProperty(input.properties, cgiKeys.cameraWifiSsid);
   return {
     cameraWifi: resolveCameraWifiDisplay({
       connected: input.connected,
-      ssid: input.wifiSsid,
+      ssid: cgiSsid ?? input.wifiSsid,
       demoMode: input.demoMode,
       ssidStatus: input.wifiSsidStatus,
+      ssidSource: cgiSsid ? "cgi" : "os",
     }),
     firmware: resolveCgiOrDemoField({
       key: "firmware",

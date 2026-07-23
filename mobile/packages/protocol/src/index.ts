@@ -13,6 +13,7 @@ export {
   CAMERA_SETTING_VERIFY_FAILED,
   CAMERA_SETTING_WIRE,
   CAMERA_SETTINGS_KEYS,
+  CAMERA_SOFTWARE_INFO_PROPERTIES,
   cameraSettingConfirmMessage,
   cameraSettingSuccessMessage,
   fetchCameraSettingProperties,

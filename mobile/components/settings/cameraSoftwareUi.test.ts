@@ -97,10 +97,11 @@ describe("Camera updates sheet copy and URL policy", () => {
 });
 
 describe("read-only and no package transfer", () => {
-  it("keeps CGI software keys empty until live confirmation", () => {
-    assert.match(infoSrc, /firmware: \[\] as readonly string\[\]/);
-    assert.match(infoSrc, /safetyCameraData: \[\] as readonly string\[\]/);
-    assert.match(infoSrc, /voiceVersion: \[\] as readonly string\[\]/);
+  it("uses camera-confirmed CGI software keys (GET-only)", () => {
+    assert.match(infoSrc, /Vendor\.DeviceInfo\.Version\.Firmware/);
+    assert.match(infoSrc, /Vendor\.DeviceInfo\.Version\.SpeedCam/);
+    assert.match(infoSrc, /Vendor\.DeviceInfo\.Version\.Voice/);
+    assert.match(infoSrc, /Net\.WIFI_AP\.SSID/);
   });
 
   it("camera host change clears properties so another camera cannot reuse them", () => {
@@ -136,12 +137,34 @@ describe("resolveCameraSoftwareFields scenarios", () => {
         safetyCameraData: ["ConfirmedSafety"],
         voiceLanguage: ["ConfirmedVoiceLang"],
         voiceVersion: ["ConfirmedVoiceVer"],
+        cameraWifiSsid: [],
       },
     });
     assert.equal(fields.firmware.display, "VI100.24.50.BE1WD.10");
     assert.equal(fields.safetyCameraData.display, "V82.0706.01.25");
     assert.equal(fields.voicePackage.display, "Romanian · V01.0829.01.RO");
     assert.equal(fields.cameraWifi.display, "MiVue_db:8c");
+    assert.equal(fields.cameraWifi.source, "os");
+  });
+
+  it("maps live MiVue 866 CGI property names", () => {
+    const fields = resolveCameraSoftwareFields({
+      connected: true,
+      demoMode: false,
+      loading: false,
+      properties: {
+        "Vendor.DeviceInfo.Version.Firmware": "VI100.24.50.BE1WD.10",
+        "Vendor.DeviceInfo.Version.SpeedCam": "V82.0706.01.25",
+        "Vendor.DeviceInfo.Version.Voice": "V01.0829.01.RO",
+        "Net.WIFI_AP.SSID": "MiVue_db:8c",
+      },
+      wifiSsid: undefined,
+    });
+    assert.equal(fields.firmware.display, "VI100.24.50.BE1WD.10");
+    assert.equal(fields.safetyCameraData.display, "V82.0706.01.25");
+    assert.equal(fields.voicePackage.display, "V01.0829.01.RO");
+    assert.equal(fields.cameraWifi.display, "MiVue_db:8c");
+    assert.equal(fields.cameraWifi.source, "cgi");
   });
 
   it("empty or unsupported CGI responses become Not reported by camera", () => {
@@ -164,6 +187,13 @@ describe("resolveCameraSoftwareFields scenarios", () => {
       loading: false,
       properties: {},
       wifiSsid: undefined,
+      cgiKeys: {
+        firmware: [],
+        safetyCameraData: [],
+        voiceVersion: [],
+        voiceLanguage: [],
+        cameraWifiSsid: [],
+      },
     });
     assert.notEqual(live.firmware.display, DEMO_CAMERA_SOFTWARE.firmware);
     assert.equal(live.firmware.display, NOT_REPORTED_BY_CAMERA);

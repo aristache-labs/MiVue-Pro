@@ -165,8 +165,8 @@ export default function SettingsCameraScreen() {
 
   useEffect(() => {
     if (demoMode) {
-      setLastConfirmedSoftware({});
-      setSoftwareRequestError(false);
+      setLastConfirmedSoftware((prev) => (Object.keys(prev).length === 0 ? prev : {}));
+      setSoftwareRequestError((prev) => (prev ? false : prev));
       return;
     }
     const next: Partial<Record<"firmware" | "safetyCameraData" | "voicePackage", string>> = {};
@@ -174,9 +174,19 @@ export default function SettingsCameraScreen() {
       const field = softwareFields[key];
       if (field.state === "available" && field.raw) next[key] = field.raw;
     }
-    if (Object.keys(next).length > 0) {
-      setLastConfirmedSoftware((prev) => ({ ...prev, ...next }));
-    }
+    if (Object.keys(next).length === 0) return;
+    setLastConfirmedSoftware((prev) => {
+      let changed = false;
+      const merged = { ...prev };
+      for (const key of Object.keys(next) as Array<keyof typeof next>) {
+        const value = next[key];
+        if (value !== undefined && prev[key] !== value) {
+          merged[key] = value;
+          changed = true;
+        }
+      }
+      return changed ? merged : prev;
+    });
   }, [demoMode, softwareFields]);
 
   useFocusEffect(

@@ -128,6 +128,17 @@ export const CAMERA_SETTINGS_KEYS = Object.freeze(
 /** Optional read-only camera clock property (never mutated). */
 export const CAMERA_CLOCK_PROPERTY = "Camera.Preview.MJPEG.TimeStamp.*";
 
+/**
+ * Read-only software / Wi-Fi identity keys confirmed on MiVue 866 (GET only).
+ * Exact names only — never fetch Net.* wildcards (may include Wi-Fi secrets).
+ */
+export const CAMERA_SOFTWARE_INFO_PROPERTIES = Object.freeze([
+  "Vendor.DeviceInfo.Version.Firmware",
+  "Vendor.DeviceInfo.Version.SpeedCam",
+  "Vendor.DeviceInfo.Version.Voice",
+  "Net.WIFI_AP.SSID",
+] as const);
+
 export function truncateBody(text: string, max = 120): string {
   const normalized = text.replaceAll("\r", "").trim();
   if (normalized.length <= max) return normalized;
@@ -317,7 +328,7 @@ export async function verifyCameraSetting<K extends CameraSettingKey>(
   };
 }
 
-/** Read-only fetch of the five allowlisted setting properties. */
+/** Read-only fetch of allowlisted settings, clock, and software identity. */
 export async function fetchCameraSettingProperties(
   transport: Transport,
   options?: { readonly signal?: AbortSignal },
@@ -378,6 +389,24 @@ export async function fetchCameraSettingProperties(
     }
   } catch {
     // optional
+  }
+  for (const property of CAMERA_SOFTWARE_INFO_PROPERTIES) {
+    try {
+      const query = new URLSearchParams({ action: "get", property });
+      const response = await transport.request({
+        method: "GET",
+        path: `/cgi-bin/Config.cgi?${query.toString()}`,
+        ...(options?.signal === undefined ? {} : { signal: options.signal }),
+      });
+      const { parsed } = parseMutationBody(response.body);
+      if (!parsed || parsed.code !== 0) continue;
+      const value = parsed.properties[property];
+      if (typeof value === "string" && value.trim().length > 0) {
+        out[property] = value.trim();
+      }
+    } catch {
+      // optional identity fields
+    }
   }
   return out;
 }
