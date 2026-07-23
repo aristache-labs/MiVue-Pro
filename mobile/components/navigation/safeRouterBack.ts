@@ -15,3 +15,18 @@ export function safeRouterBack(fallbackHref: Href = "/(tabs)" as Href): void {
   }
   router.replace(fallbackHref);
 }
+
+/**
+ * Leave a presented modal (e.g. Player fullScreenModal), then open a root stack route
+ * so it is not nested as a card/sheet on top of the modal.
+ */
+export function navigateAfterDismissingModal(href: Href): void {
+  if (router.canDismiss()) {
+    router.dismiss();
+    queueMicrotask(() => {
+      router.push(href);
+    });
+    return;
+  }
+  router.push(href);
+}

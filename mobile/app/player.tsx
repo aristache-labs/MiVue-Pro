@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import * as FileSystem from "expo-file-system/legacy";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { Stack, useLocalSearchParams } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -28,7 +28,7 @@ import {
   zoomForSpeedKmh,
 } from "@/components/gps";
 import { HeaderDivider } from "@/components/navigation/HeaderDivider";
-import { safeRouterBack } from "@/components/navigation/safeRouterBack";
+import { safeRouterBack, navigateAfterDismissingModal } from "@/components/navigation/safeRouterBack";
 import {
   gpsStatusA11yLabel,
   gpsStatusLabel,
@@ -633,26 +633,31 @@ function VideoWithGps({
           )}
 
           {track && track.samples.length > 0 ? (
-            <View style={styles.privacyBlock}>
-              <Text style={[styles.privacyInline, { color: colors.textMuted }]}>
-                Online map loads visible tiles only. Video and the complete GPS track are not uploaded.
+            <Pressable
+              onPress={() =>
+                navigateAfterDismissingModal(
+                  "/settings/maps-privacy" as Parameters<typeof navigateAfterDismissingModal>[0],
+                )
+              }
+              accessibilityRole="button"
+              accessibilityLabel="Maps and Privacy. Online map loads visible tiles only. Video and GPS stay on this device."
+              hitSlop={4}
+              style={({ pressed }) => [
+                styles.privacyStrip,
+                {
+                  backgroundColor: colors.surfaceMuted,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color={colors.brand} />
+              <Text style={[styles.privacyStripText, { color: colors.textMuted }]} numberOfLines={2}>
+                Visible tiles only · video and GPS stay on this device
               </Text>
-              <Pressable
-                onPress={() =>
-                  router.push("/settings/maps-privacy" as Parameters<typeof router.push>[0])
-                }
-                accessibilityRole="link"
-                accessibilityLabel="Privacy"
-                hitSlop={8}
-                style={({ pressed }) => [
-                  styles.privacyLink,
-                  { opacity: pressed ? 0.75 : 1 },
-                ]}
-              >
-                <Text style={[styles.privacyLinkText, { color: colors.brand }]}>Privacy</Text>
-                <Ionicons name="chevron-forward" size={14} color={colors.brand} />
-              </Pressable>
-            </View>
+              <Text style={[styles.privacyStripAction, { color: colors.brand }]}>Privacy</Text>
+              <Ionicons name="chevron-forward" size={14} color={colors.brand} />
+            </Pressable>
           ) : null}
         </View>
       ) : null}
@@ -820,26 +825,27 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     justifyContent: "center",
   },
-  privacyInline: {
-    fontSize: 11,
-    fontFamily: Type.font,
-    lineHeight: 15,
-  },
-  privacyBlock: {
-    marginTop: 10,
-    gap: 4,
-  },
-  privacyLink: {
-    alignSelf: "flex-start",
-    minHeight: 36,
+  privacyStrip: {
+    marginTop: 12,
+    minHeight: 44,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
     flexDirection: "row",
     alignItems: "center",
-    gap: 2,
-    paddingVertical: 4,
+    gap: 8,
   },
-  privacyLinkText: {
+  privacyStripText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: Type.font,
+    lineHeight: 16,
+  },
+  privacyStripAction: {
     fontSize: 12,
     fontFamily: Type.fontSemi,
+    flexShrink: 0,
   },
   noGps: {
     minHeight: 100,

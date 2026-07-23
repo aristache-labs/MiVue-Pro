@@ -24,6 +24,14 @@ describe("safeRouterBack", () => {
     assert.doesNotMatch(selectCamera, /router\.back\(\)/);
   });
 
+  it("Player Privacy opens Maps & Privacy after dismissing the Player modal", () => {
+    assert.match(src, /navigateAfterDismissingModal/);
+    assert.match(src, /queueMicrotask/);
+    assert.match(player, /navigateAfterDismissingModal/);
+    assert.match(player, /\/settings\/maps-privacy/);
+    assert.doesNotMatch(player, /router\.push\(\s*["']\/settings\/maps-privacy/);
+  });
+
   it("root onboarding gate uses replace effect instead of focus Redirect", () => {
     assert.match(rootLayout, /router\.replace\("\/onboarding"/);
     assert.doesNotMatch(rootLayout, /<Redirect[\s>]/);
