@@ -7,8 +7,14 @@ export type HeaderDividerVariant = "screen" | "sheet";
 /** Default horizontal inset for sheet variant when the sheet itself is not padded. */
 export const HEADER_DIVIDER_SHEET_INSET = 24;
 
-/** Soften borderSoft so the hairline stays restrained in both themes. */
+/** Soften borderSoft so screen hairlines stay restrained in both themes. */
 export const HEADER_DIVIDER_OPACITY = 0.85;
+
+/**
+ * Sheet surfaces need a stronger token — borderSoft disappears on dark elevated sheets.
+ * Use colors.border at this opacity for readable contrast without a hard rule.
+ */
+export const HEADER_DIVIDER_SHEET_OPACITY = 0.9;
 
 export type HeaderDividerProps = {
   readonly variant?: HeaderDividerVariant;
@@ -30,6 +36,7 @@ export function HeaderDivider({
 }: HeaderDividerProps) {
   const { colors } = useAppTheme();
   const horizontal = variant === "sheet" ? inset : 0;
+  const isSheet = variant === "sheet";
 
   return (
     <View
@@ -39,8 +46,8 @@ export function HeaderDivider({
       style={[
         styles.line,
         {
-          backgroundColor: colors.borderSoft,
-          opacity: HEADER_DIVIDER_OPACITY,
+          backgroundColor: isSheet ? colors.border : colors.borderSoft,
+          opacity: isSheet ? HEADER_DIVIDER_SHEET_OPACITY : HEADER_DIVIDER_OPACITY,
           marginHorizontal: horizontal,
         },
         style,

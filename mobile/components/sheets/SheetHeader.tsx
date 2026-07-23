@@ -100,8 +100,8 @@ const styles = StyleSheet.create({
   },
   handleRow: {
     alignItems: "center",
-    paddingTop: 8,
-    paddingBottom: 6,
+    paddingTop: 6,
+    paddingBottom: 2,
   },
   handle: {
     width: 36,
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
-    paddingBottom: 14,
+    paddingBottom: 8,
     paddingHorizontal: 4,
   },
   side: {

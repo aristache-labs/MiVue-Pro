@@ -343,7 +343,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minHeight: 44,
     gap: 8,
-    paddingBottom: 14,
+    paddingBottom: 8,
   },
   title: {
     flex: 1,

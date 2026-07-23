@@ -33,10 +33,17 @@ describe("HeaderDivider system", () => {
     assert.match(dividerSrc, /StyleSheet\.hairlineWidth/);
     assert.match(dividerSrc, /colors\.borderSoft/);
     assert.match(dividerSrc, /HEADER_DIVIDER_OPACITY/);
+    assert.match(dividerSrc, /HEADER_DIVIDER_SHEET_OPACITY/);
+    assert.match(dividerSrc, /isSheet \? colors\.border : colors\.borderSoft/);
     assert.match(dividerSrc, /accessible=\{false\}/);
     assert.match(dividerSrc, /pointerEvents="none"/);
     assert.match(dividerSrc, /variant.*screen|HeaderDividerVariant/);
     assert.match(dividerSrc, /"sheet"/);
+  });
+
+  it("SheetHeader keeps compact padding above the sheet divider", () => {
+    assert.match(sheetHeaderSrc, /paddingBottom:\s*8/);
+    assert.doesNotMatch(sheetHeaderSrc, /titleRow:[\s\S]*?paddingBottom:\s*1[4-9]/);
   });
 
   it("TabScreenHeader and SettingsChromeHeader render screen divider", () => {
