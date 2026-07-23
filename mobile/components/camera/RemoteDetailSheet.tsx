@@ -1,4 +1,3 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -18,10 +17,12 @@ import {
   MEDIA_THUMB_H,
   MEDIA_THUMB_W,
 } from "@/components/media/mediaCardTokens";
+import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
+import { HeaderDivider } from "@/components/navigation/HeaderDivider";
 import { PrimaryButton } from "@/components/ui";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
-import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { Type, useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
 interface RemoteDetailSheetProps {
@@ -125,16 +126,9 @@ export function RemoteDetailSheet({
                   </Text>
                 ) : null}
               </View>
-              <Pressable
-                onPress={requestClose}
-                accessibilityRole="button"
-                accessibilityLabel="Close"
-                hitSlop={HitSlop44}
-                style={styles.closeHit}
-              >
-                <Ionicons name="close" size={22} color={colors.textMuted} />
-              </Pressable>
+              <SheetCloseButton onPress={requestClose} accessibilityLabel="Close" />
             </View>
+            <HeaderDivider variant="sheet" inset={0} testID="remote-detail-header-divider" />
 
             <View style={styles.metaBlock}>
               <View style={styles.metaCols}>
@@ -207,15 +201,7 @@ const styles = StyleSheet.create({
   },
   catText: { fontSize: 10, fontFamily: Type.fontSemi },
   when: { fontSize: 13, fontFamily: Type.font },
-  closeHit: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: -8,
-    marginRight: -8,
-  },
-  metaBlock: { marginBottom: 4 },
+  metaBlock: { marginTop: 12, marginBottom: 4 },
   metaCols: { flexDirection: "row", gap: 16 },
   metaCol: { flex: 1, gap: 2 },
   metaLabel: { fontSize: 12, fontFamily: Type.font },

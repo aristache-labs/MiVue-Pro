@@ -27,6 +27,7 @@ import {
   playerModeToMapPreference,
   zoomForSpeedKmh,
 } from "@/components/gps";
+import { HeaderDivider } from "@/components/navigation/HeaderDivider";
 import {
   gpsStatusA11yLabel,
   gpsStatusLabel,
@@ -180,6 +181,7 @@ export default function PlayerScreen() {
               accessibilityLabel={`Share ${name}`}
             />
           </View>
+          <HeaderDivider variant="screen" testID="player-header-divider" />
         </View>
       ) : null}
 

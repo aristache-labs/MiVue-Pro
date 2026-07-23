@@ -2,6 +2,7 @@ import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HeaderDivider } from "@/components/navigation/HeaderDivider";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 /**
@@ -80,6 +81,7 @@ export function SettingsChromeHeader({
           importantForAccessibility="no-hide-descendants"
         />
       </View>
+      <HeaderDivider variant="screen" testID="settings-chrome-header-divider" />
     </View>
   );
 }

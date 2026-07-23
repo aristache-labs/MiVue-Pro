@@ -19,6 +19,7 @@ import {
 } from "@/components/camera/cameraLibraryModel";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
+import { HeaderDivider } from "@/components/navigation/HeaderDivider";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
 interface CameraConnectionSheetProps {
@@ -170,6 +171,7 @@ export function CameraConnectionSheet({
                   accessibilityLabel="Close camera connection"
                 />
               </View>
+              <HeaderDivider variant="sheet" inset={0} testID="camera-connection-header-divider" />
             </View>
 
             {showConnectedUi ? (
@@ -341,6 +343,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minHeight: 44,
     gap: 8,
+    paddingBottom: 14,
   },
   title: {
     flex: 1,
@@ -348,8 +351,8 @@ const styles = StyleSheet.create({
     fontFamily: Type.fontBold,
     minWidth: 0,
   },
-  status: { fontSize: 14, fontFamily: Type.fontSemi, marginTop: 4 },
-  lead: { fontSize: 14, fontFamily: Type.font, marginTop: 6, lineHeight: 20 },
+  status: { fontSize: 14, fontFamily: Type.fontSemi, marginTop: 16 },
+  lead: { fontSize: 14, fontFamily: Type.font, marginTop: 16, lineHeight: 20 },
   metaRow: { flexDirection: "row", justifyContent: "space-between", gap: 12 },
   metaLabel: { fontSize: 13, fontFamily: Type.font },
   metaValue: { fontSize: 13, fontFamily: Type.fontSemi, flexShrink: 1, textAlign: "right" },

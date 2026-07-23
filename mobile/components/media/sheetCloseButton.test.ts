@@ -36,11 +36,11 @@ describe("shared sheet close wiring", () => {
     assert.match(connection, /enableSwipeToDismiss/);
   });
 
-  it("Camera and Local Filters share SheetCloseButton", () => {
-    assert.match(cameraFilter, /SheetCloseButton/);
-    assert.match(localFilter, /SheetCloseButton/);
-    assert.match(cameraFilter, /accessibilityLabel="Close filters"/);
-    assert.match(localFilter, /accessibilityLabel="Close filters"/);
+  it("Camera and Local Filters share SheetHeader close wiring", () => {
+    assert.match(cameraFilter, /SheetHeader/);
+    assert.match(localFilter, /SheetHeader/);
+    assert.match(cameraFilter, /accessibilityLabel="Close filters"|closeAccessibilityLabel="Close filters"/);
+    assert.match(localFilter, /closeAccessibilityLabel="Close filters"/);
     assert.doesNotMatch(cameraFilter, /name="close"/);
     assert.doesNotMatch(localFilter, /name="close"/);
   });
@@ -49,10 +49,9 @@ describe("shared sheet close wiring", () => {
     assert.match(library, /StaticBackdropSheet/);
     assert.match(library, /sheetTestID="sort-sheet"/);
     assert.match(library, /scrimTestID="sort-scrim"/);
-    assert.match(library, /sortHeaderSide/);
-    assert.match(library, /textAlign:\s*"center"/);
-    assert.match(library, /accessibilityLabel="Close sort"/);
-    assert.match(library, /SheetCloseButton/);
+    assert.match(library, /SheetHeader/);
+    assert.match(library, /title="Sort"/);
+    assert.match(library, /closeAccessibilityLabel="Close sort"/);
     assert.match(library, /setSort\(opt\.id\);\s*requestClose\(\)/);
     assert.match(shell, /animationType="none"/);
     assert.match(shell, /onRequestClose=\{requestClose\}/);

@@ -41,8 +41,8 @@ import {
 } from "@/components/local/localLibraryFilters";
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
-import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
+import { SheetHeader } from "@/components/sheets/SheetHeader";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 
@@ -273,12 +273,18 @@ export function LocalFilterSheet({
     >
       {({ requestClose }) => (
         <View style={styles.sheetBody}>
-          <View style={styles.handleRow}>
-            <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          </View>
-
-          <View style={styles.sheetHeader}>
-            <View style={styles.headerSide}>
+          <SheetHeader
+            title="Filters"
+            dividerInset={MEDIA_SHEET_PAD_H}
+            onClose={() => {
+              if (activePicker) {
+                dismissPicker();
+                return;
+              }
+              requestClose();
+            }}
+            closeAccessibilityLabel="Close filters"
+            leftAction={
               <Pressable
                 onPress={() => setDraft(EMPTY_FILTERS)}
                 disabled={resetDisabled}
@@ -292,28 +298,17 @@ export function LocalFilterSheet({
                   Reset
                 </Text>
               </Pressable>
-            </View>
-            <Text style={[styles.sheetTitle, { color: colors.text }]} accessibilityRole="header">
-              Filters
-            </Text>
-            <View style={[styles.headerSide, styles.headerSideRight]}>
-              <SheetCloseButton
-                onPress={() => {
-                  if (activePicker) {
-                    dismissPicker();
-                    return;
-                  }
-                  requestClose();
-                }}
-                accessibilityLabel="Close filters"
-              />
-            </View>
-          </View>
+            }
+          />
 
           <ScrollView
             style={styles.scroll}
             keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingHorizontal: MEDIA_SHEET_PAD_H, paddingBottom: 16 }}
+            contentContainerStyle={{
+              paddingHorizontal: MEDIA_SHEET_PAD_H,
+              paddingTop: 16,
+              paddingBottom: 16,
+            }}
             scrollEnabled={hasOverflow}
             alwaysBounceVertical={false}
             bounces={false}
@@ -636,34 +631,12 @@ export function LocalFilterSheet({
 const styles = StyleSheet.create({
   sheetBody: { flexShrink: 1 },
   scroll: { flexShrink: 1 },
-  handleRow: { alignItems: "center", paddingTop: 8 },
-  handle: { width: 36, height: 4, borderRadius: 2 },
-  sheetHeader: {
-    height: LOCAL_ACTION_HIT + 8,
-    justifyContent: "center",
-    marginBottom: 4,
-  },
-  headerSide: {
-    position: "absolute",
-    left: 8,
-    top: 0,
-    bottom: 0,
-    width: 88,
-    justifyContent: "center",
-    zIndex: 1,
-  },
-  headerSideRight: { left: undefined, right: 8, alignItems: "flex-end" },
   headerHit: {
     minWidth: LOCAL_ACTION_HIT,
     minHeight: LOCAL_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 8,
-  },
-  sheetTitle: {
-    textAlign: "center",
-    fontSize: 17,
-    fontFamily: Type.fontBold,
   },
   sectionLabel: {
     fontSize: 12,

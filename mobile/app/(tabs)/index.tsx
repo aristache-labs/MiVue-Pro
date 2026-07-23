@@ -72,8 +72,8 @@ import {
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
 import { SelectionActionBand } from "@/components/library/SelectionActionBand";
-import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { SheetHeader } from "@/components/sheets/SheetHeader";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -1020,20 +1020,16 @@ export default function LibraryScreen() {
       >
         {({ requestClose }) => (
           <View style={styles.sortBody}>
-            <View style={styles.sortHeader}>
-              <View style={styles.sortHeaderSide} />
-              <Text
-                style={[styles.sortTitle, { color: colors.text }]}
-                accessibilityRole="header"
-              >
-                Sort
-              </Text>
-              <View style={styles.sortHeaderSide}>
-                <SheetCloseButton onPress={requestClose} accessibilityLabel="Close sort" />
-              </View>
-            </View>
+            <SheetHeader
+              title="Sort"
+              showDragHandle={false}
+              dividerInset={0}
+              onClose={requestClose}
+              closeAccessibilityLabel="Close sort"
+            />
             <ScrollView
               style={styles.sortScroll}
+              contentContainerStyle={{ paddingTop: 8 }}
               scrollEnabled={sortHasOverflow}
               alwaysBounceVertical={false}
               bounces={false}
@@ -1189,23 +1185,6 @@ const styles = StyleSheet.create({
     paddingTop: 8,
   },
   sortBody: { flexShrink: 1 },
-  sortHeader: {
-    minHeight: 52,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  sortHeaderSide: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sortTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontFamily: Type.fontBold,
-  },
   sortScroll: { flexShrink: 1 },
   sortRow: {
     minHeight: 44,

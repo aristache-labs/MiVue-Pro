@@ -10,9 +10,9 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
+import { SheetHeader } from "@/components/sheets/SheetHeader";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 
@@ -87,15 +87,14 @@ export function CameraSettingSheet({
     >
       {(api) => (
         <View style={styles.root}>
-          <View style={styles.header} {...api.dragHandleProps}>
-            <View style={styles.headerSide} />
-            <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-              {title}
-            </Text>
-            <View style={styles.headerSide}>
-              <SheetCloseButton onPress={api.requestClose} disabled={applying} />
-            </View>
-          </View>
+          <SheetHeader
+            title={title}
+            showDragHandle={false}
+            dividerInset={0}
+            dragHandleProps={api.dragHandleProps}
+            onClose={api.requestClose}
+            closeDisabled={applying}
+          />
 
           {description ? (
             <Text style={[styles.description, { color: colors.textMuted }]}>{description}</Text>
@@ -109,6 +108,7 @@ export function CameraSettingSheet({
 
           <ScrollView
             style={styles.list}
+            contentContainerStyle={{ paddingTop: 8 }}
             onLayout={onViewportLayout}
             onContentSizeChange={onContentSizeChange}
             scrollEnabled={hasOverflow}
@@ -228,18 +228,6 @@ export function CameraSettingSheet({
 
 const styles = StyleSheet.create({
   root: { paddingHorizontal: 16, paddingTop: 8, gap: 10 },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    minHeight: 44,
-  },
-  headerSide: { width: 44, alignItems: "flex-end" },
-  title: {
-    flex: 1,
-    textAlign: "center",
-    fontFamily: Type.fontBold,
-    fontSize: 17,
-  },
   description: {
     fontFamily: Type.font,
     fontSize: 13,

@@ -22,7 +22,8 @@ import {
 } from "@/components/settings/aboutLegalContent";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
-import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { SheetHeader } from "@/components/sheets/SheetHeader";
+import { Type, useAppTheme } from "@/constants/Theme";
 import {
   thirdPartyLicenses,
   type ThirdPartyLicensePackage,
@@ -186,30 +187,17 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
     >
       {({ requestClose }) => (
         <View style={styles.sheetInner}>
-          <View style={[styles.handle, { backgroundColor: colors.border }]} />
-          <View style={styles.sheetHeader}>
-            <View style={styles.headerSide} />
-            <Text
-              style={[styles.sheetTitle, { color: colors.text }]}
-              numberOfLines={1}
-              maxFontSizeMultiplier={1.3}
-            >
-              {title}
-            </Text>
-            <Pressable
-              onPress={requestClose}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              hitSlop={HitSlop44}
-              style={styles.headerSide}
-            >
-              <Ionicons name="close" size={22} color={colors.text} />
-            </Pressable>
-          </View>
-
-          <Text style={[styles.draftBanner, { color: colors.warn }]} maxFontSizeMultiplier={1.3}>
-            {ABOUT_LEGAL_REVIEW_NOTE}
-          </Text>
+          <SheetHeader
+            title={title}
+            dividerInset={0}
+            onClose={requestClose}
+            closeAccessibilityLabel="Close"
+            belowTitle={
+              <Text style={[styles.draftBanner, { color: colors.warn }]} maxFontSizeMultiplier={1.3}>
+                {ABOUT_LEGAL_REVIEW_NOTE}
+              </Text>
+            }
+          />
 
           {kind === "licenses" ? (
             <View style={styles.licensesBody}>
@@ -285,6 +273,7 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
               style={styles.scroll}
               contentContainerStyle={{
                 paddingHorizontal: 16,
+                paddingTop: 8,
                 paddingBottom: Math.max(insets.bottom, 20),
                 gap: 4,
               }}
@@ -311,45 +300,17 @@ export function LegalInfoSheet({ kind, onClose, appVersion, buildLabel }: LegalI
 
 const styles = StyleSheet.create({
   sheetInner: { flex: 1 },
-  handle: {
-    alignSelf: "center",
-    width: 36,
-    height: 4,
-    borderRadius: 2,
-    marginTop: 8,
-    marginBottom: 4,
-  },
-  sheetHeader: {
-    height: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-  },
-  headerSide: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  sheetTitle: {
-    flex: 1,
-    textAlign: "center",
-    fontSize: 17,
-    fontFamily: Type.fontSemi,
-  },
   draftBanner: {
     fontSize: 12,
     fontFamily: Type.fontSemi,
     textAlign: "center",
-    marginBottom: 8,
-    paddingHorizontal: 16,
   },
   scroll: { flex: 1 },
   sectionBlock: { marginBottom: 14 },
   sectionTitle: { fontSize: 15, fontFamily: Type.fontSemi, marginBottom: 6 },
   sectionBody: { fontSize: 14, fontFamily: Type.font, lineHeight: 20, marginBottom: 6 },
   metaLine: { fontSize: 12, fontFamily: Type.mono, marginTop: 8, marginBottom: 4 },
-  licensesBody: { flex: 1, paddingHorizontal: 16, gap: 8 },
+  licensesBody: { flex: 1, paddingHorizontal: 16, gap: 8, paddingTop: 8 },
   search: {
     minHeight: 44,
     borderWidth: StyleSheet.hairlineWidth,

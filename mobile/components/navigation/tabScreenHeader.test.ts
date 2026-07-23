@@ -20,6 +20,7 @@ describe("TabScreenHeader + LibraryCategoryTabs contracts", () => {
     assert.match(header, /lineHeight:\s*28/);
     assert.match(header, /TAB_SCREEN_HEADER_ROW_HEIGHT = 56/);
     assert.match(header, /TAB_SCREEN_HEADER_SIDE_WIDTH = 112/);
+    assert.match(header, /HeaderDivider/);
   });
 
   it("does not keep duplicate tab-header title typography in screen files", () => {
