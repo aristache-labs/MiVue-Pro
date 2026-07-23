@@ -32,6 +32,8 @@ export interface CameraSettingSheetProps {
   readonly applyDisabledReason?: string;
   readonly onApply: (value: string) => void;
   readonly onClose: () => void;
+  /** After the sheet modal fully dismisses (post-animation). */
+  readonly onClosed?: () => void;
 }
 
 /**
@@ -47,6 +49,7 @@ export function CameraSettingSheet({
   applyDisabledReason,
   onApply,
   onClose,
+  onClosed,
 }: CameraSettingSheetProps) {
   const { colors, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -71,6 +74,7 @@ export function CameraSettingSheet({
       onClose={() => {
         if (!applying) onClose();
       }}
+      onClosed={onClosed}
       enableSwipeToDismiss={!applying}
       sheetTestID="camera-setting-sheet"
       sheetStyle={{

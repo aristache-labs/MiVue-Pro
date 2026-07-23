@@ -43,6 +43,8 @@ type StaticBackdropSheetProps = {
    * Off by default so scrollable sheets (Filters, details) are unaffected.
    */
   readonly enableSwipeToDismiss?: boolean;
+  /** Fires once after the close animation finishes and the modal unmounts. */
+  readonly onClosed?: () => void;
 };
 
 const EMPTY_DRAG_HANDLERS: GestureResponderHandlers = {};
@@ -62,6 +64,7 @@ export function StaticBackdropSheet({
   slideDistance = 420,
   interceptClose,
   enableSwipeToDismiss = false,
+  onClosed,
 }: StaticBackdropSheetProps) {
   const [mounted, setMounted] = useState(false);
   const translateY = useRef(new Animated.Value(slideDistance)).current;
@@ -70,6 +73,8 @@ export function StaticBackdropSheet({
   const draggingRef = useRef(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const onClosedRef = useRef(onClosed);
+  onClosedRef.current = onClosed;
   const interceptCloseRef = useRef(interceptClose);
   interceptCloseRef.current = interceptClose;
   const slideDistanceRef = useRef(slideDistance);
@@ -97,6 +102,7 @@ export function StaticBackdropSheet({
     draggingRef.current = false;
     setMounted(false);
     onCloseRef.current();
+    onClosedRef.current?.();
   }, []);
 
   const animateClosed = useCallback(() => {

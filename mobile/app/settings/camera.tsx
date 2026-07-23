@@ -1,15 +1,16 @@
 import { Stack, router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import {
-  AccessibilityInfo,
   Alert,
   BackHandler,
   StyleSheet,
   Text,
   View,
+  type LayoutChangeEvent,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ScreenToast, type ScreenToastTone } from "@/components/feedback/ScreenToast";
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { CameraIpSheet } from "@/components/settings/CameraIpSheet";
@@ -23,7 +24,10 @@ import {
   displayCameraSettingValue,
   rawCameraSettingValue,
 } from "@/components/settings/cameraSettingsUi";
-import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
+import {
+  SETTINGS_CHROME_HEADER_BAR_H,
+  SettingsChromeHeader,
+} from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
   SettingsSection,
@@ -53,6 +57,8 @@ function navigateBackToSettings(): void {
   router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
 }
 
+type ToastState = { readonly message: string; readonly tone: ScreenToastTone };
+
 export default function SettingsCameraScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
@@ -74,7 +80,11 @@ export default function SettingsCameraScreen() {
   const [refreshPending, setRefreshPending] = useState(false);
   const [ipSheetOpen, setIpSheetOpen] = useState(false);
   const [activeSetting, setActiveSetting] = useState<CameraSettingKey | null>(null);
-  const [toast, setToast] = useState<string | undefined>();
+  const [toast, setToast] = useState<ToastState | undefined>();
+  const pendingToastRef = useRef<ToastState | undefined>(undefined);
+  const [headerBottom, setHeaderBottom] = useState(
+    () => insets.top + SETTINGS_CHROME_HEADER_BAR_H,
+  );
 
   const selectedProfile = getCameraProfile(onboardingState.selectedCameraProfileId);
   const cameraConfigured =
@@ -101,6 +111,21 @@ export default function SettingsCameraScreen() {
     ? rawCameraSettingValue(cameraProperties, activeSetting)
     : undefined;
 
+  const onHeaderLayout = useCallback((event: LayoutChangeEvent) => {
+    const { y, height } = event.nativeEvent.layout;
+    setHeaderBottom(y + height);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        pendingToastRef.current = undefined;
+        setToast(undefined);
+        setActiveSetting(null);
+      };
+    }, []),
+  );
+
   useFocusEffect(
     useCallback(() => {
       if (ipSheetOpen || activeSetting) return undefined;
@@ -118,7 +143,7 @@ export default function SettingsCameraScreen() {
     try {
       const result = await refreshCameraInformation();
       if (!result.ok && result.error) {
-        void AccessibilityInfo.announceForAccessibility(result.error);
+        setToast({ message: result.error, tone: "danger" });
       }
     } finally {
       setRefreshPending(false);
@@ -143,6 +168,12 @@ export default function SettingsCameraScreen() {
     );
   }, [startChangeCamera]);
 
+  const flushPendingToastAfterSheet = useCallback(() => {
+    const pending = pendingToastRef.current;
+    pendingToastRef.current = undefined;
+    if (pending) setToast(pending);
+  }, []);
+
   const requestApply = useCallback(
     (key: CameraSettingKey, nextRaw: string) => {
       const fromRaw = rawCameraSettingValue(cameraProperties, key) ?? "—";
@@ -157,15 +188,15 @@ export default function SettingsCameraScreen() {
                 nextRaw as CameraSettingValueMap[typeof key],
               );
               if (result.ok) {
-                const msg = cameraSettingSuccessMessage(key, nextRaw);
-                setToast(msg);
-                void AccessibilityInfo.announceForAccessibility(msg);
+                pendingToastRef.current = {
+                  message: cameraSettingSuccessMessage(key, nextRaw),
+                  tone: "success",
+                };
                 setActiveSetting(null);
-                setTimeout(() => setToast(undefined), 2800);
                 return;
               }
               Alert.alert(
-                "Could not change setting",
+                "Couldn’t apply setting",
                 result.error ?? "Try again after refreshing camera information.",
               );
             })();
@@ -178,11 +209,16 @@ export default function SettingsCameraScreen() {
 
   const actionsBusy = refreshPending || isRefreshingCamera || isApplyingCameraSetting;
   const demoBlocked = demoMode ? "Camera settings are unavailable in Demo Mode." : undefined;
+  const toastTop = headerBottom + 12;
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
       <Stack.Screen options={{ headerShown: false }} />
-      <SettingsChromeHeader title="Camera & Connection" onBack={navigateBackToSettings} />
+      <SettingsChromeHeader
+        title="Camera & Connection"
+        onBack={navigateBackToSettings}
+        onLayout={onHeaderLayout}
+      />
 
       <SettingsScroll
         showsVerticalScrollIndicator={false}
@@ -292,11 +328,7 @@ export default function SettingsCameraScreen() {
                   compact
                   loading={loading}
                   disabled={!reported || isApplyingCameraSetting}
-                  onPress={
-                    reported
-                      ? () => setActiveSetting(key)
-                      : undefined
-                  }
+                  onPress={reported ? () => setActiveSetting(key) : undefined}
                   accessibilityLabel={CAMERA_SETTING_TITLE[key]}
                 />
               );
@@ -340,16 +372,13 @@ export default function SettingsCameraScreen() {
         </SettingsSection>
       </SettingsScroll>
 
-      {toast ? (
-        <View
-          pointerEvents="none"
-          style={[styles.toast, { backgroundColor: colors.successSoft, borderColor: colors.success }]}
-        >
-          <Text style={{ color: colors.success, fontFamily: Type.fontSemi, fontSize: 13 }}>
-            {toast}
-          </Text>
-        </View>
-      ) : null}
+      <ScreenToast
+        message={toast?.message}
+        tone={toast?.tone ?? "success"}
+        top={toastTop}
+        testID="camera-settings-toast"
+        onDismiss={() => setToast(undefined)}
+      />
 
       <CameraIpSheet
         visible={ipSheetOpen}
@@ -379,6 +408,7 @@ export default function SettingsCameraScreen() {
         onClose={() => {
           if (!isApplyingCameraSetting) setActiveSetting(null);
         }}
+        onClosed={flushPendingToastAfterSheet}
         onApply={(value) => {
           if (activeSetting) requestApply(activeSetting, value);
         }}
@@ -398,14 +428,4 @@ const styles = StyleSheet.create({
   placeholder: { paddingHorizontal: 14, paddingVertical: 14, gap: 6 },
   placeholderTitle: { fontFamily: Type.fontSemi, fontSize: 15 },
   placeholderBody: { fontFamily: Type.font, fontSize: 13, lineHeight: 18 },
-  toast: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    bottom: 24,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-  },
 });

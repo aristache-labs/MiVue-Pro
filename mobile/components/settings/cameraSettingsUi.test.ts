@@ -87,4 +87,15 @@ describe("camera settings UI contracts", () => {
     assert.doesNotMatch(cameraSrc, /MIVUE_ALLOW_MUTATE|cameraMutate|action=del|formatSd/i);
     assert.doesNotMatch(ctxSrc, /MIVUE_ALLOW_MUTATE/);
   });
+
+  it("success toast is outside SettingsScroll and coordinated with sheet onClosed", () => {
+    assert.match(cameraSrc, /ScreenToast/);
+    assert.match(cameraSrc, /pendingToastRef/);
+    assert.match(cameraSrc, /onClosed=\{flushPendingToastAfterSheet\}/);
+    assert.match(sheetSrc, /onClosed/);
+    const scrollClose = cameraSrc.indexOf("</SettingsScroll>");
+    const toastIdx = cameraSrc.indexOf("<ScreenToast");
+    assert.ok(toastIdx > scrollClose);
+    assert.doesNotMatch(cameraSrc.slice(0, scrollClose), /<ScreenToast/);
+  });
 });

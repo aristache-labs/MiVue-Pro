@@ -1,8 +1,15 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+
+/**
+ * Shared stack header — chevron (+ optional label), no native iOS capsule.
+ * Title is centered on full screen width.
+ * Bar content height is 44; total header height = safe-area top + this bar.
+ */
+export const SETTINGS_CHROME_HEADER_BAR_H = 44;
 
 interface SettingsChromeHeaderProps {
   readonly title: string;
@@ -12,6 +19,7 @@ interface SettingsChromeHeaderProps {
   readonly backLabel?: string;
   /** When false, only the chevron is shown (no “Back” text). */
   readonly showBackLabel?: boolean;
+  readonly onLayout?: (event: LayoutChangeEvent) => void;
 }
 
 /**
@@ -23,13 +31,17 @@ export function SettingsChromeHeader({
   onBack,
   backLabel = "Back",
   showBackLabel = true,
+  onLayout,
 }: SettingsChromeHeaderProps) {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const a11yLabel = showBackLabel ? backLabel : "Back";
 
   return (
-    <View style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.bg }]}>
+    <View
+      onLayout={onLayout}
+      style={[styles.header, { paddingTop: insets.top, backgroundColor: colors.bg }]}
+    >
       <View style={styles.headerBar}>
         <Text
           pointerEvents="none"
