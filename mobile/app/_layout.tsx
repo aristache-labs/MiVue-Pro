@@ -127,13 +127,7 @@ function RootLayoutNav() {
           name="connection-help"
           options={{ headerShown: false }}
         />
-        <Stack.Screen
-          name="legal-document"
-          options={{
-            title: "Legal",
-            headerBackTitle: CONNECTION_HELP_BACK_TITLE,
-          }}
-        />
+        <Stack.Screen name="legal-document" options={{ headerShown: false }} />
         <Stack.Screen
           name="settings"
           options={{ headerShown: false, headerBackTitle: CONNECTION_HELP_BACK_TITLE }}

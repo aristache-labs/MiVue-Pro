@@ -4,6 +4,7 @@ import { useMemo } from "react";
 
 import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
 import {
   SettingsCategoryRow,
   SettingsSection,
@@ -31,6 +32,7 @@ export default function SettingsHubScreen() {
   const cameraConfigured =
     Boolean(onboardingState.selectedCameraProfileId) || onboardingState.cameraSetupCompleted;
   const cameraModelLabel = selectedProfile?.displayName ?? cameraModel;
+  const showDiagnostics = internalToolsEnabled();
 
   const downloadedBytes = useMemo(
     () => localFiles.reduce((sum, f) => sum + (f.sizeBytes > 0 ? f.sizeBytes : 0), 0),
@@ -76,26 +78,28 @@ export default function SettingsHubScreen() {
       </SettingsSection>
 
       <SettingsSection title="Support">
-        <SettingsCategoryRow
-          icon="pulse-outline"
-          title="Diagnostics"
-          summary={diagnosticsSummary({
-            hasEverTested,
-            lastError,
-            linkState: cameraLinkState,
-          })}
-          onPress={() => push("/settings/diagnostics")}
-          accessibilityLabel="Diagnostics"
-        />
+        {showDiagnostics ? (
+          <SettingsCategoryRow
+            icon="pulse-outline"
+            title="Diagnostics"
+            summary={diagnosticsSummary({
+              hasEverTested,
+              lastError,
+              linkState: cameraLinkState,
+            })}
+            onPress={() => push("/settings/diagnostics")}
+            accessibilityLabel="Diagnostics"
+          />
+        ) : null}
         <SettingsCategoryRow
           icon="document-text-outline"
-          title="Legal & Onboarding"
+          title="Legal"
           summary={legalSummary({
             acceptedTermsVersion: onboardingState.acceptedTermsVersion,
             termsAccepted: Boolean(onboardingState.acceptedTermsVersion),
           })}
           onPress={() => push("/settings/legal")}
-          accessibilityLabel="Legal and Onboarding"
+          accessibilityLabel="Legal"
         />
         <SettingsCategoryRow
           icon="ribbon-outline"

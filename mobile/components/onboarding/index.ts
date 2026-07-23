@@ -38,14 +38,19 @@ export {
 } from "./onboardingStore";
 export {
   LEGAL_DRAFT_BANNER,
+  LEGAL_PLACEHOLDERS,
   TERMS_SUMMARY,
   PRIVACY_SUMMARY,
   PRIVACY_SUMMARY_ROWS,
   TERMS_CHECKBOX_LABEL,
   TERMS_OF_USE_TITLE,
   PRIVACY_POLICY_TITLE,
+  TERMS_OF_USE_DOCUMENT,
+  PRIVACY_POLICY_DOCUMENT,
   currentTermsVersion,
+  getLegalDocument,
 } from "./legalContent";
+export type { LegalDocument, LegalDocumentSection, PrivacySummaryRow } from "./legalContent";
 export {
   verifyCameraConnection,
   canStartVerify,

@@ -1,8 +1,12 @@
 import Constants from "expo-constants";
-import { useCallback, useState } from "react";
-import { Alert } from "react-native";
+import { Stack, router, useFocusEffect } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, BackHandler, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { sanitizeDiagnosticLine } from "@/components/camera/cameraLibraryModel";
+import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
+import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
   SettingsSection,
@@ -12,9 +16,20 @@ import {
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { APP_NAME } from "@/constants/Brand";
+import { useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 
+function navigateBackToSettings(): void {
+  if (router.canGoBack()) {
+    router.back();
+    return;
+  }
+  router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
+}
+
 export default function SettingsDiagnosticsScreen() {
+  const { colors } = useAppTheme();
+  const insets = useSafeAreaInsets();
   const {
     cameraHost,
     cameraLinkState,
@@ -30,6 +45,28 @@ export default function SettingsDiagnosticsScreen() {
 
   const [exporting, setExporting] = useState(false);
   const [lastTestAt, setLastTestAt] = useState<string | undefined>();
+  const [allowed, setAllowed] = useState(() => internalToolsEnabled());
+
+  useEffect(() => {
+    if (!internalToolsEnabled()) {
+      setAllowed(false);
+      router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!internalToolsEnabled()) {
+        router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
+        return undefined;
+      }
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        navigateBackToSettings();
+        return true;
+      });
+      return () => sub.remove();
+    }, []),
+  );
 
   const version =
     Constants.expoConfig?.version ?? Constants.nativeAppVersion ?? "0.1.0";
@@ -98,49 +135,68 @@ export default function SettingsDiagnosticsScreen() {
     linkState: cameraLinkState,
   });
 
-  return (
-    <SettingsScroll>
-      <SettingsSection title="Connectivity">
-        <SettingsActionRow
-          icon="pulse-outline"
-          title="Connectivity test"
-          subtitle="Runs the same read-only status and file list refresh"
-          loading={isRefreshingCamera}
-          disabled={isRefreshingCamera}
-          onPress={() => void runConnectivityTest()}
-          accessibilityLabel="Run connectivity test"
-        />
-        <SettingsValueRow
-          icon="alert-circle-outline"
-          title="Last request status"
-          value={requestStatus}
-          subtitle={lastError ? sanitizeDiagnosticLine(lastError) : undefined}
-        />
-        {lastTestAt ? (
-          <SettingsValueRow
-            icon="time-outline"
-            title="Last connectivity test"
-            value={new Date(lastTestAt).toLocaleString()}
-          />
-        ) : null}
-        <SettingsValueRow
-          icon="hardware-chip-outline"
-          title="Transport"
-          value={transportLabel({ nativeTcpReady, isExpoGo })}
-        />
-      </SettingsSection>
+  if (!allowed) {
+    return <View style={[styles.screen, { backgroundColor: colors.bg }]} />;
+  }
 
-      <SettingsSection title="Export">
-        <SettingsActionRow
-          icon="share-outline"
-          title="Export sanitized diagnostics"
-          subtitle="No passwords, API keys, tokens, or private paths"
-          loading={exporting}
-          disabled={exporting}
-          onPress={() => void exportDiagnostics()}
-          accessibilityLabel="Export sanitized diagnostics"
-        />
-      </SettingsSection>
-    </SettingsScroll>
+  return (
+    <View style={[styles.screen, { backgroundColor: colors.bg }]}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <SettingsChromeHeader title="Diagnostics" onBack={navigateBackToSettings} />
+
+      <SettingsScroll
+        contentContainerStyle={{
+          paddingHorizontal: 12,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 12),
+        }}
+      >
+        <SettingsSection title="Connectivity">
+          <SettingsActionRow
+            icon="pulse-outline"
+            title="Connectivity test"
+            subtitle="Runs the same read-only status and file list refresh"
+            loading={isRefreshingCamera}
+            disabled={isRefreshingCamera}
+            onPress={() => void runConnectivityTest()}
+            accessibilityLabel="Run connectivity test"
+          />
+          <SettingsValueRow
+            icon="alert-circle-outline"
+            title="Last request status"
+            value={requestStatus}
+            subtitle={lastError ? sanitizeDiagnosticLine(lastError) : undefined}
+          />
+          {lastTestAt ? (
+            <SettingsValueRow
+              icon="time-outline"
+              title="Last connectivity test"
+              value={new Date(lastTestAt).toLocaleString()}
+            />
+          ) : null}
+          <SettingsValueRow
+            icon="hardware-chip-outline"
+            title="Transport"
+            value={transportLabel({ nativeTcpReady, isExpoGo })}
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Export">
+          <SettingsActionRow
+            icon="share-outline"
+            title="Export sanitized diagnostics"
+            subtitle="No passwords, API keys, tokens, or private paths"
+            loading={exporting}
+            disabled={exporting}
+            onPress={() => void exportDiagnostics()}
+            accessibilityLabel="Export sanitized diagnostics"
+          />
+        </SettingsSection>
+      </SettingsScroll>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  screen: { flex: 1 },
+});

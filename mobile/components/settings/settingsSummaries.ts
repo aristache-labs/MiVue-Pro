@@ -104,7 +104,7 @@ export function diagnosticsRequestStatus(input: {
   return "—";
 }
 
-/** Hub summary for Legal & Onboarding. */
+/** Hub summary for Legal. */
 export function legalSummary(input: {
   readonly acceptedTermsVersion: string | undefined;
   readonly termsAccepted: boolean;

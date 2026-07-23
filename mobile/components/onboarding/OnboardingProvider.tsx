@@ -27,6 +27,7 @@ import {
 } from "@/components/onboarding";
 import type { OnboardingState, OnboardingStep } from "@/components/onboarding";
 import { DEFAULT_ONBOARDING_STATE } from "@/components/onboarding";
+import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
 
 type OnboardingContextValue = {
   readonly ready: boolean;
@@ -143,6 +144,7 @@ export function OnboardingProvider({ children }: { readonly children: React.Reac
   }, [apply, state]);
 
   const resetOnboardingDev = useCallback(async () => {
+    if (!internalToolsEnabled()) return;
     await clearOnboardingState(AsyncStorage);
     const fresh = resetOnboarding();
     setState(fresh);

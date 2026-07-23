@@ -1,5 +1,5 @@
 export const ONBOARDING_SCHEMA_VERSION = 1;
-export const TERMS_VERSION = "0.1-draft";
+export const TERMS_VERSION = "0.2-draft";
 export const ONBOARDING_STORAGE_KEY = "@laneory/onboarding_v1";
 
 export type OnboardingStep =
