@@ -36,11 +36,11 @@ import {
   type NormalizedGpsTrack,
 } from "@/components/gps/sampleIndex";
 import type { MapFollowPose } from "@/components/gps/OnlineMapWebView";
+import { CompactMediaCategoryBadge } from "@/components/media/CompactMediaCategoryBadge";
 import { PlayerMetaCard } from "@/components/player/PlayerMetaCard";
 import { truncatePlayerFilename } from "@/components/player/playerMeta";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { IconButton } from "@/components/ui";
-import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
@@ -54,7 +54,7 @@ export default function PlayerScreen() {
   const name = typeof params.name === "string" ? params.name : "Media";
   const kind = typeof params.kind === "string" ? params.kind : "other";
   const { shareLocalFile, files } = useDemoMode();
-  const { colors, scheme } = useAppTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
   const isVideo = kind === "video" || name.toLowerCase().endsWith(".mp4");
@@ -142,29 +142,16 @@ export default function PlayerScreen() {
               accessibilityLabel="Close video player"
             />
             <View style={styles.titleCenter}>
-              <Text
-                style={[styles.topBarTitle, { color: colors.text }]}
-                numberOfLines={1}
-                ellipsizeMode="middle"
-              >
-                {title}
-              </Text>
-              {category ? (
-                <View
-                  style={[
-                    styles.catBadge,
-                    { backgroundColor: categoryColor(category, scheme) + "22" },
-                  ]}
-                  accessibilityLabel={CATEGORY_LABEL[category]}
+              <View style={styles.titleIdentityRow}>
+                <Text
+                  style={[styles.topBarTitle, { color: colors.text }]}
+                  numberOfLines={1}
+                  ellipsizeMode="middle"
                 >
-                  <Text
-                    style={[styles.catBadgeText, { color: categoryColor(category, scheme) }]}
-                    numberOfLines={1}
-                  >
-                    {CATEGORY_LABEL[category]}
-                  </Text>
-                </View>
-              ) : null}
+                  {title}
+                </Text>
+                {category ? <CompactMediaCategoryBadge category={category} /> : null}
+              </View>
             </View>
             <IconButton
               icon="share-outline"
@@ -774,8 +761,8 @@ const styles = StyleSheet.create({
   topBarTitle: {
     fontSize: 15,
     fontFamily: Type.fontSemi,
-    textAlign: "center",
-    maxWidth: "100%",
+    flexShrink: 1,
+    minWidth: 0,
   },
   titleCenter: {
     flex: 1,
@@ -784,13 +771,14 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     minWidth: 0,
   },
-  catBadge: {
-    marginTop: 2,
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+  titleIdentityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "stretch",
+    gap: 6,
+    minWidth: 0,
   },
-  catBadgeText: { fontSize: 10, fontFamily: Type.fontSemi },
   gpsBlock: { gap: 0 },
   gpsHeader: {
     flexDirection: "row",

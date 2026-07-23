@@ -83,6 +83,27 @@ test("detail sheet uses static scrim without Modal slide", () => {
   assert.match(shell, /isReduceMotionEnabled/);
 });
 
+test("RemoteDetailSheet puts date and category on one identityMetaRow", () => {
+  const sheet = readFileSync(join(__dirname, "RemoteDetailSheet.tsx"), "utf8");
+  const badge = readFileSync(join(__dirname, "../media/CompactMediaCategoryBadge.tsx"), "utf8");
+  assert.match(sheet, /identityMetaRow/);
+  assert.match(sheet, /CompactMediaCategoryBadge/);
+  assert.match(sheet, /numberOfLines=\{2\}/);
+  assert.match(sheet, /styles\.when[\s\S]*numberOfLines=\{1\}/);
+  assert.match(sheet, /whenSpacer/);
+  assert.doesNotMatch(sheet, /catBadge:/);
+  const nameIdx = sheet.indexOf("file.name");
+  const metaIdx = sheet.indexOf("identityMetaRow");
+  const badgeIdx = sheet.indexOf("<CompactMediaCategoryBadge");
+  const whenIdx = sheet.indexOf("styles.when");
+  assert.ok(nameIdx >= 0 && metaIdx > nameIdx && badgeIdx > metaIdx && whenIdx > metaIdx);
+  assert.ok(whenIdx < badgeIdx);
+  assert.match(badge, /accessibilityLabel=\{label\}/);
+  assert.match(badge, /flexShrink:\s*0/);
+  assert.match(badge, /fontSize:\s*10/);
+  assert.doesNotMatch(badge, /marginTop|marginBottom/);
+});
+
 test("library index wires RemoteDetailSheet and does not slide-detail Modal", () => {
   const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
   assert.match(index, /RemoteDetailSheet/);

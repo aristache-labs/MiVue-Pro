@@ -17,6 +17,7 @@ import {
   MEDIA_THUMB_H,
   MEDIA_THUMB_W,
 } from "@/components/media/mediaCardTokens";
+import { CompactMediaCategoryBadge } from "@/components/media/CompactMediaCategoryBadge";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import { HeaderDivider } from "@/components/navigation/HeaderDivider";
@@ -27,7 +28,6 @@ import {
   SHEET_HEADER_TO_DIVIDER,
 } from "@/components/sheets/SheetHeader";
 import { PrimaryButton } from "@/components/ui";
-import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { Type, useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 
@@ -55,7 +55,7 @@ export function RemoteDetailSheet({
   onPlay,
   onViewQueue,
 }: RemoteDetailSheetProps) {
-  const { colors, scheme } = useAppTheme();
+  const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
   const open = visible && file !== null && downloadState !== null;
 
@@ -77,7 +77,6 @@ export function RemoteDetailSheet({
     >
       {({ requestClose }) => {
         if (!file || !downloadState) return null;
-        const catAccent = categoryColor(file.category, scheme);
         const when = formatRecordingDateTime(file.recordedAt);
         const sizeLabel = formatMediaSizeMbGb(file.sizeBytes);
         const duration =
@@ -125,16 +124,16 @@ export function RemoteDetailSheet({
                 <Text style={[styles.fileName, { color: colors.text }]} numberOfLines={2}>
                   {file.name}
                 </Text>
-                <View style={[styles.catBadge, { backgroundColor: catAccent + "22" }]}>
-                  <Text style={[styles.catText, { color: catAccent }]}>
-                    {CATEGORY_LABEL[file.category]}
-                  </Text>
+                <View style={styles.identityMetaRow}>
+                  {when ? (
+                    <Text style={[styles.when, { color: colors.textMuted }]} numberOfLines={1}>
+                      {when}
+                    </Text>
+                  ) : (
+                    <View style={styles.whenSpacer} />
+                  )}
+                  <CompactMediaCategoryBadge category={file.category} />
                 </View>
-                {when ? (
-                  <Text style={[styles.when, { color: colors.textMuted }]} numberOfLines={1}>
-                    {when}
-                  </Text>
-                ) : null}
               </View>
               <SheetCloseButton onPress={requestClose} accessibilityLabel="Close" />
             </View>
@@ -200,16 +199,16 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   headerRow: { flexDirection: "row", alignItems: "flex-start", gap: 12 },
-  headerBody: { flex: 1, minWidth: 0, gap: 6 },
+  headerBody: { flex: 1, minWidth: 0, gap: 4 },
   fileName: { fontSize: 16, fontFamily: Type.fontSemi },
-  catBadge: {
-    alignSelf: "flex-start",
-    borderRadius: 4,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+  identityMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    minWidth: 0,
   },
-  catText: { fontSize: 10, fontFamily: Type.fontSemi },
-  when: { fontSize: 13, fontFamily: Type.font },
+  when: { flex: 1, minWidth: 0, fontSize: 13, fontFamily: Type.font },
+  whenSpacer: { flex: 1, minWidth: 0 },
   metaBlock: { marginBottom: 12 },
   metaCols: { flexDirection: "row", gap: 16 },
   metaCol: { flex: 1, gap: 2 },

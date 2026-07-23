@@ -42,7 +42,12 @@ import {
 import { LOCAL_ACTION_HIT } from "@/components/local/localLibrarySections";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
-import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
+import { HeaderDivider } from "@/components/navigation/HeaderDivider";
+import {
+  CompactSheetHeader,
+  SHEET_BODY_PAD_TOP,
+  SHEET_HEADER_TO_DIVIDER,
+} from "@/components/sheets/SheetHeader";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useVerticalOverflow } from "@/hooks/useVerticalOverflow";
 
@@ -612,6 +617,12 @@ export function LocalFilterSheet({
                     </Text>
                   </Pressable>
                 </View>
+                <HeaderDivider
+                  variant="sheet"
+                  inset={MEDIA_SHEET_PAD_H}
+                  style={{ marginTop: SHEET_HEADER_TO_DIVIDER }}
+                  testID="local-filter-ios-picker-divider"
+                />
                 <DateTimePicker
                   value={iosTemp ?? pickerValue(draft, activePicker)}
                   mode={pickerMode}

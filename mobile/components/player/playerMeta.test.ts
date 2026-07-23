@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 import { PLAYER_META_LABELS, buildPlayerMetaFields,
@@ -56,6 +58,22 @@ test("long filename truncates with ellipsis and keeps extension", () => {
   const out = truncatePlayerFilename(long, 24);
   assert.ok(out.endsWith(".MP4"));
   assert.ok(out.includes("…"));
+});
+
+test("Player header uses a horizontal titleIdentityRow with compact category badge", () => {
+  const player = readFileSync(join(__dirname, "../../app/player.tsx"), "utf8");
+  const badge = readFileSync(join(__dirname, "../media/CompactMediaCategoryBadge.tsx"), "utf8");
+  assert.match(player, /titleIdentityRow/);
+  assert.match(player, /CompactMediaCategoryBadge/);
+  assert.match(player, /ellipsizeMode="middle"/);
+  assert.match(player, /numberOfLines=\{1\}/);
+  assert.match(player, /topBarTitle:[\s\S]*flexShrink:\s*1/);
+  assert.match(player, /topBarTitle:[\s\S]*minWidth:\s*0/);
+  assert.doesNotMatch(player, /catBadge:/);
+  assert.doesNotMatch(player, /marginTop:\s*2/);
+  assert.match(badge, /accessibilityLabel=\{label\}/);
+  assert.match(badge, /flexShrink:\s*0/);
+  assert.match(badge, /CATEGORY_LABEL/);
 });
 
 test("telemetry rejects NaN Infinity and impossible values", () => {

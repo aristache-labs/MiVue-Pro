@@ -105,10 +105,15 @@ describe("HeaderDivider system", () => {
     assert.match(legalDoc, /SettingsChromeHeader/);
   });
 
-  it("native DateTimePicker chrome is not restyled by HeaderDivider", () => {
+  it("iOS date/time picker chrome uses the same HeaderDivider under Cancel/Done", () => {
     assert.match(cameraFilter, /DateTimePicker/);
     assert.match(cameraFilter, /iosPickerHeader/);
-    assert.doesNotMatch(cameraFilter, /HeaderDivider[\s\S]{0,80}DateTimePicker/);
+    assert.match(cameraFilter, /camera-filter-ios-picker-divider/);
+    assert.match(localFilter, /local-filter-ios-picker-divider/);
+    const camHeader = cameraFilter.indexOf("iosPickerHeader");
+    const camDivider = cameraFilter.indexOf("camera-filter-ios-picker-divider");
+    const camPicker = cameraFilter.indexOf("<DateTimePicker", camHeader);
+    assert.ok(camHeader >= 0 && camDivider > camHeader && camPicker > camDivider);
   });
 
   it("backdrop and sheet animation contracts remain unchanged", () => {
