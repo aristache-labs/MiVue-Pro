@@ -13,6 +13,7 @@ export interface SettingsRowBaseProps {
   readonly loading?: boolean;
   readonly disabled?: boolean;
   readonly accessibilityLabel?: string;
+  readonly accessibilityHint?: string;
   /** Hub category rows use taller min height. */
   readonly variant?: "default" | "category";
   /** Tighter vertical padding for dense Settings detail screens (keeps ≥44 hit). */
@@ -33,6 +34,7 @@ export function SettingsRow({
   loading = false,
   disabled = false,
   accessibilityLabel,
+  accessibilityHint,
   variant = "default",
   compact = false,
 }: SettingsRowBaseProps) {
@@ -92,6 +94,7 @@ export function SettingsRow({
       <View
         style={wrapStyle}
         accessibilityLabel={accessibilityLabel ?? title}
+        accessibilityHint={accessibilityHint}
         accessibilityState={{ disabled: true }}
       >
         {content}
@@ -105,6 +108,7 @@ export function SettingsRow({
       disabled={!interactive}
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
+      accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !interactive, busy: loading }}
       hitSlop={HitSlop44}
       style={({ pressed }) => [...wrapStyle, { opacity: pressed ? 0.75 : disabled ? 0.45 : 1 }]}

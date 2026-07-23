@@ -2,7 +2,7 @@
 
 **Statut:** Faza 1 — draft tehnic  
 **Data:** 20 iulie 2026  
-**Domeniu:** aplicație mobilă local-first, read-only față de cameră  
+**Domeniu:** aplicație mobilă local-first; HTTP local către cameră (read și mutații validate)  
 **Complement:** [../legal/privacy-data-flow.md](../legal/privacy-data-flow.md)
 
 ## 1. Active
@@ -85,7 +85,7 @@ flowchart LR
   tile[Furnizor tile HTTPS opt-in]
 
   user --> app
-  app -->|"GET/HEAD local only"| cam
+  app -->|"HTTP local: GET/HEAD + mutații validate"| cam
   app -->|"export explicit"| os
   app -.->|"doar după consimțământ"| tile
 ```

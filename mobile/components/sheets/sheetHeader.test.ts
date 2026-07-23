@@ -83,7 +83,7 @@ describe("CompactSheetHeader chrome", () => {
 
   it("Camera connection uses shared CompactSheetHeader without first-child marginTop", () => {
     assert.match(connection, /CompactSheetHeader/);
-    assert.match(connection, /titleAlign="start"/);
+    assert.doesNotMatch(connection, /titleAlign=/);
     assert.match(connection, /camera-connection-header/);
     assert.match(connection, /SHEET_BODY_PAD_TOP_CONNECTION/);
     assert.match(connection, /content:\s*\{[\s\S]*paddingTop:\s*SHEET_BODY_PAD_TOP_CONNECTION/);

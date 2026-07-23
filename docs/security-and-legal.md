@@ -4,17 +4,17 @@ Proiectul este destinat interoperabilității cu un dispozitiv deținut și cont
 
 Dashboardul web ascultă exclusiv pe `127.0.0.1`. Coordonatele GPS sunt procesate și desenate local; nu sunt trimise către furnizori de hărți sau alte servicii externe.
 
-**Produs mobil comercial:** read-only în mod implicit. Poate expune operații mutative limitate, numai la acțiunea directă a utilizatorului și numai pentru o cameră pe care acesta o deține sau este autorizat să o administreze. Allowlistul mobil acoperă Frequency, EV, Date & Time, Time Zone, Daylight Saving Time, ștergerea explicită a fișierelor selectate de pe card și formatarea explicită a cardului SD. Documente pregătitoare: [docs/legal/](legal/), [docs/compatibility.md](compatibility.md), [docs/mobile/phase0-audit.md](mobile/phase0-audit.md). Materialele APK/XAPK rămân în carantină juridică — vezi banner-ele din [protocol.md](protocol.md) și [research-notes.md](research-notes.md).
+**Produs mobil comercial:** operații read-only și mutative pe o cameră deținută sau administrată legitim de utilizator. Fiecare setare sau operație pe fișiere trebuie confirmată ca suportată de modelul și firmware-ul conectat, validată înainte de execuție și rutată prin infrastructura centralizată de mutații (echivalentul mobil al `cameraMutate`). Automatizările mutative rulează numai dacă utilizatorul le-a creat sau activat explicit. Documente pregătitoare: [docs/legal/](legal/), [docs/compatibility.md](compatibility.md), [docs/mobile/phase0-audit.md](mobile/phase0-audit.md). Materialele APK/XAPK rămân în carantină juridică până la clasificare `apk-observed` → validare pe cameră — vezi banner-ele din [protocol.md](protocol.md) și [research-notes.md](research-notes.md).
 
 - Nu include și nu redistribuie APK/XAPK, firmware sau chei.
 - Nu stochează parola Wi-Fi.
-- Nu implementează update sau upload de firmware.
-- Dashboardul/CLI păstrează gate-ul `MIVUE_ALLOW_MUTATE=1`. Aplicația mobilă nu folosește această variabilă Node; ea aplică un allowlist fix, verificări de capabilitate și confirmare separată pentru fiecare acțiune mutativă.
-- Setările camerei sunt limitate la Frequency, EV, Date & Time, Time Zone și Daylight Saving Time. UI-ul afișează valoarea curentă și cea propusă, iar aplicarea necesită confirmare explicită.
-- Ștergerea pe cameră este permisă numai pentru fișiere selectate explicit. Căile sunt revalidate imediat înainte de execuție, iar selecția bulk necesită o confirmare întărită care include numărul de fișiere.
-- Formatarea cardului SD este permisă numai dintr-un ecran dedicat, când camera este conectată și capabilitatea a fost confirmată. Necesită avertisment ireversibil, confirmare în doi pași și introducerea unei expresii de confirmare; nu rulează niciodată automat.
-- Căile remote sunt validate (`/SD/…`, fără `..`) înainte de acces sau delete.
-- Requesturile automate rămân GET și HEAD. Chiar dacă protocolul camerei codifică unele mutații prin GET pe `Config.cgi`, aplicația le clasifică drept mutații: se execută numai la gest explicit, cu politica `mutation`, fără retry automat și fără reluare la reconectare.
+- Nu implementează update sau upload de firmware nevalidat / neautorizat.
+- Dashboardul/CLI păstrează gate-ul `MIVUE_ALLOW_MUTATE=1`. Aplicația mobilă nu folosește această variabilă Node; ea aplică registrul de capabilități, verificări de model/firmware și confirmare (sau regulă de automatizare activată) pentru fiecare acțiune mutativă.
+- Setările camerei pot include toate proprietățile `set` confirmate pe modelul/firmware-ul conectat (nu doar Frequency, EV, Date & Time, Time Zone, Daylight Saving Time). UI-ul afișează când e posibil valoarea curentă și cea propusă; aplicarea manuală necesită confirmare explicită, exceptând profilele/automatizările activate voluntar.
+- Gestionarea fișierelor pe cameră poate include listare, preview, download, copiere, mutare, redenumire, protejare/deprotejare, schimbare categorie, ștergere (inclusiv bulk) și curățare pe reguli, când protocolul și camera confirmă suportul. Căile sunt revalidate imediat înainte de execuție; selecțiile bulk/destructive cer confirmare întărită sau o regulă explicit activată.
+- Formatarea cardului SD este permisă dintr-un ecran dedicat (sau printr-o regulă de automatizare creată explicit), când camera este conectată și capabilitatea a fost confirmată. Necesită avertisment ireversibil și confirmare întărită; nu rulează ca efect secundar al bootstrap-ului, reconectării sau unui retry generic.
+- Căile remote sunt validate (`/SD/…`, fără `..`) înainte de acces sau mutație pe fișiere.
+- Requesturile de polling/refresh pot folosi GET și HEAD. Chiar dacă protocolul camerei codifică unele mutații prin GET pe `Config.cgi`, aplicația le clasifică drept mutații: fără retry automat implicit pentru mutații non-idempotente/destructive și fără reluare accidentală la reconectare.
 - Downloadul validează calea `/SD/`, numele local și dimensiunea și nu suprascrie fișiere existente.
 - Clipurile și datele `.NMEA` pot conține imagini, coordonate GPS și alte date personale; păstrează-le local și protejează-le corespunzător.
 

@@ -20,11 +20,21 @@
       "supportsTablet": true,
       "bundleIdentifier": "app.laneory.mobile",
       "infoPlist": {
-        "NSLocalNetworkUsageDescription": "Laneory uses the local network to connect directly to your dashcam and list or download recordings you choose."
+        "NSLocalNetworkUsageDescription": "Laneory uses the local network to connect directly to your dashcam and list or download recordings you choose.",
+        "NSLocationWhenInUseUsageDescription": "Laneory needs When-In-Use location access only so iOS can reveal the Wi‑Fi network name (SSID) of the dashcam you are connected to. Coordinates are not collected or stored."
+      },
+      "entitlements": {
+        "com.apple.developer.networking.wifi-info": true
       }
     },
     "android": {
       "package": "app.laneory.mobile",
+      "permissions": [
+        "ACCESS_WIFI_STATE",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "NEARBY_WIFI_DEVICES"
+      ],
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -50,6 +60,7 @@
         }
       ],
       "./plugins/withLocalNetworkCleartext.js",
+      "./plugins/withWifiSsidAccess.js",
       "expo-video",
       "expo-web-browser",
       "@react-native-community/datetimepicker"

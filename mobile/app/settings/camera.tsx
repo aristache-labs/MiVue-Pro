@@ -1,5 +1,5 @@
 import { Stack, router, useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   BackHandler,
@@ -14,6 +14,7 @@ import { getCameraProfile } from "@/components/onboarding";
 import { useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { CameraIpSheet } from "@/components/settings/CameraIpSheet";
 import { CameraSettingSheet } from "@/components/settings/CameraSettingSheet";
+import { CameraUpdateInfoSheet } from "@/components/settings/CameraUpdateInfoSheet";
 import {
   CAMERA_SETTING_ICONS,
   CAMERA_SETTING_TITLE,
@@ -23,6 +24,12 @@ import {
   displayCameraSettingValue,
   rawCameraSettingValue,
 } from "@/components/settings/cameraSettingsUi";
+import {
+  CAMERA_UPDATE_INFO_TITLE,
+  resolveCameraSoftwareFields,
+  type CameraUpdateInfoKind,
+} from "@/components/settings/cameraSoftwareInfo";
+import { readOsWifiSsid } from "@/components/settings/readOsWifiSsid";
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
   SettingsActionRow,
@@ -71,11 +78,21 @@ export default function SettingsCameraScreen() {
     applyingCameraSettingKey,
     isRefreshingCamera,
     demoMode,
+    disconnectSession,
   } = useDemoMode();
   const { state: onboardingState, startChangeCamera } = useOnboarding();
   const [refreshPending, setRefreshPending] = useState(false);
   const [ipSheetOpen, setIpSheetOpen] = useState(false);
   const [activeSetting, setActiveSetting] = useState<CameraSettingKey | null>(null);
+  const [updateInfoKind, setUpdateInfoKind] = useState<CameraUpdateInfoKind | null>(null);
+  const [wifiSsid, setWifiSsid] = useState<string | undefined>(undefined);
+  const [wifiSsidStatus, setWifiSsidStatus] = useState<
+    "available" | "unavailable" | "permission_denied" | "unsupported" | undefined
+  >(undefined);
+  const [lastConfirmedSoftware, setLastConfirmedSoftware] = useState<
+    Partial<Record<"firmware" | "safetyCameraData" | "voicePackage", string>>
+  >({});
+  const [softwareRequestError, setSoftwareRequestError] = useState(false);
   const [toast, setToast] = useState<ToastState | undefined>();
   const pendingToastRef = useRef<ToastState | undefined>(undefined);
 
@@ -95,6 +112,30 @@ export default function SettingsCameraScreen() {
   const lastConnectedLine = lastConnectedSummaryLine(lastConnectedAt);
   const connected = cameraLinkState === "connected" && !demoMode;
   const clockValue = cameraClockDisplay(cameraProperties);
+  const softwareLoading = refreshPending || isRefreshingCamera;
+  const softwareFields = useMemo(
+    () =>
+      resolveCameraSoftwareFields({
+        connected: connected || demoMode,
+        demoMode,
+        loading: softwareLoading && !demoMode,
+        properties: cameraProperties,
+        wifiSsid,
+        wifiSsidStatus,
+        requestError: softwareRequestError && !demoMode,
+        lastConfirmed: lastConfirmedSoftware,
+      }),
+    [
+      cameraProperties,
+      connected,
+      demoMode,
+      lastConfirmedSoftware,
+      softwareLoading,
+      softwareRequestError,
+      wifiSsid,
+      wifiSsidStatus,
+    ],
+  );
 
   const sheetOptions = useMemo(
     () => (activeSetting ? cameraSettingOptions(activeSetting) : []),
@@ -104,39 +145,87 @@ export default function SettingsCameraScreen() {
     ? rawCameraSettingValue(cameraProperties, activeSetting)
     : undefined;
 
+  const refreshWifiSsid = useCallback(async () => {
+    const result = await readOsWifiSsid();
+    setWifiSsid(result.ssid);
+    setWifiSsidStatus(result.status);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void readOsWifiSsid().then((result) => {
+      if (cancelled) return;
+      setWifiSsid(result.ssid);
+      setWifiSsidStatus(result.status);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [cameraLinkState, refreshPending]);
+
+  useEffect(() => {
+    if (demoMode) {
+      setLastConfirmedSoftware({});
+      setSoftwareRequestError(false);
+      return;
+    }
+    const next: Partial<Record<"firmware" | "safetyCameraData" | "voicePackage", string>> = {};
+    for (const key of ["firmware", "safetyCameraData", "voicePackage"] as const) {
+      const field = softwareFields[key];
+      if (field.state === "available" && field.raw) next[key] = field.raw;
+    }
+    if (Object.keys(next).length > 0) {
+      setLastConfirmedSoftware((prev) => ({ ...prev, ...next }));
+    }
+  }, [demoMode, softwareFields]);
+
   useFocusEffect(
     useCallback(() => {
       return () => {
         pendingToastRef.current = undefined;
         setToast(undefined);
         setActiveSetting(null);
+        setUpdateInfoKind(null);
       };
     }, []),
   );
 
   useFocusEffect(
     useCallback(() => {
-      if (ipSheetOpen || activeSetting) return undefined;
+      if (ipSheetOpen || activeSetting || updateInfoKind) return undefined;
       const sub = BackHandler.addEventListener("hardwareBackPress", () => {
         navigateBackToSettings();
         return true;
       });
       return () => sub.remove();
-    }, [ipSheetOpen, activeSetting]),
+    }, [ipSheetOpen, activeSetting, updateInfoKind]),
   );
 
   const onRefresh = useCallback(async () => {
     if (refreshPending || isRefreshingCamera || isApplyingCameraSetting) return;
     setRefreshPending(true);
+    setSoftwareRequestError(false);
     try {
+      await refreshWifiSsid();
       const result = await refreshCameraInformation();
-      if (!result.ok && result.error) {
-        setToast({ message: result.error, tone: "danger" });
+      if (!result.ok) {
+        setSoftwareRequestError(true);
+        if (result.error) {
+          setToast({ message: result.error, tone: "danger" });
+        }
+        return;
       }
+      setSoftwareRequestError(false);
     } finally {
       setRefreshPending(false);
     }
-  }, [isRefreshingCamera, isApplyingCameraSetting, refreshCameraInformation, refreshPending]);
+  }, [
+    isRefreshingCamera,
+    isApplyingCameraSetting,
+    refreshCameraInformation,
+    refreshPending,
+    refreshWifiSsid,
+  ]);
 
   const onChangeCamera = useCallback(() => {
     Alert.alert(
@@ -147,6 +236,11 @@ export default function SettingsCameraScreen() {
         {
           text: "Change",
           onPress: () => {
+            disconnectSession();
+            setLastConfirmedSoftware({});
+            setSoftwareRequestError(false);
+            setWifiSsid(undefined);
+            setWifiSsidStatus(undefined);
             void startChangeCamera().then(() => {
               router.push("/onboarding/select-camera" as Parameters<typeof router.push>[0]);
             });
@@ -154,7 +248,7 @@ export default function SettingsCameraScreen() {
         },
       ],
     );
-  }, [startChangeCamera]);
+  }, [disconnectSession, startChangeCamera]);
 
   const flushPendingToastAfterSheet = useCallback(() => {
     const pending = pendingToastRef.current;
@@ -256,9 +350,47 @@ export default function SettingsCameraScreen() {
             accessibilityLabel="Camera IP"
           />
           <SettingsValueRow
+            icon="wifi-outline"
+            title="Camera Wi‑Fi"
+            value={softwareFields.cameraWifi.display}
+            compact
+            accessibilityLabel="Camera Wi‑Fi"
+            accessibilityHint={softwareFields.cameraWifi.accessibilityHint}
+          />
+          <SettingsValueRow
+            icon="hardware-chip-outline"
+            title="Firmware"
+            value={softwareFields.firmware.display}
+            compact
+            accessibilityLabel="Firmware"
+            accessibilityHint={softwareFields.firmware.accessibilityHint}
+          />
+          <SettingsValueRow
+            icon="shield-checkmark-outline"
+            title="Safety camera data"
+            value={softwareFields.safetyCameraData.display}
+            compact
+            accessibilityLabel="Safety camera data"
+            accessibilityHint={softwareFields.safetyCameraData.accessibilityHint}
+          />
+          <SettingsValueRow
+            icon="mic-outline"
+            title="Voice package"
+            value={softwareFields.voicePackage.display}
+            compact
+            accessibilityLabel="Voice package"
+            accessibilityHint={softwareFields.voicePackage.accessibilityHint}
+          />
+          <SettingsValueRow
             icon="time-outline"
             title="Last connected"
             value={lastConnectedValue}
+            compact
+          />
+          <SettingsValueRow
+            icon="alarm-outline"
+            title="Camera clock"
+            value={clockValue}
             compact
           />
           {cameraProperties["Camera.Menu.VideoRes"] ? (
@@ -269,12 +401,6 @@ export default function SettingsCameraScreen() {
               compact
             />
           ) : null}
-          <SettingsValueRow
-            icon="alarm-outline"
-            title="Camera clock"
-            value={clockValue}
-            compact
-          />
           <SettingsValueRow
             icon="checkmark-circle-outline"
             title="Compatibility"
@@ -315,6 +441,30 @@ export default function SettingsCameraScreen() {
               );
             })
           )}
+        </SettingsSection>
+
+        <SettingsSection title="Camera updates" style={styles.section}>
+          <SettingsActionRow
+            icon="hardware-chip-outline"
+            title={CAMERA_UPDATE_INFO_TITLE.firmware}
+            compact
+            onPress={() => setUpdateInfoKind("firmware")}
+            accessibilityLabel={CAMERA_UPDATE_INFO_TITLE.firmware}
+          />
+          <SettingsActionRow
+            icon="shield-checkmark-outline"
+            title={CAMERA_UPDATE_INFO_TITLE.safety}
+            compact
+            onPress={() => setUpdateInfoKind("safety")}
+            accessibilityLabel={CAMERA_UPDATE_INFO_TITLE.safety}
+          />
+          <SettingsActionRow
+            icon="mic-outline"
+            title={CAMERA_UPDATE_INFO_TITLE.voice}
+            compact
+            onPress={() => setUpdateInfoKind("voice")}
+            accessibilityLabel={CAMERA_UPDATE_INFO_TITLE.voice}
+          />
         </SettingsSection>
 
         <SettingsSection title="Actions" style={styles.sectionLast}>
@@ -392,6 +542,11 @@ export default function SettingsCameraScreen() {
         onApply={(value) => {
           if (activeSetting) requestApply(activeSetting, value);
         }}
+      />
+
+      <CameraUpdateInfoSheet
+        kind={updateInfoKind}
+        onClose={() => setUpdateInfoKind(null)}
       />
     </View>
   );

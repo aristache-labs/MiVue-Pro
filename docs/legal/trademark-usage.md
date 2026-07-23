@@ -42,7 +42,7 @@ Avocatul trebuie să confirme entitatea juridică exactă, titularii mărcilor �
 
 ## 5. Model de afirmație de compatibilitate
 
-> Compatibilitate testată: Mio MiVue 866, firmware `[VERSIUNE]`, pentru listare și descărcare locală read-only. Alte modele sau versiuni pot funcționa diferit. Aplicația nu modifică setările și nu șterge fișiere de pe cameră.
+> Compatibilitate testată: Mio MiVue 866, firmware `[VERSIUNE]`, pentru listare, descărcare locală și operațiile pe cameră confirmate în registrul de compatibilitate. Alte modele sau versiuni pot funcționa diferit.
 
 Nu se folosește o listă de modele dedusă din APK sau din marketingul producătorului. Fiecare intrare trebuie susținută prin teste autorizate și o fișă de compatibilitate datată.
 
@@ -69,7 +69,7 @@ Nu se folosește o listă de modele dedusă din APK sau din marketingul producă
 
 ## 8. Contact MiTAC
 
-O solicitare de clarificare/autorizare trebuie să descrie exact funcțiile read-only, modelele, folosirea de marcă și activele propuse. Se păstrează dovada transmiterii și răspunsul. Lipsa răspunsului nu este acord și nu elimină obligația de practici comerciale oneste.
+O solicitare de clarificare/autorizare trebuie să descrie exact funcțiile (read și mutative, dacă e cazul), modelele, folosirea de marcă și activele propuse. Se păstrează dovada transmiterii și răspunsul. Lipsa răspunsului nu este acord și nu elimină obligația de practici comerciale oneste.
 
 ## 9. Gate
 

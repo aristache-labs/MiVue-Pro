@@ -9,7 +9,7 @@
 ## 1. Principii
 
 - aplicația interacționează numai cu o cameră deținută/controlată de utilizator;
-- toate acțiunile de conectare, listare, download și export sunt pornite de utilizator;
+- toate acțiunile de conectare, listare, download, export și mutații pe cameră sunt pornite de utilizator (sau de o automatizare activată explicit);
 - datele camerei rămân pe cameră sau pe telefon, cu excepția unui export explicit;
 - aplicația nu stochează parola Wi‑Fi și nu o include în loguri;
 - nu există cont, backend, telemetrie, advertising ID sau upload implicit;
@@ -29,7 +29,7 @@ flowchart LR
     E["Export ales de utilizator"]
     D["Destinație aleasă: Files, share sheet sau altă aplicație"]
 
-    C -->|"HTTP local read-only: status, listă, media, NMEA"| A
+    C -->|"HTTP local: status, listă, media, NMEA; mutații validate"| A
     A -->|"fișier temporar .part, apoi validat"| S
     S -->|"redare și procesare locală"| V
     S -->|"acțiune explicită"| E

@@ -8,25 +8,25 @@
 
 ## 1. Scopul revizuirii
 
-Documentul identifică informațiile de protocol propuse pentru o aplicație mobilă independentă, strict read-only, și separă sursele observate direct de cele provenite din analiză statică. Nu concluzionează că o excepție legală se aplică și nu autorizează utilizarea vreunei informații.
+Documentul identifică informațiile de protocol propuse pentru o aplicație mobilă independentă (read și mutații pe cameră deținută legal) și separă sursele observate direct de cele provenite din analiză statică. Nu concluzionează că o excepție legală se aplică și nu autorizează utilizarea vreunei informații.
 
 ## 2. Obiectivul de interoperabilitate
 
 Obiectivul minim propus este ca o aplicație creată independent să poată, la cererea proprietarului camerei:
 
 1. detecta o cameră în rețeaua locală;
-2. citi statusul și metadatele read-only;
+2. citi statusul și metadatele;
 3. lista fișierele media;
-4. descărca un fișier fără a-l modifica sau șterge de pe cameră;
+4. descărca un fișier;
 5. citi un sidecar NMEA și exporta un GPX local.
 
-Nu sunt necesare pentru acest obiectiv: `set`, `del`, formatare, update firmware, activarea live-view, BLE proprietar, clonarea UI sau redistribuirea aplicației producătorului.
+Obiectivul extins (când modelul/firmware-ul confirmă suportul) include setări `set` validate, gestionarea fișierelor pe card (inclusiv ștergere) și formatarea SD, prin infrastructura centralizată de mutații. Rămân în afara scopului: update firmware neautorizat, ocolirea autentificării, BLE proprietar nevalidat, clonarea UI sau redistribuirea aplicației producătorului.
 
 ## 3. Surse și proveniență
 
 ### 3.1 Observații black-box pe echipament controlat
 
-Repository-ul afirmă că testele au fost efectuate pe o cameră MiVue 866 controlată de utilizator și că următoarele comportamente au fost confirmate prin cereri read-only:
+Repository-ul afirmă că testele au fost efectuate pe o cameră MiVue 866 controlată de utilizator și că următoarele comportamente au fost confirmate prin cereri de tip `get` / list / download:
 
 - adresă locală și porturi observate;
 - răspuns de status `Config.cgi`;
@@ -55,14 +55,14 @@ Fișierele indicate ca originale sunt candidați la reutilizare internă, însă
 
 ## 4. Matricea informațiilor de protocol
 
-| Informație | Sursă documentată | Necesară MVP read-only | Stare propusă |
+| Informație | Sursă documentată | Necesară MVP | Stare propusă |
 |---|---|---:|---|
 | status `get&property=status` și forma răspunsului | observație live + cod propriu | da | eligibilă pentru review juridic |
 | listare `dir`, categorii, paginare și XML | observație live + cod propriu | da | eligibilă pentru review juridic |
 | acces fișier prin calea listată, `HEAD`/`GET`, HTTP/1.0 | observație live | da | eligibilă pentru review juridic |
 | format NMEA standard și asocierea sidecar | fișier de pe dispozitiv + standarde cunoscute | da | eligibilă pentru review juridic |
-| proprietăți read-only din `cameraMutate.ts` | proveniență mixtă/neclară | nu pentru MVP | carantină; fișierul este exclus |
-| `action=set`, `action=del` | APK + probe live ulterioare | nu | exclus definitiv din produsul mobil |
+| proprietăți `get` din `cameraMutate.ts` | proveniență mixtă/neclară | pe necesitate | carantină până la trasabilitate; nu se importă fișierul brut în mobil |
+| `action=set`, `action=del` confirmate pe cameră | APK + probe live | pe necesitate | eligibile după `camera-confirmed` + strat centralizat de mutații; APK-only rămâne carantină |
 | rute RTSP `av4`–`av7` | documentate ca APK-derived | nu | carantină și în afara afirmațiilor de compatibilitate |
 | BLE, codecuri/player-e interne APK | analiză statică | nu | excluse |
 | cod, UI, texte, icoane sau resurse MiTAC | programul original | nu | interdicție de copiere/distribuire fără permisiune |
@@ -84,13 +84,13 @@ Text oficial: [Directiva 2009/24/CE, EUR-Lex](https://eur-lex.europa.eu/eli/dir/
 
 ## 6. Condiții de minimizare propuse
 
-- porniți de la documentație publică și testare black-box read-only;
+- porniți de la documentație publică și testare black-box pe dispozitiv deținut;
 - consemnați de ce fiecare informație este necesară și de ce nu era readily available;
 - nu copiați cod, pseudocod, naming intern, structură UI, texte, imagini sau resurse;
 - nu distribuiți APK/XAPK, decompilări, capturi sau fragmente;
 - furnizați implementatorilor doar o specificație aprobată, factuală, fără artefacte MiTAC;
-- limitați aplicația la dispozitive deținute/controlate de utilizator și la acțiuni pornite de acesta;
-- eliminați complet mutațiile și nu folosiți tehnici de ocolire a măsurilor tehnice;
+- limitați aplicația la dispozitive deținute/controlate de utilizator și la acțiuni pornite de acesta (sau automatizări activate explicit);
+- mutațiile trec prin validare de capabilitate; nu folosiți tehnici de ocolire a măsurilor tehnice;
 - păstrați probe datate privind independența implementării și sursele folosite.
 
 Aceste măsuri reduc riscul, dar nu dovedesc singure conformitatea.
@@ -100,7 +100,7 @@ Aceste măsuri reduc riscul, dar nu dovedesc singure conformitatea.
 1. Persoana care a analizat APK-ul avea dreptul să folosească acea copie și care EULA/termeni se aplicau?
 2. Ce acte tehnice au constituit observare/testare versus decompilare/reproducere/traducere a codului?
 3. Era fiecare informație APK-derived indispensabilă și indisponibilă prin black-box sau surse publice?
-4. Putem elimina complet informațiile APK-derived și obține funcția MVP doar din testare read-only?
+4. Putem elimina complet informațiile APK-derived și obține funcția MVP doar din testare black-box pe cameră?
 5. Ce limite impun dreptul român, contractul, secretele comerciale, concurența neloială și eventualele măsuri tehnice?
 6. Ce documente trebuie păstrate și ce materiale trebuie șterse ori puse sub legal hold?
 7. Ce afirmații de compatibilitate și ce utilizare a mărcilor sunt permise în aplicație și store listing?

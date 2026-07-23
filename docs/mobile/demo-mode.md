@@ -60,8 +60,9 @@ Licență: active create de titular sau cu licență comercială clară; inventa
 ```text
 Laneory is an independent app, not affiliated with Mio/MiTAC.
 
-Hardware: optional Mio MiVue 866 on the camera's Wi-Fi. The app only uses
-read-only HTTP to list/download files from a user-owned device.
+Hardware: optional Mio MiVue 866 on the camera's Wi-Fi. The app uses
+local HTTP to list/download files and, when confirmed for the model,
+user-initiated camera settings and file operations on a user-owned device.
 
 Demo Mode (no camera required):
 1. Open the app → About (or Settings) → Enable Demo Mode

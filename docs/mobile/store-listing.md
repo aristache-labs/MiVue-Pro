@@ -14,7 +14,7 @@ Laneory is an independent app and is not affiliated with, approved by, sponsored
 
 ## Compatibilitate (draft)
 
-Compatible (tested): Mio MiVue 866 — see in-app Compatibility. Other models may differ. Read-only: list and download; does not change camera settings or delete files on the camera.
+Compatible (tested): Mio MiVue 866 — see in-app Compatibility. Other models may differ. Supports local list/download and camera operations confirmed for the connected model/firmware; mutations require explicit user action or an enabled automation.
 
 ## Note
 

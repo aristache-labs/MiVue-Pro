@@ -68,8 +68,8 @@ Niciun checkbox nu poate fi bifat doar pe baza intenției, a unui review anterio
 - [ ] HTTP cleartext este limitat tehnic la camera/rețeaua locală; HTTPS rămâne obligatoriu pentru servicii externe.
 - [ ] Background transfer a fost testat pe platformele suportate; UI-ul nu promite resume sau continuitate neconfirmată.
 - [ ] Foreground service Android, dacă există, este user-initiated, vizibil, opribil și declarat conform target SDK/politicii curente.
-- [ ] Metadata, age/content rating, screenshot-uri, privacy labels și descrierea funcției read-only sunt coerente.
-- [ ] Nu există feature flags ascunse, endpoint-uri mutabile, placeholder-e, URL-uri nefuncționale sau funcții nedocumentate.
+- [ ] Metadata, age/content rating, screenshot-uri, privacy labels și descrierea funcțiilor (inclusiv mutații) sunt coerente.
+- [ ] Nu există feature flags ascunse, endpoint-uri mutabile nedocumentate, placeholder-e, URL-uri nefuncționale sau funcții ascunse reviewer-ului.
 
 ### Securitate și calitate probatorie
 

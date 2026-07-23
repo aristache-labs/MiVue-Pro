@@ -9,11 +9,11 @@
 ## 1. Principii
 
 - Local-first: fără cont, cloud, analytics sau upload implicit.
-- Cameră: numai GET/HEAD; fără `set`/`del`/firmware.
+- Cameră: GET/HEAD pentru listare/download; mutațiile (`set`/`del`/format etc.) numai prin stratul centralizat, după validare de capabilitate.
 - Un singur transfer activ către cameră; coadă persistentă și vizibilă.
 - Selectarea unui card **nu** pornește download.
 - UI original — nu clonează MiVue Pro.
-- Specificație de protocol: doar observații BBX aprobate + standarde publice; fără materiale APK din carantină.
+- Specificație de protocol: observații BBX aprobate + standarde publice; APK-derived rămâne carantină până la reclasificare.
 - Identitate proprie: User-Agent, GPX creator/namespace, fără „MiVue” în metadate generate.
 
 ## 2. Structură monorepo (țintă Faza 2)
@@ -22,7 +22,7 @@
 mobile/
   app/                    # Expo Router (UI minimal Faza 2)
   packages/
-    protocol/             # tipuri, client read-only, erori
+    protocol/             # tipuri, client cameră (read + mutații), erori
     parsers/              # Config.cgi text, XML list, NMEA/GPX
     camera-transport/     # contract Transport + Demo/Fetch stub + native later
     download-queue/       # coadă persistentă, un worker
@@ -32,7 +32,7 @@ mobile/
   ios/ android/           # generate via expo prebuild (development builds)
 ```
 
-CLI-ul existent din rădăcină rămâne separat. Nu se importă `cameraMutate` / `probe`.
+CLI-ul existent din rădăcină rămâne separat. Nu se importă `probe` în produs. Mutațiile folosesc un serviciu mobil echivalent (nu request-uri directe din UI).
 
 ## 3. Module și dependențe
 
@@ -70,7 +70,7 @@ flowchart TB
 
 | Modul | Responsabilitate | Nu face |
 |---|---|---|
-| `protocol_common` | endpoint, status, list paginat, headFile, tipuri RemoteFile | mutate, probe APK |
+| `protocol_common` | endpoint, status, list paginat, headFile, tipuri RemoteFile; mutații via serviciu dedicat | probe APK, mutate din UI |
 | `parsers_xml_nmea` | parseConfig, parseFileListXml, NMEA checksum, GPX | UI, rețea |
 | `camera_transport` | request HTTP/1.0, timeout, max body, host allowlist | Range resume fals |
 | `download_queue` | enqueue, un activ, progres, `.part` → validate → rename | paralelism cameră |
@@ -86,7 +86,7 @@ flowchart TB
 ### Conectare
 
 1. Onboarding: explică Wi‑Fi cameră; IP manual sau discovery candidați (implicit `192.72.1.1` nu e asumat permanent).
-2. Validare status read-only înainte de listare.
+2. Validare status înainte de listare.
 3. Permisiuni rețea locală contextual (iOS / Android).
 4. Fără stocare parolă Wi‑Fi.
 
@@ -125,9 +125,9 @@ Detalii: [threat-model.md](threat-model.md). Minim: allowlist host local, valida
 |---|---|
 | `parser.ts`, `nmea.ts` (fără brand în GPX) | portare TS în `packages/parsers` |
 | pattern download `.part` | rescriere pe storage nativ |
-| `pathSafety` (fără delete helpers) | rescriere politici read-only |
+| `pathSafety` (read + mutații pe fișiere) | rescriere politici path pe storage nativ |
 | discovery | specificație + adapter nativ |
-| `cameraMutate.ts`, `probe.ts`, UI `web/` | **excluse** |
+| `cameraMutate.ts` (pattern), `probe.ts`, UI `web/` | pattern mutații → serviciu mobil; `probe` și UI web **excluse** |
 
 ## 8. Gate către Faza 2
 

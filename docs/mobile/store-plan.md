@@ -27,7 +27,7 @@ Nu se creează conturi de dezvoltator și nu se trimite build fără aprobarea e
 | Demo Mode | obligatoriu pentru review |
 | App Privacy | completat după analiză trafic build final |
 | Privacy Policy URL | obligatoriu |
-| Review Notes | hardware extern, Demo Mode, read-only, de ce local network |
+| Review Notes | hardware extern, Demo Mode, operații pe cameră, de ce local network |
 
 ## 3. Android — checklist implementare
 
@@ -52,7 +52,7 @@ Vezi [demo-mode.md](demo-mode.md). Review notes trebuie să includă:
 2. Hardware: MiVue 866 pe Wi‑Fi local (opțional video redactat).
 3. Pași Demo Mode (fără cameră).
 4. De ce rețea locală.
-5. Nu modifică firmware/setări; nu șterge de pe cameră.
+5. Setări/ștergere pe cameră doar când e confirmat pe model; fără update firmware neautorizat.
 
 ## 5. Declarații privacy (ordine)
 

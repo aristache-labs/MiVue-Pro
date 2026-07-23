@@ -12,9 +12,9 @@ Regulile magazinelor se schimbă. Toate linkurile și formularele trebuie reveri
 
 - utilitar local-first pentru o cameră deținută/controlată de utilizator;
 - conectare directă la IP-ul local al camerei;
-- listare și download read-only, pornite de utilizator;
+- listare, download și, când e confirmat pe model/firmware, setări și operații pe fișiere pornite de utilizator (sau automatizări activate explicit);
 - fără cont, cloud, analytics, ads sau crash reporting implicit;
-- fără ștergere, setări cameră, firmware, upload ori activare live-view;
+- fără update firmware neautorizat și fără ocolirea controalelor de acces;
 - Demo Mode complet pentru review fără cameră fizică;
 - nume propriu și folosire descriptivă limitată a mărcilor terțe.
 

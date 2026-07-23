@@ -17,11 +17,11 @@ Acest document definește o evidență pentru etapele viitoare și o carantină 
 | Cod | Categorie | Acces permis implementatorilor mobili |
 |---|---|---|
 | `OWN` | cod/documentație originală cu titlu confirmat | da, după verificarea lanțului de titlu |
-| `BBX` | observație black-box read-only pe dispozitiv deținut/controlat | numai prin specificația factuală aprobată de avocat |
+| `BBX` | observație black-box pe dispozitiv deținut/controlat (inclusiv mutații confirmate) | numai prin specificația factuală aprobată de avocat |
 | `PUB` | standard/documentație publică licențiată corespunzător | da, cu citare și respectarea licenței |
 | `APK` | analiză statică/decompilare APK/XAPK | nu; carantină până la decizie scrisă |
 | `3P` | bibliotecă, hartă, codec, font sau alt terț | doar după aprobarea licenței și notice-urilor |
-| `EXC` | mutații, UI/resurse de brand, firmware/chei | nu; exclus definitiv din produs |
+| `EXC` | UI/resurse de brand, firmware/chei, bypass auth | nu; exclus definitiv din produs |
 
 ## 3. Jurnal component-cu-component
 
@@ -31,11 +31,11 @@ Acest document definește o evidență pentru etapele viitoare și o carantină 
 | `src/protocol/nmea.ts` | `OWN` + standard NMEA | candidat cu modificări | eliminați „MiVue 866 CLI” și namespace-ul cu marcă; confirmați sursa eșantioanelor |
 | `src/discovery/discoverCamera.ts` | `OWN` + `BBX` | rescriere a adaptorului nativ | păstrați doar specificația de comportament; nu copiați API-urile Node |
 | `src/transport/downloadTransport.ts` | `OWN` + `BBX` | portare de pattern, nu cod Node direct | transport/storage nativ; User-Agent propriu; teste fault-injection |
-| `src/web/pathSafety.ts` | `OWN`, dar include logică folosită la delete | rescriere a politicii read-only | excludeți `assertRemoteSdPath` dedicat delete și orice comentariu/flux mutabil |
+| `src/web/pathSafety.ts` | `OWN`, include și logică folosită la delete | rescriere politici path (read + mutații pe fișiere) | păstrați allowlist `/SD/`; mutațiile pe fișiere trec prin stratul centralizat, nu din UI |
 | `docs/protocol.md`, secțiuni confirmate live | `BBX`/`OWN` | specificație candidată | extrageți într-un document nou numai după review juridic și trasabilitate |
-| `docs/protocol.md`, „Comenzi observate în APK” | `APK`/`EXC` | carantină | nu se furnizează echipei mobile; nu se copiază în issue-uri sau ADR-uri |
-| `src/protocol/cameraMutate.ts` | `OWN` + posibil `APK` + `EXC` | exclus integral | nu se importă, nu se copiază, nu se reimplementează |
-| `src/commands/probe.ts` | `OWN` + `APK` + `EXC` | exclus integral | aceeași restricție ca mai sus |
+| `docs/protocol.md`, „Comenzi observate în APK” | `APK` | carantină până la reclasificare | nu se copiază ca expresie; concluziile funcționale pot fi reimplementate după aprobare |
+| `src/protocol/cameraMutate.ts` | `OWN` + posibil `APK` | pattern de referință pentru stratul mobil de mutații | nu se importă direct; reimplementare independentă + capabilități validate |
+| `src/commands/probe.ts` | `OWN` + `APK` | tooling de dezvoltare | exclus din produsul mobil; rămâne CLI/dev |
 | `web/index.html`, `web/app.js`, `web/styles.css` | expresie UI existentă | rescriere originală | research UX independent; fără pixel matching, copy sau structură identică |
 | User-Agent și metadate GPX cu „MiVue” | brand terț | înlocuire | identificator `Laneory` și namespace propriu controlat de titular |
 | Leaflet 1.9.4 | `3P`, BSD-2-Clause | doar referință curentă | păstrați notice-ul dacă este inclus; aplicația mobilă decide separat stack-ul de hărți |

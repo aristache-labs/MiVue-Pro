@@ -108,7 +108,7 @@ Fișierul cu aceeași bază ca MP4 și extensia `.NMEA` este text ASCII. Conțin
 
 ## Comenzi observate în APK (probe experimental)
 
-> **CARANTINĂ JURIDICĂ / MOBIL:** această secțiune provine din analiză statică APK și include operații mutabile (`set`/`del`). Nu face parte din specificația aplicației mobile comerciale (strict read-only). Nu se portează în `mobile/` fără opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/mobile/phase0-audit.md](mobile/phase0-audit.md).
+> **CARANTINĂ JURIDICĂ / MOBIL:** această secțiune provine din analiză statică APK (`apk-observed`) și include operații mutabile (`set`/`del`). Nu se promovează în production doar pe baza APK. Observațiile pot informa implementarea independentă numai după documentare, validare pe cameră deținută legal și, unde e necesar, opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/mobile/phase0-audit.md](mobile/phase0-audit.md).
 
 ```text
 /cgi-bin/Config.cgi?action=del&property=
@@ -134,3 +134,43 @@ npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --confirm
 - Format card SD: **exclus temporar**.
 - Dashboard mutate: `MIVUE_ALLOW_MUTATE=1`.
 - Firmware update rămâne dezactivat.
+
+## Software identity (Firmware / SafetyCam / Voice) — Laneory Settings
+
+Status: **confirmat absente din interfața CGI `get` / `getInfo` cunoscută** (MiVue 866, 2026-07-24).
+
+### Endpoint-uri încercate (`action=get` / GET)
+
+| Endpoint | Rezultat sanitizat |
+|---|---|
+| `GET /cgi-bin/Config.cgi?action=get&property=status` | HTTP 200, `0 OK`, body `status=` (gol) |
+| `getInfo` CLI (`status` + `READABLE_CAMERA_PROPERTIES`) | vezi lista de mai jos — **fără** firmware / SafetyCam / voice |
+
+### Proprietăți returnate live (`npm run dev -- info --host 192.72.1.1`)
+
+```text
+Server: AIT Multimedia Network Solution, UPnP/1.0 devices/1.6.19
+status=
+broadcast=broadcasting
+Camera.Menu.Flicker=60Hz
+Camera.Menu.EV=EV0
+Camera.Menu.RtcGps=USEGPS
+Camera.Menu.RtcTimezone=P03
+Camera.Menu.RtcDaylight=OFF
+Camera.Preview.MJPEG.TimeStamp.day=15
+Camera.Preview.MJPEG.TimeStamp.hour=14
+Camera.Preview.MJPEG.TimeStamp.minute=41
+Camera.Preview.MJPEG.TimeStamp.month=1
+Camera.Preview.MJPEG.TimeStamp.second=15
+Camera.Preview.MJPEG.TimeStamp.year=2019
+Camera.Preview.Source.1.Camid=
+```
+
+Model observat: Mio MiVue 866. Header-ul `Server` AIT (`1.6.19`) **nu** este versiunea de firmware Dashcam info și **nu** se mapează în UI ca Firmware.
+
+Concluzie pentru Laneory Settings:
+
+- Firmware, Safety camera data, Voice package → UI `Not reported by camera` când e conectat.
+- `CAMERA_SOFTWARE_CGI_KEYS` rămâne gol; nu se inventează nume de proprietăți.
+- SSID-ul telefonului vine din OS (`NEHotspotNetwork.fetchCurrent` / Android WifiManager), nu din CGI.
+- Nu s-a făcut enumerare agresivă de proprietăți necunoscute.

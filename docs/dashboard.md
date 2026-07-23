@@ -43,9 +43,9 @@ Interfața este disponibilă la `http://127.0.0.1:4173`. Portul poate fi schimba
 - `POST /api/camera/delete` / `set` sunt gated cu `MIVUE_ALLOW_MUTATE=1`;
 - corpurile JSON sunt limitate la 32 KiB;
 - răspunsurile includ CSP, `nosniff` și Referrer-Policy;
-- fără flag, operațiile camerei rămân read-only (GET/HEAD).
+- fără flag, mutațiile pe cameră din dashboard sunt blocate; rămân GET/HEAD pentru listare/download.
 
-## Administrare cameră (experimental)
+## Administrare cameră (gated)
 
 ```powershell
 $env:MIVUE_ALLOW_MUTATE="1"

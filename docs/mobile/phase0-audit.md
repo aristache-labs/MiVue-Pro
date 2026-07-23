@@ -5,7 +5,7 @@
 
 ## 1. Scop și limite
 
-Acest raport inventariază materialele existente care ar putea informa o aplicație mobilă read-only, delimitează materialele excluse și consemnează riscurile care trebuie soluționate înainte de implementare sau comercializare.
+Acest raport inventariază materialele existente care ar putea informa o aplicație mobilă (read și mutații pe cameră deținută legal), delimitează materialele excluse și consemnează riscurile care trebuie soluționate înainte de implementare sau comercializare.
 
 În această fază:
 
@@ -46,17 +46,17 @@ Aceste artefacte sunt neversionate în starea verificată. Cerința va trebui re
 |---|---|---|---|
 | `src/protocol/parser.ts` | parsarea răspunsurilor `Config.cgi` și a listelor XML `<DCIM>`/categorii | ridicată; nu importă API-uri Node | teste cu corpus propriu; limite de mărime; validare XML defensivă; confirmarea provenienței exemplelor |
 | `src/protocol/nmea.ts` | parsare NMEA, checksum, conversie coordonate și structură GPX | ridicată; nu importă API-uri Node | schimbați `creator="MiVue 866 CLI"` și namespace-ul `.../mivue`; validați datele calendaristice și limitele geografice |
-| `src/discovery/discoverCamera.ts` | strategia de candidați și verificarea read-only a statusului | logica este portabilă, implementarea nu | înlocuiți `node:os`, `node:perf_hooks` și transportul Node cu API-uri native; cereți permisiunile de rețea locală la momentul potrivit |
+| `src/discovery/discoverCamera.ts` | strategia de candidați și verificarea statusului | logica este portabilă, implementarea nu | înlocuiți `node:os`, `node:perf_hooks` și transportul Node cu API-uri native; cereți permisiunile de rețea locală la momentul potrivit |
 | `src/transport/downloadTransport.ts` | modelul `.part` → validare dimensiune → redenumire, fără suprascriere | pattern portabil; codul folosește `node:fs`, `node:net`, `Buffer` | transport și storage native; operație atomică unde platforma o permite; identificator propriu de client; testare la întrerupere și spațiu insuficient |
 | `src/web/pathSafety.ts` | principiile allowlist `/SD/`, respingere `..`/CRLF, izolare în directorul ales | pattern relevant; codul local folosește `node:path` | nu se portează funcția/comentariul dedicat delete; se definesc separat politici pentru video, foto și NMEA; se testează Unicode și link-uri simbolice unde există |
-| `docs/protocol.md` | observațiile proprii, confirmate live, strict necesare interoperabilității read-only | sursă de specificație, nu cod | separați afirmațiile black-box de cele provenite din APK; avocatul aprobă setul de informații înainte de a fi dat echipei mobile |
+| `docs/protocol.md` | observațiile proprii, confirmate live, necesare interoperabilității | sursă de specificație, nu cod | separați afirmațiile black-box de cele provenite din APK; avocatul aprobă setul de informații înainte de a fi dat echipei mobile |
 
 ## 5. Elemente excluse sau care cer rescriere
 
 | Element | Decizie Faza 0 | Motiv |
 |---|---|---|
-| `src/protocol/cameraMutate.ts` | exclus integral din `mobile/` | conține `set` și `del`; produsul mobil trebuie să fie strict read-only |
-| `src/commands/probe.ts` | exclus integral | orchestrează probe `get`/`set`/`del` și include cunoaștere experimentală care nu este necesară produsului read-only |
+| `src/protocol/cameraMutate.ts` | pattern de referință; nu se importă direct în `mobile/` | conține `set`/`del`; mobilul reimplementează un strat centralizat de mutații cu capabilități validate |
+| `src/commands/probe.ts` | exclus din produsul mobil | tooling de dezvoltare (`get`/`set`/`del`); nu e necesar runtime-ului |
 | secțiunea „Comenzi observate în APK” din `docs/protocol.md` | carantină juridică | provine din analiză statică APK și include operații mutabile; nu intră în specificația mobilă fără decizie scrisă a avocatului |
 | `web/index.html`, `web/app.js`, `web/styles.css` | nu se portează și nu se clonează vizual | UI-ul mobil trebuie să aibă design și expresie originale |
 | `MiVuePro-Research/1.0` din User-Agent | se înlocuiește | evitarea confuziei de brand și a unei identități de cercetare în produs |
@@ -122,7 +122,8 @@ Faza 1 va compara React Native bare, Flutter și Kotlin Multiplatform; va defini
 Aplicate după review intern al livrabilelor Fazei 0:
 
 - banner de carantină pe secțiunea APK/mutate din `docs/protocol.md` și `docs/research-notes.md`;
-- clarificare în `docs/security-and-legal.md`: mutate gated doar CLI/dashboard experimental; mobil = read-only;
+- clarificare în `docs/security-and-legal.md`: CLI/dashboard gated; mobil = read + mutații validate prin strat centralizat;
+- (actualizare ulterioară) docs aliniate la politica din `AGENTS.md`: produsul nu mai este descris ca strict read-only;
 - disclaimer aliniat în `docs/legal/trademark-usage.md`;
 - registru `docs/compatibility.md` (MiVue 866; firmware cameră TBD);
 - `AGENTS.md` la rădăcina repository-ului.

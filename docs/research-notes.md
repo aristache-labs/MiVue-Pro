@@ -1,6 +1,6 @@
 # Note de cercetare
 
-> **CARANTINĂ JURIDICĂ / MOBIL:** secțiunile despre artefactul APK/XAPK și probele mutate sunt materiale de cercetare, nu specificație de produs. Aplicația mobilă comercială este strict read-only și nu preia informații APK-derived fără opinie scrisă a avocatului. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/compatibility.md](compatibility.md). Nu redistribuiți APK/XAPK, decompilări sau hash-uri ca active de produs.
+> **CARANTINĂ JURIDICĂ / MOBIL:** secțiunile despre artefactul APK/XAPK sunt materiale de cercetare (`apk-observed`), nu specificație production. Informațiile APK-derived nu se promovează în produs fără documentare, validare pe cameră și, unde e necesar, opinie scrisă a avocatului. Probele mutate confirmate live pot informa capabilitățile, dar rămân gated prin infrastructura de mutații. Vezi [docs/legal/ip-review.md](legal/ip-review.md), [docs/legal/clean-room-record.md](legal/clean-room-record.md) și [docs/compatibility.md](compatibility.md). Nu redistribuiți APK/XAPK, decompilări sau hash-uri ca active de produs.
 
 ## Artefact Android
 
@@ -37,11 +37,11 @@ După reactivarea Wi-Fi-ului, executabilul compilat a validat cu succes pe dispo
 - sidecar-ul NMEA asociat are 3.730 bytes și șapte eșantioane GPS valide pentru clipul de aproximativ 6,76 secunde; exportul GPX a fost validat fără publicarea coordonatelor în log;
 - RTSP: `OPTIONS` răspunde pe portul 554, dar `DESCRIBE` primește 404 pe toate rutele cunoscute din APK; capabilitatea firmware este `LiveView=NO`.
 
-Toate cererile de validare (descoperire / list / download) au fost HTTP GET read-only.
+Cererile din această secțiune de validare (descoperire / list / download) au fost HTTP GET.
 
 ## Probe mutate (delete / set)
 
-> **CARANTINĂ:** `set`/`del` rămân doar în CLI/dashboard experimental (gated). Produsul mobil nu le implementează. Vezi [docs/legal/](legal/) și [docs/security-and-legal.md](security-and-legal.md).
+> **Notă:** `set`/`del` în CLI/dashboard rămân gated (`MIVUE_ALLOW_MUTATE` / `--confirm`). În produsul mobil, mutațiile trec prin stratul centralizat de capabilități, cu revalidare model/firmware și confirmare (sau automatizare activată explicit). Sursele APK-only rămân `apk-observed` până la validare. Vezi [docs/legal/](legal/) și [docs/security-and-legal.md](security-and-legal.md).
 
 Tooling: `npm run dev -- probe …`
 

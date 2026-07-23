@@ -385,7 +385,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       const trimmed = host.trim();
       setCameraHostState(trimmed);
       void AsyncStorage.setItem(HOST_KEY, trimmed);
-      // IP change is local only — clear stale remote list; require explicit Reconnect/Refresh.
+      // IP / camera change must not reuse another camera’s software properties.
+      setCameraProperties({});
       clearRemoteCameraLibrary("disconnected");
       setLastError(undefined);
       setConnectionNote(undefined);
