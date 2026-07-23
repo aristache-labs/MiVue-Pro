@@ -71,6 +71,7 @@ import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
+import { LibraryListControls } from "@/components/library/LibraryListControls";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -492,61 +493,24 @@ export default function LocalLibraryScreen() {
             )
           }
           right={
-            <View style={styles.headerRightRow}>
-              <Pressable
-                onPress={() => setFilterOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  activeGroups > 0
-                    ? `Filter local library, ${activeGroups} filters active`
-                    : "Filter local library"
-                }
-                hitSlop={HitSlop44}
-                style={({ pressed }) => [
-                  styles.headerIconBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-              >
-                <Ionicons name="options-outline" size={22} color={colors.textMuted} />
-                {activeGroups > 0 ? (
-                  <View style={[styles.filterBadge, { backgroundColor: colors.brand }]}>
-                    <Text style={[styles.filterBadgeText, { color: colors.onBrand }]}>
-                      {activeGroups}
-                    </Text>
-                  </View>
-                ) : null}
-              </Pressable>
-              <Pressable
-                onPress={() => setSortOpen(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Sort local library"
-                hitSlop={HitSlop44}
-                style={({ pressed }) => [
-                  styles.headerIconBtn,
-                  { opacity: pressed ? 0.65 : 1 },
-                ]}
-              >
-                <Ionicons name="swap-vertical-outline" size={22} color={colors.textMuted} />
-              </Pressable>
-              <Pressable
-                onPress={() => void runRefresh()}
-                disabled={refreshing}
-                accessibilityRole="button"
-                accessibilityLabel="Refresh local library"
-                accessibilityState={{ busy: refreshing, disabled: refreshing }}
-                hitSlop={HitSlop44}
-                style={({ pressed }) => [
-                  styles.headerIconBtn,
-                  { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
-                ]}
-              >
-                {refreshing ? (
-                  <ActivityIndicator size="small" color={colors.textMuted} />
-                ) : (
-                  <Ionicons name="refresh" size={22} color={colors.textMuted} />
-                )}
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={() => void runRefresh()}
+              disabled={refreshing}
+              accessibilityRole="button"
+              accessibilityLabel="Refresh local library"
+              accessibilityState={{ busy: refreshing, disabled: refreshing }}
+              hitSlop={HitSlop44}
+              style={({ pressed }) => [
+                styles.headerIconBtn,
+                { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
+              ]}
+            >
+              {refreshing ? (
+                <ActivityIndicator size="small" color={colors.textMuted} />
+              ) : (
+                <Ionicons name="refresh" size={22} color={colors.textMuted} />
+              )}
+            </Pressable>
           }
         />
       ),
@@ -557,7 +521,6 @@ export default function LocalLibraryScreen() {
     selected.size,
     filteredFiles.length,
     localFiles.length,
-    activeGroups,
     refreshing,
     colors,
     exitSelection,
@@ -631,6 +594,15 @@ export default function LocalLibraryScreen() {
           if (selecting) exitSelection();
         }}
         testID="local-category-row"
+      />
+
+      <LibraryListControls
+        activeFilterCount={activeGroups}
+        sortActive={sort !== "newest"}
+        onPressFilters={() => setFilterOpen(true)}
+        onPressSort={() => setSortOpen(true)}
+        disabled={selecting}
+        testID="local-list-controls"
       />
 
       {!isFiltersEmpty(filters) ? (
@@ -992,25 +964,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingHorizontal: 4,
   },
-  headerRightRow: { flexDirection: "row", alignItems: "center" },
   headerIconBtn: {
     width: LOCAL_ACTION_HIT,
     height: LOCAL_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
   },
-  filterBadge: {
-    position: "absolute",
-    top: 6,
-    right: 4,
-    minWidth: 16,
-    height: 16,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 3,
-  },
-  filterBadgeText: { fontSize: 10, fontFamily: Type.fontBold },
   chipsBlock: { paddingBottom: 4 },
   chipsRow: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 6 },
   chip: {

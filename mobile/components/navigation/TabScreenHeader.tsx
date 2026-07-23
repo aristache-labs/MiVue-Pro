@@ -7,8 +7,8 @@ import { Type, useAppTheme } from "@/constants/Theme";
 /** Content row height (excluding status-bar / safe-area inset). */
 export const TAB_SCREEN_HEADER_ROW_HEIGHT = 56;
 /** Side slots keep the title geometrically centered regardless of actions. */
-/** Wide enough for Local filter + sort + refresh (3 × 44). */
-export const TAB_SCREEN_HEADER_SIDE_WIDTH = 140;
+/** Side slots keep the title geometrically centered regardless of actions. */
+export const TAB_SCREEN_HEADER_SIDE_WIDTH = 112;
 
 export interface TabScreenHeaderProps {
   readonly title: string;

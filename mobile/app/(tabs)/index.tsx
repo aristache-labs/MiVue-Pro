@@ -11,7 +11,6 @@ import {
   FlatList,
   StyleSheet,
   Text,
-  TextInput,
   View,
   type ViewToken,
 } from "react-native";
@@ -63,6 +62,7 @@ import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
+import { LibraryListControls } from "@/components/library/LibraryListControls";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -121,15 +121,12 @@ export default function LibraryScreen() {
 
   const [category, setCategory] = useState<CategoryFilter>("all");
   const [sort, setSort] = useState<CameraLibrarySort>("newest");
-  const [searchInput, setSearchInput] = useState("");
-  const [search, setSearch] = useState("");
   const [filters, setFilters] = useState<CameraLibraryFilters>(EMPTY_CAMERA_FILTERS);
   const [filterOpen, setFilterOpen] = useState(false);
   const [sortOpen, setSortOpen] = useState(false);
   const [detailFile, setDetailFile] = useState<RemoteFile | null>(null);
   const [connectionSheetOpen, setConnectionSheetOpen] = useState(false);
   const [errorDismissed, setErrorDismissed] = useState(false);
-  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
   const queuedNames = useMemo(() => {
@@ -153,18 +150,8 @@ export default function LibraryScreen() {
   const stableQueuedNames = useMemo(() => queuedNames, [queuedNamesKey]);
   const counts = useMemo(() => countCategories(files), [files]);
   const hasAdvanced = !isCameraFiltersEmpty(filters);
-  const hasSecondaryFilters = hasAdvanced || search.trim().length > 0;
-  const hasActiveFilters = hasAdvanced || category !== "all" || search.trim().length > 0;
   const activeGroups = countCameraFilterGroups(filters);
   const sortOptions = useMemo(() => cameraSortOptionsForCategory(category), [category]);
-
-  useEffect(() => {
-    if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    searchTimerRef.current = setTimeout(() => setSearch(searchInput), 200);
-    return () => {
-      if (searchTimerRef.current) clearTimeout(searchTimerRef.current);
-    };
-  }, [searchInput]);
 
   useEffect(() => {
     setFilters((prev) => sanitizeFiltersForCategoryScope(prev, category));
@@ -181,13 +168,13 @@ export default function LibraryScreen() {
       filterAndSortRemoteFiles({
         files,
         category,
-        search,
+        search: "",
         filters,
         sort,
         downloadedNames: localNames,
         queuedNames: stableQueuedNames,
       }),
-    [files, category, search, filters, sort, localNames, stableQueuedNames],
+    [files, category, filters, sort, localNames, stableQueuedNames],
   );
 
   const sections = useMemo(() => buildCameraLibrarySections(filtered, sort), [filtered, sort]);
@@ -296,8 +283,6 @@ export default function LibraryScreen() {
     setDetailFile(null);
     setFilterOpen(false);
     setSortOpen(false);
-    setSearchInput("");
-    setSearch("");
     setFilters(EMPTY_CAMERA_FILTERS);
     setCategory("all");
   }, [cameraLinkState]);
@@ -479,15 +464,9 @@ export default function LibraryScreen() {
       />
     ) : filtered.length === 0 && files.length > 0 ? (
       <EmptyState
-        icon={search.trim() ? "search-outline" : "filter-outline"}
-        title={
-          search.trim()
-            ? "No recordings match your search"
-            : "No recordings match these filters."
-        }
-        subtitle={search.trim() ? undefined : "Try clearing search or filters."}
-        actionLabel={search.trim() ? "Clear search" : undefined}
-        onAction={search.trim() ? () => { setSearchInput(""); setSearch(""); } : undefined}
+        icon="filter-outline"
+        title="No recordings match these filters."
+        subtitle="Try clearing filters or changing category."
       />
     ) : null;
 
@@ -522,116 +501,52 @@ export default function LibraryScreen() {
         testID="camera-category-row"
       />
 
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: spacing.sm }}>
-        <View style={[styles.toolbar, { opacity: libraryInteractive ? 1 : 0.55 }]}>
-          <View
-            style={[
-              styles.searchWrap,
-              { borderColor: colors.border, backgroundColor: colors.surface, borderRadius: radius.sm },
-            ]}
-            pointerEvents={libraryInteractive ? "auto" : "none"}
-          >
-            <Ionicons name="search" size={16} color={colors.textFaint} />
-            <TextInput
-              value={searchInput}
-              onChangeText={setSearchInput}
-              placeholder="Search name, date or time"
-              placeholderTextColor={colors.textFaint}
-              style={[styles.searchInput, { color: colors.text }]}
-              accessibilityLabel="Search name, date or time"
-              accessibilityState={{ disabled: !libraryInteractive }}
-              editable={libraryInteractive}
-              autoCorrect={false}
-              autoCapitalize="none"
-            />
-            {searchInput.length > 0 ? (
-              <Pressable
-                onPress={() => {
-                  setSearchInput("");
-                  setSearch("");
-                }}
-                accessibilityRole="button"
-                accessibilityLabel="Clear search"
-                hitSlop={HitSlop44}
-                style={styles.searchClear}
-              >
-                <Ionicons name="close-circle" size={18} color={colors.textMuted} />
-              </Pressable>
-            ) : null}
-          </View>
-          <Pressable
-            onPress={() => setFilterOpen(true)}
-            disabled={!libraryInteractive}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !libraryInteractive }}
-            accessibilityLabel={
-              activeGroups > 0 ? `Filter library, ${activeGroups} filters active` : "Filter library"
-            }
-            hitSlop={HitSlop44}
-            style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-          >
-            <Ionicons name="options-outline" size={20} color={colors.textMuted} />
-            {activeGroups > 0 ? (
-              <View style={[styles.filterDot, { backgroundColor: colors.brand }]}>
-                <Text style={{ color: colors.onBrand, fontSize: 9, fontFamily: Type.fontSemi }}>
-                  {activeGroups}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-          <Pressable
-            onPress={() => setSortOpen(true)}
-            disabled={!libraryInteractive}
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !libraryInteractive }}
-            accessibilityLabel="Sort recordings"
-            hitSlop={HitSlop44}
-            style={[styles.toolBtn, { borderColor: colors.border, backgroundColor: colors.surface }]}
-          >
-            <Ionicons name="swap-vertical-outline" size={20} color={colors.textMuted} />
-          </Pressable>
-        </View>
+      <LibraryListControls
+        activeFilterCount={activeGroups}
+        sortActive={sort !== "newest"}
+        onPressFilters={() => setFilterOpen(true)}
+        onPressSort={() => setSortOpen(true)}
+        disabled={!libraryInteractive}
+        testID="camera-list-controls"
+      />
 
-        {filterChips.length > 0 || hasSecondaryFilters ? (
-          <View style={styles.summaryRow}>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
-              {filterChips.map((chip) => (
-                <Pressable
-                  key={chip.id}
-                  onPress={() => setFilters(clearCameraFilterGroup(filters, chip.id))}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove filter ${chip.label}`}
-                  style={[styles.remChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
-                >
-                  <Text style={{ color: colors.text, fontSize: 12, fontFamily: Type.fontSemi }}>
-                    {chip.label}
-                  </Text>
-                  <Ionicons name="close" size={12} color={colors.textMuted} />
-                </Pressable>
-              ))}
-            </ScrollView>
-            <Text style={[styles.summaryText, { color: colors.textMuted }]}>
-              {filtered.length} results · {formatMediaSizeMbGb(filteredBytes)}
-            </Text>
-            {hasSecondaryFilters ? (
+      {filterChips.length > 0 || hasAdvanced ? (
+        <View style={[styles.summaryRow, { paddingHorizontal: spacing.lg }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
+            {filterChips.map((chip) => (
               <Pressable
-                onPress={() => {
-                  setFilters(EMPTY_CAMERA_FILTERS);
-                  setSearchInput("");
-                  setSearch("");
-                }}
+                key={chip.id}
+                onPress={() => setFilters(clearCameraFilterGroup(filters, chip.id))}
                 accessibilityRole="button"
-                accessibilityLabel="Clear all filters"
-                hitSlop={HitSlop44}
+                accessibilityLabel={`Remove filter ${chip.label}`}
+                style={[styles.remChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
               >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 12 }}>
-                  Clear all
+                <Text style={{ color: colors.text, fontSize: 12, fontFamily: Type.fontSemi }}>
+                  {chip.label}
                 </Text>
+                <Ionicons name="close" size={12} color={colors.textMuted} />
               </Pressable>
-            ) : null}
-          </View>
-        ) : null}
-      </View>
+            ))}
+          </ScrollView>
+          <Text style={[styles.summaryText, { color: colors.textMuted }]}>
+            {filtered.length} results · {formatMediaSizeMbGb(filteredBytes)}
+          </Text>
+          {hasAdvanced ? (
+            <Pressable
+              onPress={() => {
+                setFilters(EMPTY_CAMERA_FILTERS);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear all filters"
+              hitSlop={HitSlop44}
+            >
+              <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 12 }}>
+                Clear all
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      ) : null}
 
       {showSkeleton ? (
         <View style={{ padding: spacing.lg, gap: spacing.sm }}>
@@ -726,7 +641,7 @@ export default function LibraryScreen() {
         initial={filters}
         categoryScope={category}
         files={files}
-        search={search}
+        search=""
         downloadedNames={localNames}
         queuedNames={queuedNames}
         onClose={() => setFilterOpen(false)}
@@ -823,7 +738,6 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerIconBtn: { width: 44, height: 44, alignItems: "center", justifyContent: "center" },
   banner: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 8,
@@ -831,38 +745,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
   },
   bannerText: { fontSize: 12, fontFamily: Type.fontSemi },
-  toolbar: { flexDirection: "row", alignItems: "center", gap: 8 },
-  searchWrap: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 10,
-    minHeight: 40,
-  },
-  searchInput: { flex: 1, fontSize: 14, fontFamily: Type.font, paddingVertical: 8 },
-  searchClear: { width: 32, height: 32, alignItems: "center", justifyContent: "center" },
-  toolBtn: {
-    width: 44,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 8,
-  },
-  filterDot: {
-    position: "absolute",
-    top: 6,
-    right: 6,
-    minWidth: 14,
-    height: 14,
-    borderRadius: 7,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 2,
-  },
-  summaryRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28 },
+  summaryRow: { flexDirection: "row", alignItems: "center", gap: 8, minHeight: 28, marginBottom: 4 },
   remChip: {
     flexDirection: "row",
     alignItems: "center",
