@@ -64,11 +64,16 @@ import {
   stickySectionKeyFromLocalViewableItems,
   type LocalLibraryFileRow,
 } from "@/components/local/localLibrarySections";
+import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
+import {
+  backToTopListBottomPadding,
+  useBackToTop,
+} from "@/hooks/useBackToTop";
 import {
   listBounceEnabled,
   listContentBottomPadding,
@@ -525,11 +530,52 @@ export default function LocalLibraryScreen() {
 
   const emptyLibrary = localFiles.length === 0;
   const emptyFiltered = !emptyLibrary && filteredFiles.length === 0;
-  const listPadBottom = listContentBottomPadding(
+  const listPadBottomBase = listContentBottomPadding(
     filteredFiles.length,
     listFilledPad,
     Math.max(spacing.lg, 12),
   );
+
+  const backToTopEnabled =
+    !filterOpen &&
+    !selecting &&
+    !deleteConfirmOpen &&
+    !deleting &&
+    listRows.length > 0;
+
+  const {
+    listRef: localListRef,
+    visible: backToTopVisible,
+    onScroll: onLocalScroll,
+    onLayout: onBackToTopLayout,
+    scrollToTop,
+    scrollEventThrottle,
+  } = useBackToTop({
+    enabled: backToTopEnabled,
+    hasOverflow,
+    itemCount: listRows.length,
+  });
+
+  const listPadBottom = backToTopListBottomPadding(
+    listRows.length,
+    hasOverflow,
+    tabBarHeight,
+    listPadBottomBase,
+  );
+
+  const handleListLayout = useCallback(
+    (event: Parameters<typeof onViewportLayout>[0]) => {
+      onViewportLayout(event);
+      onBackToTopLayout(event);
+    },
+    [onViewportLayout, onBackToTopLayout],
+  );
+
+  const onBackToTopPress = useCallback(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then((rm) => {
+      scrollToTop(!rm);
+    });
+  }, [scrollToTop]);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.bg }]}>
@@ -691,6 +737,7 @@ export default function LocalLibraryScreen() {
           </View>
         ) : null}
         <FlatList
+          ref={localListRef}
           style={styles.list}
           data={listRows}
           keyExtractor={(row) => row.key}
@@ -707,8 +754,10 @@ export default function LocalLibraryScreen() {
           bounces={listBounceEnabled(canPullToRefresh)}
           overScrollMode={listOverScrollMode(canPullToRefresh)}
           showsVerticalScrollIndicator={hasOverflow}
-          onLayout={onViewportLayout}
+          onLayout={handleListLayout}
           onContentSizeChange={onContentSizeChange}
+          onScroll={onLocalScroll}
+          scrollEventThrottle={scrollEventThrottle}
           contentContainerStyle={{
             paddingHorizontal: spacing.lg,
             paddingTop: spacing.sm,
@@ -751,6 +800,13 @@ export default function LocalLibraryScreen() {
           renderItem={renderItem}
         />
       </View>
+
+      <FloatingBackToTop
+        visible={backToTopVisible && backToTopEnabled}
+        tabBarHeight={tabBarHeight}
+        onPress={onBackToTopPress}
+        reduceMotion={reduceMotion}
+      />
 
       <Modal
         transparent

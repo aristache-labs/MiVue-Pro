@@ -3,6 +3,7 @@ import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { router, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   Platform,
   Pressable,
   RefreshControl,
@@ -59,9 +60,14 @@ import {
 import { LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
 import { SheetCloseButton } from "@/components/media/SheetCloseButton";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import {
+  backToTopListBottomPadding,
+  useBackToTop,
+} from "@/hooks/useBackToTop";
 import {
   listBounceEnabled,
   listContentBottomPadding,
@@ -242,11 +248,56 @@ export default function LibraryScreen() {
     onContentSizeChange: onSortContentSizeChange,
   } = useVerticalOverflow();
   const listFilledPad = Math.max(tabBarHeight, LOCAL_LIBRARY_LIST_BOTTOM_PADDING);
-  const listPadBottom = listContentBottomPadding(
+  const listPadBottomBase = listContentBottomPadding(
     filtered.length,
     listFilledPad,
     Math.max(spacing.lg, 12),
   );
+
+  const showSkeleton =
+    isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
+
+  const backToTopEnabled =
+    !showSkeleton &&
+    !filterOpen &&
+    !sortOpen &&
+    !connectionSheetOpen &&
+    detailFile === null &&
+    filtered.length > 0;
+
+  const {
+    listRef: libraryListRef,
+    visible: backToTopVisible,
+    onScroll: onLibraryScroll,
+    onLayout: onBackToTopLayout,
+    scrollToTop,
+    scrollEventThrottle,
+  } = useBackToTop({
+    enabled: backToTopEnabled,
+    hasOverflow,
+    itemCount: filtered.length,
+  });
+
+  const listPadBottom = backToTopListBottomPadding(
+    filtered.length,
+    hasOverflow,
+    tabBarHeight,
+    listPadBottomBase,
+  );
+
+  const handleListLayout = useCallback(
+    (event: Parameters<typeof onViewportLayout>[0]) => {
+      onViewportLayout(event);
+      onBackToTopLayout(event);
+    },
+    [onViewportLayout, onBackToTopLayout],
+  );
+
+  const onBackToTopPress = useCallback(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then((reduceMotion) => {
+      scrollToTop(!reduceMotion);
+    });
+  }, [scrollToTop]);
 
   useEffect(() => {
     if (
@@ -435,9 +486,6 @@ export default function LibraryScreen() {
       queuePosition,
     });
   }, [detailFile, queueItems, localNames, queuePosition]);
-
-  const showSkeleton =
-    isRefreshingCamera && files.length === 0 && cameraLinkState === "connecting";
 
   const emptyPresentation =
     files.length === 0 && !showSkeleton ? libraryEmptyPresentation(cameraLinkState) : undefined;
@@ -670,6 +718,7 @@ export default function LibraryScreen() {
             </View>
           ) : null}
           <FlatList
+            ref={libraryListRef}
             style={styles.list}
             data={listRows}
             keyExtractor={(item) => item.key}
@@ -686,8 +735,10 @@ export default function LibraryScreen() {
             bounces={listBounceEnabled(canPullToRefresh)}
             overScrollMode={listOverScrollMode(canPullToRefresh)}
             showsVerticalScrollIndicator={hasOverflow}
-            onLayout={onViewportLayout}
+            onLayout={handleListLayout}
             onContentSizeChange={onContentSizeChange}
+            onScroll={onLibraryScroll}
+            scrollEventThrottle={scrollEventThrottle}
             refreshControl={
               canPullToRefresh ? (
                 <RefreshControl
@@ -709,6 +760,12 @@ export default function LibraryScreen() {
           />
         </View>
       )}
+
+      <FloatingBackToTop
+        visible={backToTopVisible && backToTopEnabled}
+        tabBarHeight={tabBarHeight}
+        onPress={onBackToTopPress}
+      />
 
       <CameraConnectionSheet
         visible={connectionSheetOpen}

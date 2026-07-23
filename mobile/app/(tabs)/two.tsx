@@ -1,4 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
+import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
 import { useNavigation } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -15,6 +16,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { friendlyConnectionError } from "@/components/camera/cameraLibraryModel";
 import { parseRecordedParts, formatDuration, transferRateBps } from "@/components/mediaMeta";
+import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import {
   actionsForStatus,
   createQueueActionGate,
@@ -38,13 +40,17 @@ import {
 } from "@/components/queue/queuePresentation";
 import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { QueueThumbnail } from "@/components/QueueThumbnail";
-import { Type, useAppTheme } from "@/constants/Theme";
-import { useDemoMode } from "@/context/DemoModeContext";
+import {
+  backToTopListBottomPadding,
+  useBackToTop,
+} from "@/hooks/useBackToTop";
 import {
   listContentBottomPadding,
   useVerticalOverflow,
 } from "@/hooks/useVerticalOverflow";
+import { QueueThumbnail } from "@/components/QueueThumbnail";
+import { Type, useAppTheme } from "@/constants/Theme";
+import { useDemoMode } from "@/context/DemoModeContext";
 import type { QueueItem } from "@/packages/local-db/src/index";
 
 function kindFromName(name: string): "video" | "image" | "other" {
@@ -155,12 +161,48 @@ export default function QueueScreen() {
   }, [queueItems]);
 
   const listFilledPad = Math.max(QUEUE_LIST_BOTTOM_PADDING, 64 + insets.bottom);
-  const listPadBottom = listContentBottomPadding(
+  const listPadBottomBase = listContentBottomPadding(
     visibleItems.length,
     listFilledPad,
     Math.max(insets.bottom, spacing.lg),
   );
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
+  const tabBarHeight = useBottomTabBarHeight();
+
+  const backToTopEnabled = visibleItems.length > 0 && !actionBusy;
+  const {
+    listRef: queueListRef,
+    visible: backToTopVisible,
+    onScroll: onQueueScroll,
+    onLayout: onBackToTopLayout,
+    scrollToTop,
+    scrollEventThrottle,
+  } = useBackToTop({
+    enabled: backToTopEnabled,
+    hasOverflow,
+    itemCount: visibleItems.length,
+  });
+
+  const listPadBottom = backToTopListBottomPadding(
+    visibleItems.length,
+    hasOverflow,
+    tabBarHeight,
+    listPadBottomBase,
+  );
+
+  const handleListLayout = useCallback(
+    (event: Parameters<typeof onViewportLayout>[0]) => {
+      onViewportLayout(event);
+      onBackToTopLayout(event);
+    },
+    [onViewportLayout, onBackToTopLayout],
+  );
+
+  const onBackToTopPress = useCallback(() => {
+    void AccessibilityInfo.isReduceMotionEnabled().then((rm) => {
+      scrollToTop(!rm);
+    });
+  }, [scrollToTop]);
 
   const durationByName = useMemo(() => {
     const map = new Map<string, number>();
@@ -314,6 +356,7 @@ export default function QueueScreen() {
       ) : null}
 
       <FlatList
+        ref={queueListRef}
         style={styles.list}
         data={visibleItems}
         keyExtractor={(item) => item.id}
@@ -322,12 +365,14 @@ export default function QueueScreen() {
         bounces={false}
         overScrollMode="never"
         showsVerticalScrollIndicator={hasOverflow}
-        onLayout={onViewportLayout}
+        onLayout={handleListLayout}
         onContentSizeChange={onContentSizeChange}
+        onScroll={onQueueScroll}
+        scrollEventThrottle={scrollEventThrottle}
         contentContainerStyle={{
           paddingTop: spacing.sm,
           paddingBottom: listPadBottom,
-          flexGrow: 1,
+          ...(visibleItems.length === 0 ? { flexGrow: 1 } : null),
         }}
         ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
         ListEmptyComponent={
@@ -559,6 +604,12 @@ export default function QueueScreen() {
             </Card>
           );
         }}
+      />
+
+      <FloatingBackToTop
+        visible={backToTopVisible && backToTopEnabled}
+        tabBarHeight={tabBarHeight}
+        onPress={onBackToTopPress}
       />
     </View>
   );

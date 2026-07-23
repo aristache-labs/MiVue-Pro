@@ -128,7 +128,8 @@ describe("tab list overflow wiring", () => {
     assert.match(library, /alwaysBounceVertical=\{listBounceEnabled\(canPullToRefresh\)\}/);
     assert.match(library, /bounces=\{listBounceEnabled\(canPullToRefresh\)\}/);
     assert.match(library, /overScrollMode=\{listOverScrollMode\(canPullToRefresh\)\}/);
-    assert.match(library, /onLayout=\{onViewportLayout\}/);
+    assert.match(library, /onLayout=\{handleListLayout\}/);
+    assert.match(library, /onViewportLayout\(event\)/);
     assert.match(library, /onContentSizeChange=\{onContentSizeChange\}/);
     assert.match(library, /RefreshControl/);
     assert.match(library, /onRefresh=\{\(\) => void runRefresh\(\)\}/);
@@ -142,6 +143,8 @@ describe("tab list overflow wiring", () => {
     assert.match(local, /scrollEnabled=\{listScrollEnabled\(hasOverflow, canPullToRefresh\)\}/);
     assert.match(local, /alwaysBounceVertical=\{listBounceEnabled\(canPullToRefresh\)\}/);
     assert.match(local, /bounces=\{listBounceEnabled\(canPullToRefresh\)\}/);
+    assert.match(local, /onLayout=\{handleListLayout\}/);
+    assert.match(local, /onViewportLayout\(event\)/);
     assert.match(local, /RefreshControl/);
     assert.match(local, /onRefresh=\{\(\) => void runRefresh\(\)\}/);
     assert.match(local, /listContentBottomPadding/);
@@ -155,7 +158,8 @@ describe("tab list overflow wiring", () => {
     assert.match(queue, /bounces=\{false\}/);
     assert.match(queue, /overScrollMode="never"/);
     assert.match(queue, /showsVerticalScrollIndicator=\{hasOverflow\}/);
-    assert.match(queue, /onLayout=\{onViewportLayout\}/);
+    assert.match(queue, /onLayout=\{handleListLayout\}/);
+    assert.match(queue, /onViewportLayout\(event\)/);
     assert.match(queue, /onContentSizeChange=\{onContentSizeChange\}/);
     assert.doesNotMatch(queue, /RefreshControl/);
     assert.match(queue, /listContentBottomPadding/);
