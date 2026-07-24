@@ -40,10 +40,12 @@ import {
   connectionHubKind,
   connectionStatusLabel,
   formatLastConnected,
+  isCameraContentLive,
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import { isCameraLibraryInteractive } from "@/components/camera/cameraLibraryModel";
 import {
   cameraSettingConfirmMessage,
   cameraSettingSuccessMessage,
@@ -107,7 +109,7 @@ export default function SettingsCameraScreen() {
       ? "—"
       : "No camera configured";
   const lastConnectedValue = formatLastConnected(lastConnectedAt);
-  const connected = cameraLinkState === "connected" && !demoMode;
+  const sessionLive = isCameraContentLive(cameraLinkState) && !demoMode;
   const clockValue = cameraClockDisplay(cameraProperties);
   const statusA11yLabel = [
     `Camera ${modelRowValue}`,
@@ -119,7 +121,7 @@ export default function SettingsCameraScreen() {
   const softwareFields = useMemo(
     () =>
       resolveCameraSoftwareFields({
-        connected: connected || demoMode,
+        connected: sessionLive || demoMode,
         demoMode,
         loading: softwareLoading && !demoMode,
         properties: cameraProperties,
@@ -130,7 +132,7 @@ export default function SettingsCameraScreen() {
       }),
     [
       cameraProperties,
-      connected,
+      sessionLive,
       demoMode,
       lastConfirmedSoftware,
       softwareLoading,
@@ -439,7 +441,7 @@ export default function SettingsCameraScreen() {
         </SettingsSection>
 
         <SettingsSection title="Camera settings" style={styles.section}>
-          {!connected ? (
+          {!sessionLive ? (
             <View style={styles.placeholder} accessibilityRole="summary">
               <Text style={[styles.placeholderTitle, { color: colors.text }]}>
                 Camera settings unavailable
@@ -562,7 +564,7 @@ export default function SettingsCameraScreen() {
         applying={isApplyingCameraSetting}
         applyDisabledReason={
           demoBlocked ??
-          (cameraLinkState !== "connected" ? "Camera disconnected." : undefined)
+          (!isCameraLibraryInteractive(cameraLinkState) ? "Camera disconnected." : undefined)
         }
         onClose={() => {
           if (!isApplyingCameraSetting) setActiveSetting(null);

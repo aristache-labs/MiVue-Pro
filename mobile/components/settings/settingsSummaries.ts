@@ -9,12 +9,22 @@ export type ConnectionHubKind = VisibleConnectionStatus;
 /**
  * Map internal link state to the three user-visible statuses.
  * Historical success (`lastConnectedAt`) must never keep a live Connected label.
+ * `unstable` stays Connected so Status badge and Camera Information/Settings stay in sync
+ * during the first failed health check (stale-while-revalidate).
  */
 export function visibleConnectionStatus(linkState: CameraLinkState): VisibleConnectionStatus {
   if (linkState === "connected" || linkState === "unstable") return "connected";
   if (linkState === "connecting") return "connecting";
   // idle | disconnected | connection_lost → Disconnected
   return "disconnected";
+}
+
+/**
+ * Whether Camera Information values and Camera Settings rows stay available.
+ * Must match Status badge Connected mapping — never diverge on `unstable`.
+ */
+export function isCameraContentLive(linkState: CameraLinkState): boolean {
+  return visibleConnectionStatus(linkState) === "connected";
 }
 
 export function connectionStatusLabel(linkState: CameraLinkState): string {

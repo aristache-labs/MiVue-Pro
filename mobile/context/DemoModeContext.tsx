@@ -34,6 +34,7 @@ import {
   CAMERA_REFRESH_IN_PROGRESS,
   canStartCameraRefresh,
   friendlyConnectionError,
+  isCameraLibraryInteractive,
   isCameraSessionCurrent,
   sanitizeDiagnosticLine,
   type CameraLinkState,
@@ -255,12 +256,15 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const consecutiveVerifyFailuresRef = useRef(0);
   const lastVerifiedAtRef = useRef<number | undefined>(undefined);
   const verifyInflightLocalRef = useRef(false);
+  /** Monotonic id so a late health-check result cannot revive a newer state. */
+  const healthVerifySeqRef = useRef(0);
   const healthRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const reconnectAttemptRef = useRef(0);
 
   const clearRemoteCameraLibrary = useCallback(
     (nextState: "disconnected" | "connection_lost", error?: string) => {
       cameraSessionGenRef.current = bumpCameraSessionGeneration(cameraSessionGenRef.current);
+      healthVerifySeqRef.current += 1;
       setFiles([]);
       setCameraLinkState(nextState);
       if (error !== undefined) setLastError(error);
@@ -572,6 +576,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
 
     const requestGen = cameraSessionGenRef.current;
     const hostAtStart = host;
+    const verifySeq = ++healthVerifySeqRef.current;
     verifyInflightLocalRef.current = true;
     try {
       const result = await verifyCameraReachability({
@@ -581,6 +586,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           timeoutMs: CAMERA_HEALTH_TIMEOUT_MS,
         },
       });
+      if (verifySeq !== healthVerifySeqRef.current) return;
       if (appStateRef.current !== "active" || demoModeRef.current) return;
       if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) return;
       if (cameraHostRef.current.trim() !== hostAtStart) return;
@@ -617,7 +623,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     if (demoMode) {
       return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
     }
-    if (cameraLinkState !== "connected") {
+    if (!isCameraLibraryInteractive(cameraLinkState)) {
       return { ok: false, error: "Connect to the camera to view and change its settings." };
     }
     if (!isPrivateIpv4(cameraHost)) {
@@ -690,7 +696,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       if (demoMode) {
         return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
       }
-      if (cameraLinkState !== "connected") {
+      if (!isCameraLibraryInteractive(cameraLinkState)) {
         return { ok: false, error: "Camera disconnected." };
       }
       if (!isPrivateIpv4(cameraHost)) {
@@ -716,7 +722,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         const result = await applyCameraSetting(transport, key, value);
         if (
           !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
-          linkStateRef.current !== "connected"
+          !isCameraLibraryInteractive(linkStateRef.current)
         ) {
           return { ok: false, error: "Camera disconnected." };
         }
@@ -729,7 +735,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        if (linkStateRef.current !== "connected") {
+        if (!isCameraLibraryInteractive(linkStateRef.current)) {
           return { ok: false, error: "Camera disconnected." };
         }
         return { ok: false, error: message };

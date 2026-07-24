@@ -18,6 +18,7 @@ export {
   formatLastConnected,
   lastConnectedSummaryLine,
   cameraStatusTitle,
+  isCameraContentLive,
   legalSummary,
   mapsPreferenceSummary,
   storageSummary,

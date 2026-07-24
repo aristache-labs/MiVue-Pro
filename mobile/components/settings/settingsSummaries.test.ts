@@ -10,6 +10,7 @@ import {
   diagnosticsRequestStatus,
   diagnosticsSummary,
   formatLastConnected,
+  isCameraContentLive,
   lastConnectedSummaryLine,
   legalSummary,
   mapsPreferenceSummary,
@@ -27,6 +28,8 @@ describe("settingsSummaries", () => {
     assert.equal(connectionStatusLabel("unstable"), "Connected");
     assert.equal(connectionStatusLabel("idle"), "Disconnected");
     assert.equal(visibleConnectionStatus("unstable"), "connected");
+    assert.equal(isCameraContentLive("unstable"), true);
+    assert.equal(isCameraContentLive("connection_lost"), false);
     assert.equal(connectionHubKind("unstable"), "connected");
     assert.equal(connectionHubKind("connected"), "connected");
   });
