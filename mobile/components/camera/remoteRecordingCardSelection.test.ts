@@ -32,9 +32,9 @@ describe("Library selection-mode card content consistency", () => {
 
   it("hides Play and shows selection checkbox in selection mode", () => {
     assert.match(card, /selecting \? \([\s\S]*?selectMarkHit[\s\S]*?\) : showPlayOverlay/);
-    assert.match(card, /accessibilityRole="checkbox"/);
-    assert.match(card, /accessibilityState=\{\{\s*checked:\s*selected\s*\}\}/);
-    assert.match(card, /testID="library-selection-card"/);
+    assert.match(card, /accessibilityRole=\{selecting \? "checkbox" : "button"\}/);
+    assert.match(card, /accessibilityState=\{selecting \? \{ selected, checked: selected \}/);
+    assert.match(card, /testID=\{selecting \? "library-selection-card"/);
   });
 
   it("keeps CompactDownloadAction visible with inert status in selection mode", () => {
@@ -52,9 +52,14 @@ describe("Library selection-mode card content consistency", () => {
     assert.match(action, /inert \? \(/);
   });
 
-  it("selection mode clears nested thumb/body presses so parent owns the tap", () => {
-    assert.match(card, /onThumbPress=\{selecting \? undefined : openBody\}/);
-    assert.match(card, /onBodyPress=\{selecting \? undefined : openBody\}/);
+  it("uses one outer Pressable for tap/long-press like Local (no nested thumb/body presses)", () => {
+    assert.match(card, /delayLongPress=\{LOCAL_LONG_PRESS_MS\}/);
+    assert.match(card, /suppressPressRef/);
+    assert.match(card, /onLongPress=\{handleLongPress\}/);
+    assert.match(card, /onLongPressSelect\?\.\(file\.path\)/);
+    assert.match(card, /Long press to select/);
+    assert.doesNotMatch(card, /onThumbPress/);
+    assert.doesNotMatch(card, /onBodyPress/);
     assert.match(media, /accessible=\{Boolean\(onThumbPress\)\}/);
     assert.match(media, /accessible=\{Boolean\(onBodyPress\)\}/);
   });

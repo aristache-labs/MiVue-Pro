@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { memo, useCallback } from "react";
+import { memo, useCallback, useRef } from "react";
 import { Pressable, StyleSheet, View } from "react-native";
 
 import { CompactDownloadAction } from "@/components/camera/CompactDownloadAction";
@@ -8,6 +8,7 @@ import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
 import { librarySelectionCardA11y } from "@/components/camera/remoteDownloadA11y";
 import type { RemoteDownloadUiState } from "@/components/camera/remoteDownloadState";
 import { shouldEnqueueOnDownloadPress } from "@/components/camera/remoteDownloadState";
+import { LOCAL_LONG_PRESS_MS } from "@/components/local/localLibrarySelection";
 import { formatDuration } from "@/components/mediaMeta";
 import { MediaCard } from "@/components/media/MediaCard";
 import { MEDIA_THUMB_H, MEDIA_THUMB_W } from "@/components/media/mediaCardTokens";
@@ -59,10 +60,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       : undefined;
   const isDownloaded = downloadState.kind === "downloaded";
   const isPhoto = file.category === "photo";
-
-  const toggle = useCallback(() => {
-    onToggleSelect?.(file.path);
-  }, [file.path, onToggleSelect]);
+  const suppressPressRef = useRef(false);
 
   const openBody = useCallback(() => {
     if (isDownloaded && onOpenDownloaded) {
@@ -86,120 +84,138 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
     }
   }, [downloadState, file, onDownload, onOpenDownloaded, onResume]);
 
+  const handlePress = useCallback(() => {
+    if (suppressPressRef.current) {
+      suppressPressRef.current = false;
+      return;
+    }
+    if (selecting) {
+      onToggleSelect?.(file.path);
+      return;
+    }
+    openBody();
+  }, [selecting, onToggleSelect, file.path, openBody]);
+
+  const handleLongPress = useCallback(() => {
+    suppressPressRef.current = true;
+    if (selecting) {
+      onToggleSelect?.(file.path);
+      return;
+    }
+    onLongPressSelect?.(file.path);
+  }, [selecting, onToggleSelect, onLongPressSelect, file.path]);
+
   /** Play overlay only for downloaded videos in normal mode — never in selection. */
   const showPlayOverlay = !selecting && isDownloaded && !isPhoto;
 
-  const card = (
-    <MediaCard
-      source="camera"
-      title={displayMediaName(file.name)}
-      whenLabel={when}
-      sizeLabel={sizeLabel}
-      categoryLabel={CATEGORY_LABEL[file.category]}
-      categoryAccent={catAccent}
-      durationLabel={duration}
-      selected={selected}
-      onThumbPress={selecting ? undefined : openBody}
-      thumbAccessibilityLabel={
-        selecting
-          ? undefined
-          : isDownloaded
-            ? `Play ${file.name}`
-            : `Details for ${file.name}`
-      }
-      onBodyPress={selecting ? undefined : openBody}
-      bodyAccessibilityLabel={
-        selecting
-          ? undefined
-          : `${file.name}, ${CATEGORY_LABEL[file.category]}${when ? `, ${when}` : ""}`
-      }
-      thumbnail={
-        <CameraThumb
-          remotePath={file.path}
-          category={file.category}
-          width={MEDIA_THUMB_W}
-          height={MEDIA_THUMB_H}
-          active={thumbActive}
-        />
-      }
-      thumbnailOverlay={
-        selecting ? (
-          <View pointerEvents="none" style={styles.selectMarkHit}>
-            <View
-              style={[
-                styles.selectMark,
-                selected
-                  ? { backgroundColor: colors.brand, borderColor: colors.brand }
-                  : {
-                      backgroundColor: "transparent",
-                      borderColor: "rgba(255,255,255,0.95)",
-                      shadowColor: "#000",
-                      shadowOpacity: 0.55,
-                      shadowRadius: 1.5,
-                      shadowOffset: { width: 0, height: 0 },
-                      elevation: 2,
-                    },
-              ]}
-            >
-              {selected ? <Ionicons name="checkmark" size={14} color={colors.onBrand} /> : null}
-            </View>
-          </View>
-        ) : showPlayOverlay ? (
-          <>
-            <View
-              pointerEvents="none"
-              style={[styles.thumbScrim, { backgroundColor: colors.bg, opacity: 0.35 }]}
-            />
-            <View pointerEvents="none" style={styles.playHit} testID="library-play-overlay">
-              <View
-                style={[
-                  styles.playGlyph,
-                  { backgroundColor: colors.surface, borderColor: colors.border },
-                ]}
-              >
-                <Ionicons
-                  name="play"
-                  size={16}
-                  color={colors.brand}
-                  style={{ marginLeft: 2 }}
-                />
-              </View>
-            </View>
-          </>
-        ) : null
-      }
-      actions={
-        <CompactDownloadAction
-          fileName={file.name}
-          state={downloadState}
-          onPress={onAction}
-          inert={selecting}
-        />
-      }
-    />
-  );
-
-  if (selecting) {
-    return (
-      <Pressable
-        onPress={toggle}
-        accessibilityRole="checkbox"
-        accessibilityState={{ checked: selected }}
-        accessibilityLabel={librarySelectionCardA11y(file.name, downloadState, selected)}
-        testID="library-selection-card"
-      >
-        {card}
-      </Pressable>
-    );
-  }
+  const playA11y = isDownloaded
+    ? isPhoto
+      ? `View ${file.name}`
+      : `Play ${file.name}`
+    : `Details for ${file.name}`;
 
   return (
     <Pressable
-      onLongPress={() => onLongPressSelect?.(file.path)}
-      delayLongPress={450}
-      accessibilityRole="none"
+      onPress={handlePress}
+      onLongPress={handleLongPress}
+      delayLongPress={LOCAL_LONG_PRESS_MS}
+      accessibilityRole={selecting ? "checkbox" : "button"}
+      accessibilityLabel={
+        selecting
+          ? librarySelectionCardA11y(file.name, downloadState, selected)
+          : playA11y
+      }
+      accessibilityHint={
+        selecting ? undefined : "Double tap to open. Long press to select"
+      }
+      accessibilityState={selecting ? { selected, checked: selected } : undefined}
+      accessibilityActions={
+        selecting || !onLongPressSelect
+          ? undefined
+          : [{ name: "select", label: "Select" }]
+      }
+      onAccessibilityAction={(event) => {
+        if (event.nativeEvent.actionName === "select") {
+          onLongPressSelect?.(file.path);
+        }
+      }}
+      testID={selecting ? "library-selection-card" : "library-recording-card"}
     >
-      {card}
+      <MediaCard
+        source="camera"
+        title={displayMediaName(file.name)}
+        whenLabel={when}
+        sizeLabel={sizeLabel}
+        categoryLabel={CATEGORY_LABEL[file.category]}
+        categoryAccent={catAccent}
+        durationLabel={duration}
+        selected={selecting && selected}
+        thumbnail={
+          <CameraThumb
+            remotePath={file.path}
+            category={file.category}
+            width={MEDIA_THUMB_W}
+            height={MEDIA_THUMB_H}
+            active={thumbActive}
+          />
+        }
+        thumbnailOverlay={
+          selecting ? (
+            <View pointerEvents="none" style={styles.selectMarkHit}>
+              <View
+                style={[
+                  styles.selectMark,
+                  selected
+                    ? { backgroundColor: colors.brand, borderColor: colors.brand }
+                    : {
+                        backgroundColor: "transparent",
+                        borderColor: "rgba(255,255,255,0.95)",
+                        shadowColor: "#000",
+                        shadowOpacity: 0.55,
+                        shadowRadius: 1.5,
+                        shadowOffset: { width: 0, height: 0 },
+                        elevation: 2,
+                      },
+                ]}
+              >
+                {selected ? (
+                  <Ionicons name="checkmark" size={14} color={colors.onBrand} />
+                ) : null}
+              </View>
+            </View>
+          ) : showPlayOverlay ? (
+            <>
+              <View
+                pointerEvents="none"
+                style={[styles.thumbScrim, { backgroundColor: colors.bg, opacity: 0.35 }]}
+              />
+              <View pointerEvents="none" style={styles.playHit} testID="library-play-overlay">
+                <View
+                  style={[
+                    styles.playGlyph,
+                    { backgroundColor: colors.surface, borderColor: colors.border },
+                  ]}
+                >
+                  <Ionicons
+                    name="play"
+                    size={16}
+                    color={colors.brand}
+                    style={{ marginLeft: 2 }}
+                  />
+                </View>
+              </View>
+            </>
+          ) : null
+        }
+        actions={
+          <CompactDownloadAction
+            fileName={file.name}
+            state={downloadState}
+            onPress={onAction}
+            inert={selecting}
+          />
+        }
+      />
     </Pressable>
   );
 });

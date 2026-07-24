@@ -372,6 +372,7 @@ export default function LibraryScreen() {
     setFilterOpen(false);
     setSortOpen(false);
     setConnectionSheetOpen(false);
+    void AccessibilityInfo.announceForAccessibility("Selection mode. 1 item selected");
   }, []);
 
   const selectAllFiltered = useCallback(() => {

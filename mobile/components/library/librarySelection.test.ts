@@ -136,10 +136,15 @@ describe("librarySelection helpers", () => {
     assert.doesNotMatch(local, /shareLocalFiles/);
     assert.match(band, /SELECTION_ACTION_BAND_H = 44/);
     assert.match(card, /selecting/);
-    assert.match(card, /accessibilityRole="checkbox"/);
+    assert.match(card, /accessibilityRole=\{selecting \? "checkbox" : "button"\}/);
     assert.match(card, /onLongPressSelect/);
+    assert.match(card, /delayLongPress=\{LOCAL_LONG_PRESS_MS\}/);
+    assert.match(card, /suppressPressRef/);
+    assert.match(card, /Long press to select/);
+    assert.match(card, /name: "select"/);
     assert.match(card, /inert=\{selecting\}/);
     assert.match(card, /CompactDownloadAction/);
+    assert.doesNotMatch(card, /onThumbPress/);
     assert.doesNotMatch(card, /actions=\{!selecting/);
     assert.doesNotMatch(index, /cameraMutate|format SD|del\?/i);
 
