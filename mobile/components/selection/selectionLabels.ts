@@ -3,7 +3,8 @@
 export const SELECTION_TOOLBAR_ANIM_MS = 200;
 export const SELECTION_TAB_ANIM_MS = 220;
 export const SELECTION_TOOLBAR_H = 50;
-export const SELECTION_CTA_H = 48;
+/** @deprecated Prefer CONTEXTUAL_CTA_HEIGHT from contextualTabGeometry */
+export { CONTEXTUAL_CTA_HEIGHT as SELECTION_CTA_H } from "@/components/selection/contextualTabGeometry";
 
 export function selectedCountPhrase(count: number): string {
   return count === 1 ? "1 selected" : `${count} selected`;

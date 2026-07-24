@@ -11,12 +11,15 @@ import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
 import { BottomTabBar } from "@react-navigation/bottom-tabs";
 
 import { ContextualTabAction } from "@/components/selection/ContextualTabAction";
+import {
+  TAB_BAR_CONTENT_HEIGHT,
+  computeContextualTabGeometry,
+} from "@/components/selection/contextualTabGeometry";
 import { SELECTION_TAB_ANIM_MS } from "@/components/selection/selectionLabels";
 import { useSelectionTabChrome } from "@/context/SelectionTabChromeContext";
 import { useAppTheme } from "@/constants/Theme";
 
-/** Matches React Navigation default tab content height (above safe area). */
-export const TAB_BAR_CONTENT_HEIGHT = 49;
+export { TAB_BAR_CONTENT_HEIGHT };
 /** Re-export for tests / callers. */
 export { SELECTION_TAB_ANIM_MS };
 const SLIDE_PX = 8;
@@ -29,7 +32,8 @@ export function LaneoryTabBar(props: BottomTabBarProps) {
   const { chrome, selectionModeActive } = useSelectionTabChrome();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const frameH = TAB_BAR_CONTENT_HEIGHT + insets.bottom;
+  const geo = computeContextualTabGeometry(insets.bottom);
+  const frameH = geo.containerHeight;
   const [reduceMotion, setReduceMotion] = useState(false);
   const progress = useRef(new Animated.Value(selectionModeActive ? 1 : 0)).current;
   const [showAction, setShowAction] = useState(selectionModeActive);
@@ -157,6 +161,7 @@ export function LaneoryTabBar(props: BottomTabBarProps) {
             onPress={displayChrome.onPress}
             disabled={displayChrome.disabled}
             busy={displayChrome.busy}
+            bottomInset={insets.bottom}
             testID={
               displayChrome.kind === "local-delete"
                 ? "selection-tab-delete-bar"

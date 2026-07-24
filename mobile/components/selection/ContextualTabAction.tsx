@@ -1,8 +1,11 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { SELECTION_CTA_H } from "@/components/selection/selectionLabels";
+import {
+  CONTEXTUAL_ACTION_PAD_H,
+  CONTEXTUAL_CTA_MAX_WIDTH,
+  computeContextualTabGeometry,
+} from "@/components/selection/contextualTabGeometry";
 import { Type, useAppTheme } from "@/constants/Theme";
 
 export type ContextualTabTone = "danger" | "brand";
@@ -15,11 +18,14 @@ export interface ContextualTabActionProps {
   readonly onPress: () => void;
   readonly disabled?: boolean;
   readonly busy?: boolean;
+  /** Bottom inset from the parent tab frame — height only, never CTA padding. */
+  readonly bottomInset: number;
   readonly testID?: string;
 }
 
 /**
- * Filled CTA centered in the tab-bar frame (above the home indicator).
+ * CTA centered in the full tab-bar frame. Container matches normal tab surface;
+ * only the button fill uses brand/danger.
  */
 export function ContextualTabAction({
   tone,
@@ -29,12 +35,12 @@ export function ContextualTabAction({
   onPress,
   disabled = false,
   busy = false,
+  bottomInset,
   testID,
 }: ContextualTabActionProps) {
-  const { colors, spacing, radius } = useAppTheme();
-  const insets = useSafeAreaInsets();
+  const { colors, radius } = useAppTheme();
+  const geo = computeContextualTabGeometry(bottomInset);
   const isDanger = tone === "danger";
-  const soft = isDanger ? colors.dangerSoft : colors.brandSoft;
   const fill = isDanger ? colors.danger : colors.brand;
   const onFill = isDanger ? colors.onDanger : colors.onBrand;
   const inactive = disabled || busy;
@@ -42,12 +48,13 @@ export function ContextualTabAction({
   return (
     <View
       style={[
-        styles.root,
+        styles.container,
         {
-          backgroundColor: soft,
+          height: geo.containerHeight,
+          backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          paddingBottom: insets.bottom,
-          paddingHorizontal: spacing.xl,
+          paddingLeft: CONTEXTUAL_ACTION_PAD_H,
+          paddingRight: CONTEXTUAL_ACTION_PAD_H,
         },
       ]}
       testID={testID ?? `contextual-tab-${tone}`}
@@ -61,43 +68,52 @@ export function ContextualTabAction({
         style={({ pressed }) => [
           styles.cta,
           {
+            height: geo.buttonHeight,
+            minHeight: geo.buttonHeight,
             backgroundColor: fill,
             borderRadius: radius.lg,
-            maxWidth: 420,
+            maxWidth: CONTEXTUAL_CTA_MAX_WIDTH,
             opacity: inactive ? 0.45 : pressed ? 0.88 : 1,
           },
         ]}
         testID={testID ? `${testID}-cta` : `contextual-tab-${tone}-cta`}
       >
-        {busy ? (
-          <ActivityIndicator size="small" color={onFill} />
-        ) : (
-          <Ionicons name={icon} size={20} color={onFill} />
-        )}
-        <Text style={[styles.label, { color: onFill }]} numberOfLines={1}>
-          {label}
-        </Text>
+        <View style={styles.ctaInner} pointerEvents="none">
+          {busy ? (
+            <ActivityIndicator size="small" color={onFill} />
+          ) : (
+            <Ionicons name={icon} size={20} color={onFill} />
+          )}
+          <Text style={[styles.label, { color: onFill }]} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
+  container: {
+    width: "100%",
     borderTopWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
     justifyContent: "center",
     alignItems: "center",
   },
   cta: {
-    width: "100%",
-    minHeight: SELECTION_CTA_H,
-    height: SELECTION_CTA_H,
+    alignSelf: "stretch",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 16,
+  },
+  ctaInner: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    paddingHorizontal: 16,
+    maxWidth: "100%",
   },
   label: {
     fontSize: 15,
