@@ -17,14 +17,25 @@ import {
   formatLocalDateCountLabel,
   localDateSectionA11yLabel,
 } from "./localLibrarySections";
+import {
+  localDeleteCtaLabel,
+  libraryDownloadCtaLabel,
+  sumKnownSelectedBytes,
+  SELECTION_TAB_ANIM_MS,
+  SELECTION_TOOLBAR_ANIM_MS,
+} from "../selection/selectionLabels";
 
 describe("Local Library long-press selection", () => {
   const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
   const card = readFileSync(join(__dirname, "LocalLibraryCard.tsx"), "utf8");
-  const contextBar = readFileSync(join(__dirname, "LocalSelectionContextBar.tsx"), "utf8");
+  const toolbar = readFileSync(join(__dirname, "../selection/SelectionToolbar.tsx"), "utf8");
   const dateHeader = readFileSync(join(__dirname, "LocalDateSectionHeader.tsx"), "utf8");
   const tabs = readFileSync(join(__dirname, "../../app/(tabs)/_layout.tsx"), "utf8");
   const tabBar = readFileSync(join(__dirname, "../navigation/LaneoryTabBar.tsx"), "utf8");
+  const chromeCtx = readFileSync(
+    join(__dirname, "../../context/SelectionTabChromeContext.tsx"),
+    "utf8",
+  );
 
   it("does not show Select in normal mode chrome", () => {
     assert.doesNotMatch(local, /accessibilityLabel="Select files"/);
@@ -48,38 +59,49 @@ describe("Local Library long-press selection", () => {
     assert.match(local, /localSelectionModeAnnouncement/);
   });
 
-  it("context bar sits below date separator; Select all left, X right", () => {
-    assert.match(local, /LocalSelectionContextBar/);
-    assert.match(contextBar, /local-selection-select-all/);
-    assert.match(contextBar, /local-selection-close/);
-    assert.match(contextBar, /Exit selection mode/);
-    assert.match(contextBar, /Select all/);
-    assert.match(contextBar, /accessibilityRole="checkbox"/);
-    assert.match(contextBar, /checked:\s*[\s\S]*mixed/);
-    assert.match(contextBar, /absoluteFillObject/);
+  it("toolbar under date separator has Select all + X only (no count)", () => {
+    assert.match(local, /SelectionToolbar/);
+    assert.match(toolbar, /selection-toolbar-select-all/);
+    assert.match(toolbar, /selection-toolbar-close/);
+    assert.match(toolbar, /Exit selection mode/);
+    assert.match(toolbar, /Select all/);
+    assert.match(toolbar, /accessibilityRole="checkbox"/);
+    assert.match(toolbar, /checked:\s*[\s\S]*mixed/);
+    assert.match(toolbar, /surfaceElevated/);
+    assert.doesNotMatch(toolbar, /localSelectedCountLabel/);
+    assert.doesNotMatch(toolbar, /\{localSelectedCountLabel/);
+    assert.doesNotMatch(toolbar, /1 selected|0 selected|\$\{selectedCount\} selected/);
     assert.equal(selectAllCheckState(0, 5), "unchecked");
     assert.equal(selectAllCheckState(2, 5), "indeterminate");
     assert.equal(selectAllCheckState(5, 5), "checked");
-    assert.ok(LOCAL_SELECTION_CONTEXT_ANIM_MS >= 180 && LOCAL_SELECTION_CONTEXT_ANIM_MS <= 220);
+    assert.ok(SELECTION_TOOLBAR_ANIM_MS >= 180 && SELECTION_TOOLBAR_ANIM_MS <= 220);
+    assert.equal(LOCAL_SELECTION_CONTEXT_ANIM_MS, SELECTION_TOOLBAR_ANIM_MS);
 
-    const stickyIdx = local.indexOf("library-sticky-date-header") >= 0
-      ? local.indexOf("local-sticky-date-header")
-      : local.indexOf("local-sticky-date-header");
-    const contextIdx = local.indexOf("<LocalSelectionContextBar");
-    assert.ok(stickyIdx > 0 && contextIdx > stickyIdx);
+    const stickyIdx = local.indexOf("local-sticky-date-header");
+    const toolbarIdx = local.indexOf("<SelectionToolbar");
+    assert.ok(stickyIdx > 0 && toolbarIdx > stickyIdx);
     assert.doesNotMatch(local, /SelectionActionBand|local-selection-action-band/);
   });
 
-  it("Delete replaces tab bar via SelectionTabChrome; not in list content", () => {
-    assert.match(local, /setChrome/);
+  it("Delete chrome persists via selectionModeActive; idle tabs never clearChrome", () => {
+    assert.match(local, /clearChromeIf\("local-delete"\)/);
     assert.match(local, /kind:\s*"local-delete"/);
+    assert.match(local, /if \(!selecting\) return;/);
+    assert.doesNotMatch(local, /if \(!selecting\) \{\s*setChrome\(null\)/);
+    assert.match(chromeCtx, /clearChromeIf/);
+    assert.match(chromeCtx, /selectionModeActive/);
+    assert.match(tabBar, /selectionModeActive/);
+    assert.match(tabBar, /\[selectionModeActive, progress, reduceMotion\]/);
+    assert.doesNotMatch(tabBar, /\[chrome, progress, reduceMotion\]/);
     assert.match(tabs, /SelectionTabChromeProvider/);
     assert.match(tabs, /LaneoryTabBar/);
-    assert.match(tabBar, /selection-tab-delete/);
-    assert.match(tabBar, /TAB_BAR_CONTENT_HEIGHT/);
+    assert.match(tabBar, /selection-tab-delete-bar/);
     assert.match(tabBar, /accessibilityElementsHidden=\{tabsHidden\}/);
     assert.match(tabBar, /pointerEvents=\{tabsHidden \? "none"/);
-    assert.doesNotMatch(local, /testID="local-selection-action-band"/);
+    assert.ok(SELECTION_TAB_ANIM_MS >= 200 && SELECTION_TAB_ANIM_MS <= 250);
+    assert.equal(localDeleteCtaLabel(0), "Delete · 0 selected");
+    assert.equal(localDeleteCtaLabel(3), "Delete · 3 selected");
+    assert.equal(localDeleteCtaLabel(1, true), "Deleting…");
   });
 
   it("date separator keeps Sort only on sticky header", () => {
@@ -107,9 +129,12 @@ describe("Local Library long-press selection", () => {
     assert.match(card, /accessibilityState=\{selecting \? \{ selected, checked: selected \}/);
   });
 
-  it("announces selection labels", () => {
+  it("announces selection labels; count lives on Delete CTA", () => {
     assert.equal(localSelectedCountLabel(1), "1 selected");
     assert.equal(localSelectedCountLabel(3), "3 selected");
     assert.match(localSelectionModeAnnouncement(1), /Selection mode/);
+    assert.equal(libraryDownloadCtaLabel(3, "1.09 GB"), "Download · 3 selected · 1.09 GB");
+    assert.equal(sumKnownSelectedBytes([{ sizeBytes: 100 }, { sizeBytes: 0 }]), null);
+    assert.equal(sumKnownSelectedBytes([{ sizeBytes: 100 }, { sizeBytes: 50 }]), 150);
   });
 });

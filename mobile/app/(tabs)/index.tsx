@@ -1,5 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useBottomTabBarHeight } from "@react-navigation/bottom-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import { router, useNavigation } from "expo-router";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
@@ -59,7 +60,6 @@ import {
 } from "@/components/camera/remoteDownloadState";
 import { LOCAL_ACTION_HIT, LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
 import { LocalDateSectionHeader } from "@/components/local/LocalDateSectionHeader";
-import { LocalSelectionContextBar } from "@/components/local/LocalSelectionContextBar";
 import { localSortBarLabel } from "@/components/local/localLibrarySelection";
 import { selectAllFilteredA11yLabel } from "@/components/local/localCopy";
 import {
@@ -70,10 +70,14 @@ import {
   libraryCancelActionLabel,
   libraryCancelConfirmMessage,
   libraryCancelConfirmTitle,
-  libraryDownloadActionLabel,
-  libraryDownloadA11yLabel,
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
+import { SelectionToolbar } from "@/components/selection/SelectionToolbar";
+import {
+  libraryDownloadCtaA11yLabel,
+  libraryDownloadCtaLabel,
+  sumKnownSelectedBytes,
+} from "@/components/selection/selectionLabels";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
@@ -118,7 +122,7 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const tabBarHeight = useBottomTabBarHeight();
-  const { setChrome } = useSelectionTabChrome();
+  const { setChrome, clearChromeIf } = useSelectionTabChrome();
   const {
     files,
     queueItems,
@@ -338,15 +342,21 @@ export default function LibraryScreen() {
     setSelecting(false);
     setSelected(new Set());
     setCancelConfirmOpen(false);
-    setChrome(null);
-  }, [cameraLinkState, setChrome]);
+    clearChromeIf("library-download");
+  }, [cameraLinkState, clearChromeIf]);
 
   const exitSelection = useCallback(() => {
     setSelecting(false);
     setSelected(new Set());
     setCancelConfirmOpen(false);
-    setChrome(null);
-  }, [setChrome]);
+    clearChromeIf("library-download");
+  }, [clearChromeIf]);
+
+  useEffect(() => {
+    return () => {
+      clearChromeIf("library-download");
+    };
+  }, [clearChromeIf]);
 
   useEffect(() => {
     if (!selecting) return undefined;
@@ -356,6 +366,14 @@ export default function LibraryScreen() {
     });
     return () => sub.remove();
   }, [selecting, exitSelection]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        exitSelection();
+      };
+    }, [exitSelection]),
+  );
 
   const toggleSelect = useCallback((path: string) => {
     setSelected((prev) => {
@@ -579,66 +597,32 @@ export default function LibraryScreen() {
     }
   }, [batchBusy, selectionBreakdown.cancelEligible, cancelDownload, exitSelection]);
 
+  // Own chrome only while selecting — never clear a sibling tab's chrome when idle.
   useEffect(() => {
-    if (!selecting) {
-      setChrome(null);
-      return;
-    }
-    const actions = [];
-    if (selected.size > 0 && selectionBreakdown.downloadEligibleCount > 0) {
-      actions.push({
-        key: "download",
-        tone: "brand" as const,
-        icon: "cloud-download-outline" as const,
-        label: libraryDownloadActionLabel(
-          selectionBreakdown.downloadEligibleCount,
-          formatMediaSizeMbGb(
-            selectionBreakdown.downloadEligible.reduce((n, f) => n + f.sizeBytes, 0),
-          ),
-          selected.size,
-        ),
-        accessibilityLabel: libraryDownloadA11yLabel(
-          selectionBreakdown.downloadEligibleCount,
-          selected.size,
-        ),
-        accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
-        onPress: () => void runBatchDownload(),
-        disabled: batchBusy,
-        busy: batchBusy,
-      });
-    }
-    if (selected.size > 0 && selectionBreakdown.cancelEligibleCount > 0) {
-      actions.push({
-        key: "cancel",
-        tone: "warn" as const,
-        icon: "close-circle-outline" as const,
-        label: libraryCancelActionLabel(
-          selectionBreakdown.cancelEligibleCount,
-          selectionBreakdown.downloadEligibleCount > 0,
-        ),
-        accessibilityLabel: libraryCancelActionLabel(
-          selectionBreakdown.cancelEligibleCount,
-        ),
-        accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
-        onPress: () => setCancelConfirmOpen(true),
-        disabled: batchBusy,
-      });
-    }
+    if (!selecting) return;
+    const knownBytes = sumKnownSelectedBytes(selectedFiles);
+    const sizeLabel =
+      knownBytes === null ? null : formatMediaSizeMbGb(knownBytes);
+    const canDownload =
+      selected.size > 0 && selectionBreakdown.downloadEligibleCount > 0;
     setChrome({
-      kind: "library-actions",
+      kind: "library-download",
       selectedCount: selected.size,
-      actions,
-      mutedMessage:
-        selected.size === 0
-          ? "Select recordings"
-          : actions.length === 0
-            ? "Already downloaded"
-            : undefined,
+      label: libraryDownloadCtaLabel(selected.size, sizeLabel, batchBusy),
+      accessibilityLabel: libraryDownloadCtaA11yLabel(
+        selected.size,
+        sizeLabel,
+        batchBusy,
+      ),
+      onPress: () => void runBatchDownload(),
+      disabled: !canDownload || batchBusy,
+      busy: batchBusy,
     });
   }, [
     selecting,
     selected.size,
-    selectionBreakdown,
+    selectedFiles,
+    selectionBreakdown.downloadEligibleCount,
     batchBusy,
     setChrome,
     runBatchDownload,
@@ -869,7 +853,7 @@ export default function LibraryScreen() {
             </View>
           ) : null}
 
-          <LocalSelectionContextBar
+          <SelectionToolbar
             visible={selecting}
             selectedCount={selected.size}
             filteredCount={filtered.length}
@@ -880,7 +864,7 @@ export default function LibraryScreen() {
               else selectAllFiltered();
             }}
             selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filtered.length)}
-            testID="library-selection-context-bar"
+            testID="library-selection-toolbar"
           />
 
           <FlatList

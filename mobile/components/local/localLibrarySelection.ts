@@ -11,8 +11,8 @@ export const LOCAL_SECTION_SORT_HIT_SLOP = {
   right: 10,
 } as const;
 
-/** Context bar appear/dismiss duration (ms). */
-export const LOCAL_SELECTION_CONTEXT_ANIM_MS = 200;
+/** @deprecated Prefer SELECTION_TOOLBAR_ANIM_MS from selectionLabels */
+export { SELECTION_TOOLBAR_ANIM_MS as LOCAL_SELECTION_CONTEXT_ANIM_MS } from "@/components/selection/selectionLabels";
 
 export type SelectAllCheckState = "unchecked" | "indeterminate" | "checked";
 

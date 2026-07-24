@@ -31,6 +31,8 @@ export interface ThemeColors {
   readonly successSoft: string;
   readonly danger: string;
   readonly dangerSoft: string;
+  /** Text/icon on solid danger fill — WCAG contrast vs `danger`. */
+  readonly onDanger: string;
   readonly warn: string;
   readonly warnSoft: string;
 }
@@ -59,6 +61,7 @@ const light: ThemeColors = {
   successSoft: "#e8f5ec",
   danger: "#b42318",
   dangerSoft: "#fce5e2",
+  onDanger: "#ffffff",
   warn: "#8a6418",
   warnSoft: "#fff7e8",
 };
@@ -87,6 +90,7 @@ const dark: ThemeColors = {
   successSoft: "rgba(74, 222, 128, 0.14)",
   danger: "#f87171",
   dangerSoft: "rgba(248, 113, 113, 0.14)",
+  onDanger: "#450a0a",
   warn: "#fbbf24",
   warnSoft: "rgba(250, 204, 21, 0.12)",
 };

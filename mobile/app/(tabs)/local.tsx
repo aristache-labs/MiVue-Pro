@@ -39,7 +39,6 @@ import {
 } from "@/components/local/localCopy";
 import { LocalDateSectionHeader } from "@/components/local/LocalDateSectionHeader";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
-import { LocalSelectionContextBar } from "@/components/local/LocalSelectionContextBar";
 import {
   localSelectedCountLabel,
   localSelectionModeAnnouncement,
@@ -83,6 +82,11 @@ import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
+import { SelectionToolbar } from "@/components/selection/SelectionToolbar";
+import {
+  localDeleteCtaA11yLabel,
+  localDeleteCtaLabel,
+} from "@/components/selection/selectionLabels";
 import { useSelectionTabChrome } from "@/context/SelectionTabChromeContext";
 import {
   backToTopListBottomPadding,
@@ -103,7 +107,7 @@ export default function LocalLibraryScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation();
-  const { setChrome } = useSelectionTabChrome();
+  const { setChrome, clearChromeIf } = useSelectionTabChrome();
   const {
     localFiles,
     refreshLocalFiles,
@@ -253,8 +257,8 @@ export default function LocalLibraryScreen() {
     setSelecting(false);
     setSelected(new Set());
     setDeleteConfirmOpen(false);
-    setChrome(null);
-  }, [setChrome]);
+    clearChromeIf("local-delete");
+  }, [clearChromeIf]);
 
   const enterSelection = useCallback(
     (uri: string) => {
@@ -265,23 +269,25 @@ export default function LocalLibraryScreen() {
     [],
   );
 
+  // Own chrome only while selecting — never clear a sibling tab's chrome when idle.
   useEffect(() => {
-    if (!selecting) {
-      setChrome(null);
-      return;
-    }
+    if (!selecting) return;
     setChrome({
       kind: "local-delete",
       selectedCount: selected.size,
-      onDelete: () => setDeleteConfirmOpen(true),
-      deleteDisabled: selected.size === 0 || deleting,
-      deleteBusy: deleting,
-      deleteAccessibilityLabel:
-        selected.size === 0
-          ? "Delete"
-          : `Delete ${selected.size} selected ${selected.size === 1 ? "item" : "items"}`,
+      label: localDeleteCtaLabel(selected.size, deleting),
+      accessibilityLabel: localDeleteCtaA11yLabel(selected.size, deleting),
+      onPress: () => setDeleteConfirmOpen(true),
+      disabled: selected.size === 0 || deleting,
+      busy: deleting,
     });
   }, [selecting, selected.size, deleting, setChrome]);
+
+  useEffect(() => {
+    return () => {
+      clearChromeIf("local-delete");
+    };
+  }, [clearChromeIf]);
 
   useEffect(() => {
     if (!selecting) return undefined;
@@ -664,7 +670,7 @@ export default function LocalLibraryScreen() {
           </View>
         ) : null}
 
-        <LocalSelectionContextBar
+        <SelectionToolbar
           visible={selecting}
           selectedCount={selected.size}
           filteredCount={filteredFiles.length}
@@ -675,6 +681,7 @@ export default function LocalLibraryScreen() {
             else selectAllFiltered();
           }}
           selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filteredFiles.length)}
+          testID="local-selection-toolbar"
         />
 
         <FlatList

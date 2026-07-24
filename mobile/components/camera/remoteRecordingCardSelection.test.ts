@@ -37,19 +37,11 @@ describe("Library selection-mode card content consistency", () => {
     assert.match(card, /testID=\{selecting \? "library-selection-card"/);
   });
 
-  it("keeps CompactDownloadAction visible with inert status in selection mode", () => {
+  it("hides CompactDownloadAction entirely in selection mode", () => {
     assert.match(card, /<CompactDownloadAction/);
-    assert.match(card, /inert=\{selecting\}/);
-    assert.doesNotMatch(card, /actions=\{!selecting/);
-    assert.doesNotMatch(card, /actions=\{\s*selecting\s*\?/);
+    assert.match(card, /actions=\{\s*selecting \? undefined/);
+    assert.doesNotMatch(card, /inert=\{selecting\}/);
     assert.match(action, /readonly inert\?:/);
-    assert.match(action, /if \(inert\)/);
-    assert.match(action, /pointerEvents="none"/);
-    assert.match(action, /accessibilityElementsHidden/);
-    assert.match(action, /importantForAccessibility="no-hide-descendants"/);
-    assert.match(action, /Downloaded/);
-    assert.match(action, /cloud-done-outline/);
-    assert.match(action, /inert \? \(/);
   });
 
   it("uses one outer Pressable for tap/long-press like Local (no nested thumb/body presses)", () => {
@@ -102,7 +94,10 @@ describe("Library selection-mode card content consistency", () => {
   it("does not change FlatList sticky-date, eligibility, or cancel contracts", () => {
     assert.match(index, /stickySectionKeyFromViewableItems/);
     assert.match(index, /classifyLibrarySelection/);
-    assert.match(index, /kind:\s*"library-actions"/);
+    assert.match(index, /kind:\s*"library-download"/);
+    assert.match(index, /clearChromeIf\("library-download"\)/);
+    assert.match(index, /if \(!selecting\) return;/);
+    assert.doesNotMatch(index, /if \(!selecting\) \{\s*setChrome\(null\)/);
     assert.match(index, /initialNumToRender=\{LIBRARY_LIST_VIRTUALIZATION\.initialNumToRender\}/);
     assert.match(selection, /classifyLibrarySelection/);
     assert.match(selection, /isCancellableQueueStatus/);

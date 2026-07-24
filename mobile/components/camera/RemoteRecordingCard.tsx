@@ -208,12 +208,13 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
           ) : null
         }
         actions={
-          <CompactDownloadAction
-            fileName={file.name}
-            state={downloadState}
-            onPress={onAction}
-            inert={selecting}
-          />
+          selecting ? undefined : (
+            <CompactDownloadAction
+              fileName={file.name}
+              state={downloadState}
+              onPress={onAction}
+            />
+          )
         }
       />
     </Pressable>

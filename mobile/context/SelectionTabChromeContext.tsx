@@ -7,36 +7,25 @@ import {
   type ReactNode,
 } from "react";
 
-export type SelectionTabChromeKind = "local-delete" | "library-actions";
-
-export interface LibraryTabAction {
-  readonly key: string;
-  readonly tone: "brand" | "warn" | "danger";
-  readonly icon: "cloud-download-outline" | "close-circle-outline" | "trash-outline";
-  readonly label: string;
-  readonly accessibilityLabel: string;
-  readonly accessibilityHint?: string;
-  readonly onPress: () => void;
-  readonly disabled?: boolean;
-  readonly busy?: boolean;
-}
+export type SelectionTabChromeKind = "local-delete" | "library-download";
 
 export interface SelectionTabChromeState {
   readonly kind: SelectionTabChromeKind;
   readonly selectedCount: number;
-  /** Local delete */
-  readonly onDelete?: () => void;
-  readonly deleteDisabled?: boolean;
-  readonly deleteBusy?: boolean;
-  readonly deleteAccessibilityLabel?: string;
-  /** Library bulk actions */
-  readonly actions?: readonly LibraryTabAction[];
-  readonly mutedMessage?: string;
+  readonly label: string;
+  readonly accessibilityLabel: string;
+  readonly onPress: () => void;
+  readonly disabled: boolean;
+  readonly busy: boolean;
 }
 
 interface SelectionTabChromeContextValue {
   readonly chrome: SelectionTabChromeState | null;
+  /** True while any screen owns selection chrome. */
+  readonly selectionModeActive: boolean;
   readonly setChrome: (next: SelectionTabChromeState | null) => void;
+  /** Clear only if the active chrome belongs to this kind (inactive tabs must not steal). */
+  readonly clearChromeIf: (kind: SelectionTabChromeKind) => void;
 }
 
 const SelectionTabChromeContext = createContext<SelectionTabChromeContextValue | null>(
@@ -48,7 +37,18 @@ export function SelectionTabChromeProvider({ children }: { readonly children: Re
   const setChrome = useCallback((next: SelectionTabChromeState | null) => {
     setChromeState(next);
   }, []);
-  const value = useMemo(() => ({ chrome, setChrome }), [chrome, setChrome]);
+  const clearChromeIf = useCallback((kind: SelectionTabChromeKind) => {
+    setChromeState((prev) => (prev?.kind === kind ? null : prev));
+  }, []);
+  const value = useMemo(
+    () => ({
+      chrome,
+      selectionModeActive: chrome !== null,
+      setChrome,
+      clearChromeIf,
+    }),
+    [chrome, setChrome, clearChromeIf],
+  );
   return (
     <SelectionTabChromeContext.Provider value={value}>
       {children}

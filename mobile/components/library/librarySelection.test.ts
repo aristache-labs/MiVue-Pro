@@ -101,34 +101,40 @@ describe("librarySelection helpers", () => {
     assert.equal(isCancellableQueueStatus("completed"), false);
   });
 
-  it("Library screen wires long-press selection and compact chrome", () => {
+  it("Library screen wires long-press selection and persistent Download chrome", () => {
     const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
     const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
     const card = readFileSync(join(__dirname, "../camera/RemoteRecordingCard.tsx"), "utf8");
     const tabs = readFileSync(join(__dirname, "../../app/(tabs)/_layout.tsx"), "utf8");
+    const toolbar = readFileSync(join(__dirname, "../selection/SelectionToolbar.tsx"), "utf8");
     assert.doesNotMatch(index, /accessibilityLabel="Select recordings"/);
     assert.doesNotMatch(index, /LibraryListControls/);
     assert.doesNotMatch(index, /SelectionActionBand/);
     assert.match(index, /library-header-filters/);
     assert.match(index, /LocalDateSectionHeader/);
-    assert.match(index, /LocalSelectionContextBar/);
-    assert.match(index, /kind:\s*"library-actions"/);
+    assert.match(index, /SelectionToolbar/);
+    assert.match(index, /kind:\s*"library-download"/);
+    assert.match(index, /clearChromeIf\("library-download"\)/);
     assert.match(index, /setChrome/);
     assert.match(index, /enterSelectionWith/);
     assert.match(index, /BackHandler\.addEventListener\("hardwareBackPress"/);
+    assert.match(index, /useFocusEffect/);
     assert.match(tabs, /LaneoryTabBar/);
     assert.match(tabs, /SelectionTabChromeProvider/);
     assert.match(local, /kind:\s*"local-delete"/);
     assert.doesNotMatch(local, /SelectionActionBand/);
+    assert.match(toolbar, /surfaceElevated/);
+    assert.doesNotMatch(toolbar, /localSelectedCountLabel/);
 
     const stickyIdx = index.indexOf("library-sticky-date-header");
-    const contextIdx = index.indexOf('testID="library-selection-context-bar"');
-    assert.ok(stickyIdx > 0 && contextIdx > stickyIdx);
+    const toolbarIdx = index.indexOf('testID="library-selection-toolbar"');
+    assert.ok(stickyIdx > 0 && toolbarIdx > stickyIdx);
 
     assert.match(card, /delayLongPress=\{LOCAL_LONG_PRESS_MS\}/);
     assert.match(card, /suppressPressRef/);
     assert.match(card, /onLongPressSelect/);
     assert.match(card, /Long press to select/);
+    assert.match(card, /selecting \? undefined/);
     assert.doesNotMatch(index, /cameraMutate|format SD|del\?/i);
   });
 });
