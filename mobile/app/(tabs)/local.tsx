@@ -37,6 +37,7 @@ import {
   deleteLocalTitle,
   selectAllFilteredA11yLabel,
 } from "@/components/local/localCopy";
+import { LocalDateSectionHeader } from "@/components/local/LocalDateSectionHeader";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
 import { LocalSelectionContextBar } from "@/components/local/LocalSelectionContextBar";
 import {
@@ -75,7 +76,6 @@ import {
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import { LibraryCategoryTabs } from "@/components/library/LibraryCategoryTabs";
-import { LibraryListControls } from "@/components/library/LibraryListControls";
 import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
@@ -350,25 +350,9 @@ export default function LocalLibraryScreen() {
 
   const renderSectionBreak = useCallback(
     (row: LocalLibraryFileRow) => (
-      <View
-        collapsable={false}
-        style={[
-          styles.sectionHeader,
-          {
-            backgroundColor: colors.bg,
-            borderBottomColor: colors.border,
-          },
-        ]}
-      >
-        <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {row.sectionTitle}
-        </Text>
-        <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-          {row.sectionCountLabel}
-        </Text>
-      </View>
+      <LocalDateSectionHeader title={row.sectionTitle} countLabel={row.sectionCountLabel} />
     ),
-    [colors.bg, colors.border, colors.textMuted],
+    [],
   );
 
   const renderItem = useCallback(
@@ -432,11 +416,65 @@ export default function LocalLibraryScreen() {
   }, [selectedFiles, deleting, deleteLocalFilesBatch, exitSelection]);
 
   useLayoutEffect(() => {
+    const filtersDisabled = selecting;
+    const filtersActive = activeGroups > 0;
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
           title="Local library"
-          left={<View style={{ width: LOCAL_ACTION_HIT }} />}
+          left={
+            <Pressable
+              onPress={() => {
+                if (filtersDisabled) return;
+                setFilterOpen(true);
+              }}
+              disabled={filtersDisabled}
+              accessibilityRole="button"
+              accessibilityLabel="Filters"
+              accessibilityHint="Opens Local Library filters"
+              accessibilityState={{ disabled: filtersDisabled, selected: filtersActive }}
+              accessibilityValue={
+                filtersActive ? { text: `${activeGroups} active` } : undefined
+              }
+              hitSlop={HitSlop44}
+              style={({ pressed }) => [
+                styles.headerIconBtn,
+                {
+                  opacity: filtersDisabled ? 0.4 : pressed ? 0.65 : 1,
+                },
+              ]}
+              testID="local-header-filters"
+            >
+              <Ionicons
+                name="options-outline"
+                size={22}
+                color={
+                  filtersDisabled
+                    ? colors.textMuted
+                    : filtersActive
+                      ? colors.brand
+                      : colors.textMuted
+                }
+              />
+              {filtersActive ? (
+                activeGroups > 1 ? (
+                  <View
+                    pointerEvents="none"
+                    style={[styles.filterBadge, { backgroundColor: colors.brand }]}
+                  >
+                    <Text style={[styles.filterBadgeText, { color: colors.onBrand }]}>
+                      {activeGroups > 99 ? "99+" : String(activeGroups)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    pointerEvents="none"
+                    style={[styles.filterDot, { backgroundColor: colors.brand }]}
+                  />
+                )
+              ) : null}
+            </Pressable>
+          }
           right={
             <Pressable
               onPress={() => void runRefresh()}
@@ -460,7 +498,7 @@ export default function LocalLibraryScreen() {
         />
       ),
     });
-  }, [navigation, selecting, refreshing, colors, runRefresh]);
+  }, [navigation, selecting, refreshing, colors, runRefresh, activeGroups]);
 
   const emptyLibrary = localFiles.length === 0;
   const emptyFiltered = !emptyLibrary && filteredFiles.length === 0;
@@ -532,22 +570,6 @@ export default function LocalLibraryScreen() {
         testID="local-category-row"
       />
 
-      <LibraryListControls
-        activeFilterCount={activeGroups}
-        sortActive={sort !== "newest"}
-        sortLabel={localSortBarLabel(sort)}
-        onPressFilters={() => {
-          if (selecting) return;
-          setFilterOpen(true);
-        }}
-        onPressSort={() => {
-          if (selecting) return;
-          setSortOpen(true);
-        }}
-        disabled={selecting}
-        testID="local-list-controls"
-      />
-
       {!isFiltersEmpty(filters) ? (
         <View
           style={[
@@ -615,24 +637,19 @@ export default function LocalLibraryScreen() {
 
       <View style={styles.list}>
         {stickySection && listRows.length > 0 ? (
-          <View
-            collapsable={false}
-            pointerEvents="none"
-            style={[
-              styles.sectionHeader,
-              styles.stickyOverlay,
-              {
-                backgroundColor: colors.bg,
-                borderBottomColor: colors.border,
-              },
-            ]}
-          >
-            <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-              {stickySection.title}
-            </Text>
-            <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-              {stickySection.countLabel}
-            </Text>
+          <View style={[styles.stickyOverlay, { backgroundColor: colors.bg }]}>
+            <LocalDateSectionHeader
+              title={stickySection.title}
+              countLabel={stickySection.countLabel}
+              showSort
+              sortDisabled={selecting}
+              sortValueLabel={localSortBarLabel(sort)}
+              onPressSort={() => {
+                if (selecting) return;
+                setSortOpen(true);
+              }}
+              testID="local-sticky-date-header"
+            />
           </View>
         ) : null}
 
@@ -914,6 +931,30 @@ const styles = StyleSheet.create({
     height: LOCAL_ACTION_HIT,
     alignItems: "center",
     justifyContent: "center",
+  },
+  filterDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  filterBadge: {
+    position: "absolute",
+    top: 4,
+    right: 2,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  filterBadgeText: {
+    fontSize: 9,
+    lineHeight: 10,
+    fontFamily: Type.fontBold,
   },
   chipsBlock: { paddingBottom: 4 },
   chipsRow: { paddingHorizontal: 16, gap: 8, alignItems: "center", paddingVertical: 6 },

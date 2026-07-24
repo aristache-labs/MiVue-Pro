@@ -55,6 +55,16 @@ export function formatCountLabel(count: number): string {
   return count === 1 ? "1 file" : `${count} files`;
 }
 
+/** Sticky / section heading: `THURSDAY, 23 JULY 2026 · 15 files`. */
+export function formatLocalDateCountLabel(title: string, countLabel: string): string {
+  return `${title} · ${countLabel}`;
+}
+
+/** Spoken label for date section (title already uppercase). */
+export function localDateSectionA11yLabel(title: string, countLabel: string): string {
+  return `${title}, ${countLabel}`;
+}
+
 /** Compact card line: `19 Jul 2026 · 13:50` (en-GB). */
 export function formatCompactDateTime(name: string): string | undefined {
   const parts = parseRecordedParts(name);

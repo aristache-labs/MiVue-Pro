@@ -9,34 +9,35 @@ import {
   localSelectionModeAnnouncement,
   localSortBarLabel,
 } from "./localLibrarySelection";
+import {
+  formatCountLabel,
+  formatLocalDateCountLabel,
+  localDateSectionA11yLabel,
+} from "./localLibrarySections";
 
 describe("Local Library long-press selection", () => {
   const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
   const card = readFileSync(join(__dirname, "LocalLibraryCard.tsx"), "utf8");
-  const controls = readFileSync(
-    join(__dirname, "../library/LibraryListControls.tsx"),
-    "utf8",
-  );
   const contextBar = readFileSync(join(__dirname, "LocalSelectionContextBar.tsx"), "utf8");
+  const dateHeader = readFileSync(join(__dirname, "LocalDateSectionHeader.tsx"), "utf8");
 
   it("does not show Select in normal mode chrome", () => {
     assert.doesNotMatch(local, /accessibilityLabel="Select files"/);
     assert.doesNotMatch(local, />\s*Select\s*</);
-    assert.match(local, /left=\{<View style=\{\{ width: LOCAL_ACTION_HIT \}\} \/>\}/);
     assert.match(local, /title="Local library"/);
     assert.doesNotMatch(local, /if \(selecting\) \{[\s\S]*title=\{localSelectedCountLabel/);
   });
 
-  it("Filters/Newest reuses LibraryListControls full-width halves", () => {
-    assert.match(local, /LibraryListControls/);
-    assert.match(local, /sortLabel=\{localSortBarLabel\(sort\)\}/);
-    assert.match(local, /sortActive=\{sort !== "newest"\}/);
-    assert.match(local, /testID="local-list-controls"/);
-    assert.doesNotMatch(local, /LocalLibraryUtilityBar/);
-    assert.match(controls, /styles\.half/);
-    assert.match(controls, /flex:\s*1/);
-    assert.match(controls, /LIBRARY_LIST_CONTROLS_HEIGHT = 48/);
-    assert.match(controls, /sortLabel/);
+  it("Filters icon lives in header; Filters/Newest bar is gone", () => {
+    assert.doesNotMatch(local, /LibraryListControls/);
+    assert.doesNotMatch(local, /local-list-controls/);
+    assert.doesNotMatch(local, />\s*Filters\s*</);
+    assert.match(local, /testID="local-header-filters"/);
+    assert.match(local, /accessibilityLabel="Filters"/);
+    assert.match(local, /Opens Local Library filters/);
+    assert.match(local, /options-outline/);
+    assert.match(local, /styles\.headerIconBtn/);
+    assert.match(local, /filterDot|filterBadge/);
     assert.equal(localSortBarLabel("newest"), "Newest");
   });
 
@@ -60,11 +61,43 @@ describe("Local Library long-press selection", () => {
     assert.match(card, /name: "select"/);
   });
 
-  it("navigation header stays Local library; Refresh disabled while selecting", () => {
+  it("navigation header stays Local library; Filters and Refresh disable while selecting", () => {
     assert.match(local, /title="Local library"/);
     assert.match(local, /disabled=\{refreshing \|\| selecting\}/);
+    assert.match(local, /const filtersDisabled = selecting/);
     assert.match(local, /accessibilityState=\{\{ busy: refreshing, disabled: refreshing \|\| selecting \}\}/);
     assert.doesNotMatch(local, /Close selection[\s\S]{0,200}TabScreenHeader|TabScreenHeader[\s\S]{0,200}Select all/);
+  });
+
+  it("date separator shows Date · files with Sort only on sticky header", () => {
+    assert.match(local, /LocalDateSectionHeader/);
+    assert.match(local, /showSort/);
+    assert.match(local, /sortDisabled=\{selecting\}/);
+    assert.match(local, /setSortOpen\(true\)/);
+    assert.match(dateHeader, /swap-vertical-outline/);
+    assert.match(dateHeader, />\s*Sort\s*</);
+    assert.doesNotMatch(dateHeader, /Newest/);
+    assert.match(dateHeader, /accessibilityLabel="Sort files"/);
+    assert.match(dateHeader, /Currently sorted by/);
+    assert.match(dateHeader, /minWidth: LOCAL_ACTION_HIT/);
+    assert.match(dateHeader, /minHeight: LOCAL_ACTION_HIT/);
+    assert.equal(formatCountLabel(1), "1 file");
+    assert.equal(formatCountLabel(15), "15 files");
+    assert.equal(
+      formatLocalDateCountLabel("THURSDAY, 23 JULY 2026", "15 files"),
+      "THURSDAY, 23 JULY 2026 · 15 files",
+    );
+    assert.match(localDateSectionA11yLabel("THURSDAY, 23 JULY 2026", "15 files"), /15 files/);
+
+    const stickySort = local.indexOf("showSort");
+    const sectionBreak = local.indexOf("renderSectionBreak");
+    assert.ok(stickySort > 0);
+    assert.match(local, /renderSectionBreak[\s\S]*LocalDateSectionHeader title=\{row\.sectionTitle\}/);
+    assert.doesNotMatch(
+      local,
+      /renderSectionBreak[\s\S]{0,200}showSort/,
+    );
+    assert.ok(sectionBreak > 0);
   });
 
   it("contextual bar sits above date separator with centered count", () => {
@@ -84,12 +117,6 @@ describe("Local Library long-press selection", () => {
     const stickyIdx = local.indexOf("styles.stickyOverlay");
     const deleteIdx = local.indexOf('testID="local-selection-action-band"');
     assert.ok(contextIdx > 0 && stickyIdx > contextIdx && deleteIdx > stickyIdx);
-  });
-
-  it("date separator stays unchanged without selection controls", () => {
-    assert.match(local, /stickySection\.title/);
-    assert.match(local, /stickySection\.countLabel/);
-    assert.doesNotMatch(local, /stickyOverlay[\s\S]{0,400}Select all|stickyOverlay[\s\S]{0,400}checkbox/);
   });
 
   it("inline Delete under separator; no bulk Share or floating dock", () => {

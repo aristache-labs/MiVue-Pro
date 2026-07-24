@@ -19,6 +19,7 @@ describe("Local Library FlatList sticky overlay wiring", () => {
   it("wires sticky overlay from local viewability and keeps last key on blank viewables", () => {
     assert.match(src, /stickySectionKeyFromLocalViewableItems/);
     assert.match(src, /styles\.stickyOverlay/);
+    assert.match(src, /LocalDateSectionHeader/);
     assert.match(src, /stickySection\.title/);
     assert.match(src, /if \(!nextKey\) return;/);
     assert.match(src, /viewabilityConfig=\{viewabilityConfig\}/);

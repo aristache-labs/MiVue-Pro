@@ -18,26 +18,23 @@ describe("LibraryListControls contracts", () => {
     assert.match(library, /search:\s*""/);
   });
 
-  it("Camera and Local both use LibraryListControls", () => {
+  it("Camera keeps LibraryListControls; Local uses header Filters + section Sort", () => {
     assert.match(library, /LibraryListControls/);
-    assert.match(local, /LibraryListControls/);
-    assert.doesNotMatch(local, /LocalLibraryUtilityBar/);
+    assert.doesNotMatch(local, /LibraryListControls/);
+    assert.match(local, /local-header-filters/);
+    assert.match(local, /LocalDateSectionHeader/);
     assert.match(controls, /Filters/);
-    assert.match(controls, /sortLabel/);
     assert.match(controls, /LIBRARY_LIST_CONTROLS_HEIGHT = 48/);
     assert.match(controls, /styles\.half/);
     assert.match(controls, /flex:\s*1/);
-    const filtersIdx = controls.indexOf('accessibilityLabel="Filters"');
-    const sortIdx = controls.indexOf("sortA11yLabel");
-    assert.ok(filtersIdx > 0 && sortIdx > 0);
   });
 
-  it("Local header has no Select; Filter/Sort live in LibraryListControls", () => {
+  it("Local header has Filters icon and Refresh; no Select", () => {
     assert.match(local, /Refresh local library/);
+    assert.match(local, /accessibilityLabel="Filters"/);
     assert.doesNotMatch(local, /accessibilityLabel="Select files"/);
-    assert.doesNotMatch(local, /headerRightRow[\s\S]*setFilterOpen\(true\)/);
-    assert.match(local, /sortLabel=\{localSortBarLabel\(sort\)\}/);
-    assert.match(local, /disabled=\{selecting\}/);
+    assert.match(local, /setFilterOpen\(true\)/);
+    assert.match(local, /setSortOpen\(true\)/);
   });
 
   it("Library keeps camera connection and wires existing filter/sort handlers", () => {
