@@ -74,7 +74,6 @@ import {
   libraryDownloadA11yLabel,
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
-import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
@@ -82,6 +81,7 @@ import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
+import { useSelectionTabChrome } from "@/context/SelectionTabChromeContext";
 import {
   backToTopListBottomPadding,
   useBackToTop,
@@ -118,6 +118,7 @@ export default function LibraryScreen() {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   const tabBarHeight = useBottomTabBarHeight();
+  const { setChrome } = useSelectionTabChrome();
   const {
     files,
     queueItems,
@@ -225,7 +226,6 @@ export default function LibraryScreen() {
     [selectedFiles, queueItems, localNames, queuePosition],
   );
 
-  const showSelectionBar = selecting;
   const allFilteredSelected =
     selected.size === filtered.length && filtered.length > 0;
   const [activeThumbnailPaths, setActiveThumbnailPaths] = useState(() => new Set<string>());
@@ -338,13 +338,15 @@ export default function LibraryScreen() {
     setSelecting(false);
     setSelected(new Set());
     setCancelConfirmOpen(false);
-  }, [cameraLinkState]);
+    setChrome(null);
+  }, [cameraLinkState, setChrome]);
 
   const exitSelection = useCallback(() => {
     setSelecting(false);
     setSelected(new Set());
     setCancelConfirmOpen(false);
-  }, []);
+    setChrome(null);
+  }, [setChrome]);
 
   useEffect(() => {
     if (!selecting) return undefined;
@@ -577,6 +579,71 @@ export default function LibraryScreen() {
     }
   }, [batchBusy, selectionBreakdown.cancelEligible, cancelDownload, exitSelection]);
 
+  useEffect(() => {
+    if (!selecting) {
+      setChrome(null);
+      return;
+    }
+    const actions = [];
+    if (selected.size > 0 && selectionBreakdown.downloadEligibleCount > 0) {
+      actions.push({
+        key: "download",
+        tone: "brand" as const,
+        icon: "cloud-download-outline" as const,
+        label: libraryDownloadActionLabel(
+          selectionBreakdown.downloadEligibleCount,
+          formatMediaSizeMbGb(
+            selectionBreakdown.downloadEligible.reduce((n, f) => n + f.sizeBytes, 0),
+          ),
+          selected.size,
+        ),
+        accessibilityLabel: libraryDownloadA11yLabel(
+          selectionBreakdown.downloadEligibleCount,
+          selected.size,
+        ),
+        accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
+        onPress: () => void runBatchDownload(),
+        disabled: batchBusy,
+        busy: batchBusy,
+      });
+    }
+    if (selected.size > 0 && selectionBreakdown.cancelEligibleCount > 0) {
+      actions.push({
+        key: "cancel",
+        tone: "warn" as const,
+        icon: "close-circle-outline" as const,
+        label: libraryCancelActionLabel(
+          selectionBreakdown.cancelEligibleCount,
+          selectionBreakdown.downloadEligibleCount > 0,
+        ),
+        accessibilityLabel: libraryCancelActionLabel(
+          selectionBreakdown.cancelEligibleCount,
+        ),
+        accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
+        onPress: () => setCancelConfirmOpen(true),
+        disabled: batchBusy,
+      });
+    }
+    setChrome({
+      kind: "library-actions",
+      selectedCount: selected.size,
+      actions,
+      mutedMessage:
+        selected.size === 0
+          ? "Select recordings"
+          : actions.length === 0
+            ? "Already downloaded"
+            : undefined,
+    });
+  }, [
+    selecting,
+    selected.size,
+    selectionBreakdown,
+    batchBusy,
+    setChrome,
+    runBatchDownload,
+  ]);
+
   const openDownloaded = useCallback(
     (file: RemoteFile) => {
       const local = localFiles.find((f) => f.name === file.name);
@@ -775,21 +842,6 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
-      {selecting ? (
-        <LocalSelectionContextBar
-          selectedCount={selected.size}
-          filteredCount={filtered.length}
-          allSelected={allFilteredSelected}
-          onClose={exitSelection}
-          onToggleSelectAll={() => {
-            if (allFilteredSelected) deselectAll();
-            else selectAllFiltered();
-          }}
-          selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filtered.length)}
-          testID="library-selection-context-bar"
-        />
-      ) : null}
-
       {showSkeleton ? (
         <View style={{ padding: spacing.lg, gap: spacing.sm }}>
           <SkeletonRow />
@@ -817,69 +869,18 @@ export default function LibraryScreen() {
             </View>
           ) : null}
 
-          <SelectionActionBand
-            visible={showSelectionBar}
-            testID="library-selection-action-band"
-            mutedMessage={
-              selected.size === 0
-                ? "Select recordings"
-                : selectionBreakdown.downloadEligibleCount === 0 &&
-                    selectionBreakdown.cancelEligibleCount === 0
-                  ? "Already downloaded"
-                  : undefined
-            }
-            actions={
-              selected.size === 0
-                ? []
-                : [
-                    ...(selectionBreakdown.downloadEligibleCount > 0
-                      ? [
-                          {
-                            key: "download",
-                            tone: "brand" as const,
-                            icon: "cloud-download-outline" as const,
-                            label: libraryDownloadActionLabel(
-                              selectionBreakdown.downloadEligibleCount,
-                              formatMediaSizeMbGb(
-                                selectionBreakdown.downloadEligible.reduce(
-                                  (n, f) => n + f.sizeBytes,
-                                  0,
-                                ),
-                              ),
-                              selected.size,
-                            ),
-                            accessibilityLabel: libraryDownloadA11yLabel(
-                              selectionBreakdown.downloadEligibleCount,
-                              selected.size,
-                            ),
-                            accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
-                            onPress: () => void runBatchDownload(),
-                            disabled: batchBusy,
-                            busy: batchBusy,
-                          },
-                        ]
-                      : []),
-                    ...(selectionBreakdown.cancelEligibleCount > 0
-                      ? [
-                          {
-                            key: "cancel",
-                            tone: "warn" as const,
-                            icon: "close-circle-outline" as const,
-                            label: libraryCancelActionLabel(
-                              selectionBreakdown.cancelEligibleCount,
-                              selectionBreakdown.downloadEligibleCount > 0,
-                            ),
-                            accessibilityLabel: libraryCancelActionLabel(
-                              selectionBreakdown.cancelEligibleCount,
-                            ),
-                            accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
-                            onPress: () => setCancelConfirmOpen(true),
-                            disabled: batchBusy,
-                          },
-                        ]
-                      : []),
-                  ]
-            }
+          <LocalSelectionContextBar
+            visible={selecting}
+            selectedCount={selected.size}
+            filteredCount={filtered.length}
+            allSelected={allFilteredSelected}
+            onClose={exitSelection}
+            onToggleSelectAll={() => {
+              if (allFilteredSelected) deselectAll();
+              else selectAllFiltered();
+            }}
+            selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filtered.length)}
+            testID="library-selection-context-bar"
           />
 
           <FlatList

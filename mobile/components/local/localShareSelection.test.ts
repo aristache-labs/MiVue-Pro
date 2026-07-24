@@ -11,13 +11,12 @@ describe("localShareSelection", () => {
     assert.equal(localDeleteSelectionLabel(3), "Delete local · 3");
   });
 
-  it("Local selection uses inline Delete only; cards keep single-file share", () => {
+  it("Local selection uses tab Delete chrome; cards keep single-file share", () => {
     const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
     const ctx = readFileSync(join(__dirname, "../../context/DemoModeContext.tsx"), "utf8");
-    assert.match(local, /SelectionActionBand/);
-    assert.match(local, /local-selection-action-band/);
-    assert.match(local, /trash-outline/);
-    assert.doesNotMatch(local, /LocalSelectionDock|local-dock-share/);
+    assert.match(local, /kind:\s*"local-delete"/);
+    assert.match(local, /setChrome/);
+    assert.doesNotMatch(local, /SelectionActionBand|local-selection-action-band|local-dock-share/);
     assert.match(local, /shareLocalFile/);
     assert.match(local, /onShare=\{\(f\) => void actionGateRef\.current\(async \(\) => shareLocalFile\(f\)\)\}/);
     assert.doesNotMatch(local, /localShareActionLabel/);

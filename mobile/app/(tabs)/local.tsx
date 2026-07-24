@@ -76,7 +76,6 @@ import {
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import { LibraryCategoryTabs } from "@/components/library/LibraryCategoryTabs";
-import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -84,6 +83,7 @@ import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
+import { useSelectionTabChrome } from "@/context/SelectionTabChromeContext";
 import {
   backToTopListBottomPadding,
   useBackToTop,
@@ -103,6 +103,7 @@ export default function LocalLibraryScreen() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useBottomTabBarHeight();
   const navigation = useNavigation();
+  const { setChrome } = useSelectionTabChrome();
   const {
     localFiles,
     refreshLocalFiles,
@@ -252,13 +253,35 @@ export default function LocalLibraryScreen() {
     setSelecting(false);
     setSelected(new Set());
     setDeleteConfirmOpen(false);
-  }, []);
+    setChrome(null);
+  }, [setChrome]);
 
-  const enterSelection = useCallback((uri: string) => {
-    setSelecting(true);
-    setSelected(new Set([uri]));
-    void AccessibilityInfo.announceForAccessibility(localSelectionModeAnnouncement(1));
-  }, []);
+  const enterSelection = useCallback(
+    (uri: string) => {
+      setSelecting(true);
+      setSelected(new Set([uri]));
+      void AccessibilityInfo.announceForAccessibility(localSelectionModeAnnouncement(1));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!selecting) {
+      setChrome(null);
+      return;
+    }
+    setChrome({
+      kind: "local-delete",
+      selectedCount: selected.size,
+      onDelete: () => setDeleteConfirmOpen(true),
+      deleteDisabled: selected.size === 0 || deleting,
+      deleteBusy: deleting,
+      deleteAccessibilityLabel:
+        selected.size === 0
+          ? "Delete"
+          : `Delete ${selected.size} selected ${selected.size === 1 ? "item" : "items"}`,
+    });
+  }, [selecting, selected.size, deleting, setChrome]);
 
   useEffect(() => {
     if (!selecting) return undefined;
@@ -621,20 +644,6 @@ export default function LocalLibraryScreen() {
         </View>
       ) : null}
 
-      {selecting ? (
-        <LocalSelectionContextBar
-          selectedCount={selected.size}
-          filteredCount={filteredFiles.length}
-          allSelected={allFilteredSelected}
-          onClose={exitSelection}
-          onToggleSelectAll={() => {
-            if (allFilteredSelected) deselectAll();
-            else selectAllFiltered();
-          }}
-          selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filteredFiles.length)}
-        />
-      ) : null}
-
       <View style={styles.list}>
         {stickySection && listRows.length > 0 ? (
           <View style={[styles.stickyOverlay, { backgroundColor: colors.bg }]}>
@@ -655,31 +664,17 @@ export default function LocalLibraryScreen() {
           </View>
         ) : null}
 
-        <SelectionActionBand
+        <LocalSelectionContextBar
           visible={selecting}
-          testID="local-selection-action-band"
-          actions={[
-            {
-              key: "delete",
-              tone: "danger",
-              icon: "trash-outline",
-              label:
-                selected.size > 1
-                  ? `Delete ${selected.size}`
-                  : "Delete",
-              accessibilityLabel:
-                selected.size === 0
-                  ? "Delete"
-                  : deleteLocalA11yLabel(selected.size),
-              accessibilityHint:
-                selected.size === 0
-                  ? "Select files to enable delete"
-                  : "Deletes selected local files from this device",
-              onPress: () => setDeleteConfirmOpen(true),
-              disabled: selected.size === 0 || deleting,
-              busy: deleting,
-            },
-          ]}
+          selectedCount={selected.size}
+          filteredCount={filteredFiles.length}
+          allSelected={allFilteredSelected}
+          onClose={exitSelection}
+          onToggleSelectAll={() => {
+            if (allFilteredSelected) deselectAll();
+            else selectAllFiltered();
+          }}
+          selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filteredFiles.length)}
         />
 
         <FlatList

@@ -102,7 +102,7 @@ describe("Library selection-mode card content consistency", () => {
   it("does not change FlatList sticky-date, eligibility, or cancel contracts", () => {
     assert.match(index, /stickySectionKeyFromViewableItems/);
     assert.match(index, /classifyLibrarySelection/);
-    assert.match(index, /SelectionActionBand/);
+    assert.match(index, /kind:\s*"library-actions"/);
     assert.match(index, /initialNumToRender=\{LIBRARY_LIST_VIRTUALIZATION\.initialNumToRender\}/);
     assert.match(selection, /classifyLibrarySelection/);
     assert.match(selection, /isCancellableQueueStatus/);

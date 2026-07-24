@@ -11,6 +11,20 @@ export const LOCAL_SECTION_SORT_HIT_SLOP = {
   right: 10,
 } as const;
 
+/** Context bar appear/dismiss duration (ms). */
+export const LOCAL_SELECTION_CONTEXT_ANIM_MS = 200;
+
+export type SelectAllCheckState = "unchecked" | "indeterminate" | "checked";
+
+export function selectAllCheckState(
+  selectedCount: number,
+  filteredCount: number,
+): SelectAllCheckState {
+  if (filteredCount <= 0 || selectedCount <= 0) return "unchecked";
+  if (selectedCount >= filteredCount) return "checked";
+  return "indeterminate";
+}
+
 export function localSelectedCountLabel(count: number): string {
   return count === 1 ? "1 selected" : `${count} selected`;
 }
