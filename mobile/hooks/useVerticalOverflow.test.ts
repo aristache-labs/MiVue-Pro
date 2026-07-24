@@ -139,7 +139,7 @@ describe("tab list overflow wiring", () => {
 
   it("Local: overflow or pull-refresh; RefreshControl → runRefresh", () => {
     assert.match(local, /useVerticalOverflow/);
-    assert.match(local, /canPullToRefresh = true/);
+    assert.match(local, /canPullToRefresh = !selecting/);
     assert.match(local, /scrollEnabled=\{listScrollEnabled\(hasOverflow, canPullToRefresh\)\}/);
     assert.match(local, /alwaysBounceVertical=\{listBounceEnabled\(canPullToRefresh\)\}/);
     assert.match(local, /bounces=\{listBounceEnabled\(canPullToRefresh\)\}/);

@@ -8,7 +8,7 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Alert,
-  Animated,
+  BackHandler,
   FlatList,
   Modal,
   Platform,
@@ -37,8 +37,17 @@ import {
   deleteLocalTitle,
   selectAllFilteredA11yLabel,
 } from "@/components/local/localCopy";
-import { localDeleteSelectionLabel } from "@/components/local/localShareSelection";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
+import { LocalLibraryUtilityBar } from "@/components/local/LocalLibraryUtilityBar";
+import { LocalSelectionDock } from "@/components/local/LocalSelectionDock";
+import {
+  LOCAL_SELECTION_DOCK_GAP,
+  LOCAL_SELECTION_DOCK_HEIGHT,
+  localSelectedCountLabel,
+  localSelectionModeAnnouncement,
+  localSortBarLabel,
+} from "@/components/local/localLibrarySelection";
+import { triggerLocalSelectionHaptic } from "@/components/local/localLibrarySelectionHaptic";
 import {
   buildFilterChips,
   clearFilterGroup,
@@ -72,11 +81,6 @@ import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
-import { LibraryListControls } from "@/components/library/LibraryListControls";
-import {
-  SelectionActionBand,
-  SELECTION_ACTION_BAND_H,
-} from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -127,7 +131,6 @@ export default function LocalLibraryScreen() {
 
   const refreshBusyRef = useRef(false);
   const actionGateRef = useRef(createUiActionGate());
-  const deleteBarAnim = useRef(new Animated.Value(0)).current;
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -140,18 +143,8 @@ export default function LocalLibraryScreen() {
     };
   }, []);
 
-  const showDeleteBar = selecting && selected.size > 0;
-
-  useEffect(() => {
-    Animated.timing(deleteBarAnim, {
-      toValue: showDeleteBar ? 1 : 0,
-      duration: reduceMotion ? 0 : 220,
-      useNativeDriver: false,
-    }).start();
-  }, [showDeleteBar, reduceMotion, deleteBarAnim]);
-
-  const selectionBarH = 0;
-  const canPullToRefresh = true;
+  const showSelectionDock = selecting && selected.size > 0;
+  const canPullToRefresh = !selecting;
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
   const {
     hasOverflow: sortHasOverflow,
@@ -266,6 +259,22 @@ export default function LocalLibraryScreen() {
     setDeleteConfirmOpen(false);
   }, []);
 
+  const enterSelection = useCallback((uri: string) => {
+    setSelecting(true);
+    setSelected(new Set([uri]));
+    triggerLocalSelectionHaptic();
+    void AccessibilityInfo.announceForAccessibility(localSelectionModeAnnouncement(1));
+  }, []);
+
+  useEffect(() => {
+    if (!selecting) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      exitSelection();
+      return true;
+    });
+    return () => sub.remove();
+  }, [selecting, exitSelection]);
+
   // Leaving Local Library (tab change / blur) clears selection — no file changes.
   useFocusEffect(
     useCallback(() => {
@@ -277,16 +286,16 @@ export default function LocalLibraryScreen() {
 
   const applyFilters = useCallback(
     (next: LocalLibraryFilters) => {
+      if (selecting) return;
       setFilters(sanitizeLocalFiltersForCategoryScope(next, category));
       setFilterOpen(false);
-      if (selecting) exitSelection();
       const count = filterNormalizedFiles(
         scopeNormalizedFiles(normalized, category),
         sanitizeLocalFiltersForCategoryScope(next, category),
       ).length;
       void AccessibilityInfo.announceForAccessibility(`${count} files found`);
     },
-    [selecting, exitSelection, normalized, category],
+    [selecting, normalized, category],
   );
 
   const runRefresh = useCallback(async () => {
@@ -309,7 +318,7 @@ export default function LocalLibraryScreen() {
       const next = new Set(prev);
       if (next.has(uri)) next.delete(uri);
       else next.add(uri);
-      void AccessibilityInfo.announceForAccessibility(`${next.size} selected`);
+      void AccessibilityInfo.announceForAccessibility(localSelectedCountLabel(next.size));
       return next;
     });
   }, []);
@@ -386,6 +395,7 @@ export default function LocalLibraryScreen() {
             selecting={selecting}
             selected={selected.has(file.uri)}
             onToggleSelect={toggleSelect}
+            onEnterSelection={enterSelection}
             onShare={(f) => void actionGateRef.current(async () => shareLocalFile(f))}
             onDelete={confirmSingleDelete}
           />
@@ -399,6 +409,7 @@ export default function LocalLibraryScreen() {
       selecting,
       selected,
       toggleSelect,
+      enterSelection,
       shareLocalFile,
       confirmSingleDelete,
       renderSectionBreak,
@@ -432,18 +443,16 @@ export default function LocalLibraryScreen() {
       navigation.setOptions({
         header: () => (
           <TabScreenHeader
-            title={`${selected.size} selected`}
+            title={localSelectedCountLabel(selected.size)}
             left={
               <Pressable
                 onPress={exitSelection}
                 accessibilityRole="button"
-                accessibilityLabel="Cancel"
+                accessibilityLabel="Close selection"
                 hitSlop={HitSlop44}
                 style={styles.headerSideBtn}
               >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Cancel
-                </Text>
+                <Ionicons name="close-outline" size={24} color={colors.brand} />
               </Pressable>
             }
             right={
@@ -456,15 +465,27 @@ export default function LocalLibraryScreen() {
                 accessibilityLabel={
                   allSelected ? "Deselect all" : selectAllFilteredA11yLabel(filteredFiles.length)
                 }
+                accessibilityHint={
+                  allSelected
+                    ? "Clears the current selection"
+                    : "Selects all files in the filtered list"
+                }
                 hitSlop={HitSlop44}
                 style={styles.headerSideBtn}
               >
-                <Text
-                  style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
-                  numberOfLines={1}
-                >
-                  {allSelected ? "Deselect all" : "Select all"}
-                </Text>
+                <View style={styles.headerSelectAll}>
+                  <Ionicons
+                    name={allSelected ? "checkbox" : "checkbox-outline"}
+                    size={18}
+                    color={colors.brand}
+                  />
+                  <Text
+                    style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 14 }}
+                    numberOfLines={1}
+                  >
+                    {allSelected ? "Deselect all" : "Select all"}
+                  </Text>
+                </View>
               </Pressable>
             }
           />
@@ -477,23 +498,7 @@ export default function LocalLibraryScreen() {
       header: () => (
         <TabScreenHeader
           title="Local library"
-          left={
-            localFiles.length === 0 ? (
-              <View style={{ width: LOCAL_ACTION_HIT }} />
-            ) : (
-              <Pressable
-                onPress={() => setSelecting(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Select files"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Select
-                </Text>
-              </Pressable>
-            )
-          }
+          left={<View style={{ width: LOCAL_ACTION_HIT }} />}
           right={
             <Pressable
               onPress={() => void runRefresh()}
@@ -522,7 +527,6 @@ export default function LocalLibraryScreen() {
     selecting,
     selected.size,
     filteredFiles.length,
-    localFiles.length,
     refreshing,
     colors,
     exitSelection,
@@ -538,6 +542,10 @@ export default function LocalLibraryScreen() {
     listFilledPad,
     Math.max(spacing.lg, 12),
   );
+
+  const dockReserve = showSelectionDock
+    ? LOCAL_SELECTION_DOCK_HEIGHT + LOCAL_SELECTION_DOCK_GAP + 8
+    : 0;
 
   const backToTopEnabled =
     !filterOpen &&
@@ -560,11 +568,8 @@ export default function LocalLibraryScreen() {
     itemCount: listRows.length,
   });
 
-  const listPadBottom = backToTopListBottomPadding(
-    listRows.length,
-    hasOverflow,
-    listPadBottomBase,
-  );
+  const listPadBottom =
+    backToTopListBottomPadding(listRows.length, hasOverflow, listPadBottomBase) + dockReserve;
 
   const handleListLayout = useCallback(
     (event: Parameters<typeof onViewportLayout>[0]) => {
@@ -592,23 +597,30 @@ export default function LocalLibraryScreen() {
         selectedId={category}
         counts={categoryCounts}
         onSelect={(id) => {
+          if (selecting) return;
           setCategory(id);
-          if (selecting) exitSelection();
         }}
+        disabled={selecting}
         testID="local-category-row"
       />
 
-      <LibraryListControls
+      <LocalLibraryUtilityBar
         activeFilterCount={activeGroups}
-        sortActive={sort !== "newest"}
+        sortLabel={localSortBarLabel(sort)}
         onPressFilters={() => setFilterOpen(true)}
         onPressSort={() => setSortOpen(true)}
         disabled={selecting}
-        testID="local-list-controls"
+        testID="local-utility-bar"
       />
 
       {!isFiltersEmpty(filters) ? (
-        <View style={styles.chipsBlock}>
+        <View
+          style={[
+            styles.chipsBlock,
+            selecting ? { opacity: 0.45 } : null,
+          ]}
+          pointerEvents={selecting ? "none" : "auto"}
+        >
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -618,9 +630,9 @@ export default function LocalLibraryScreen() {
               <Pressable
                 key={chip.id}
                 onPress={() => {
+                  if (selecting) return;
                   const next = clearFilterGroup(filters, chip.id);
                   setFilters(next);
-                  if (selecting) exitSelection();
                 }}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove ${chip.group} filter`}
@@ -636,8 +648,8 @@ export default function LocalLibraryScreen() {
             ))}
             <Pressable
               onPress={() => {
+                if (selecting) return;
                 setFilters(EMPTY_FILTERS);
-                if (selecting) exitSelection();
               }}
               accessibilityRole="button"
               accessibilityLabel="Clear all filters"
@@ -651,36 +663,6 @@ export default function LocalLibraryScreen() {
           <Text style={[styles.resultsLine, { color: colors.textMuted }]}>{resultsSummary}</Text>
         </View>
       ) : null}
-
-      <SelectionActionBand
-        visible={showDeleteBar}
-        testID="local-selection-action-band"
-        style={{
-          height: deleteBarAnim.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0, SELECTION_ACTION_BAND_H],
-          }),
-          opacity: deleteBarAnim,
-          borderBottomColor: colors.border,
-          backgroundColor: colors.surface,
-        }}
-        actions={
-          showDeleteBar
-            ? [
-                {
-                  key: "delete",
-                  tone: "danger" as const,
-                  icon: "trash-outline" as const,
-                  label: localDeleteSelectionLabel(selected.size),
-                  accessibilityLabel: deleteLocalA11yLabel(selected.size),
-                  onPress: () => setDeleteConfirmOpen(true),
-                  disabled: deleting,
-                  busy: deleting,
-                },
-              ]
-            : []
-        }
-      />
 
       <View style={styles.list}>
         {stickySection && listRows.length > 0 ? (
@@ -761,6 +743,7 @@ export default function LocalLibraryScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={() => void runRefresh()}
+              enabled={!selecting}
               tintColor={colors.brand}
               colors={[colors.brand]}
             />
@@ -768,6 +751,23 @@ export default function LocalLibraryScreen() {
           renderItem={renderItem}
         />
       </View>
+
+      <LocalSelectionDock
+        visible={showSelectionDock}
+        bottomOffset={tabBarHeight}
+        reduceMotion={reduceMotion}
+        shareDisabled={selectedFiles.length === 0}
+        deleteDisabled={selectedFiles.length === 0}
+        deleteBusy={deleting}
+        onShare={() => {
+          void actionGateRef.current(async () => {
+            for (const file of selectedFiles) {
+              await shareLocalFile(file);
+            }
+          });
+        }}
+        onDelete={() => setDeleteConfirmOpen(true)}
+      />
 
       <FloatingBackToTop
         visible={backToTopVisible && backToTopEnabled}
@@ -915,7 +915,6 @@ export default function LocalLibraryScreen() {
                   key={opt.id}
                   onPress={() => {
                     setSort(opt.id);
-                    if (selecting) exitSelection();
                     requestClose();
                   }}
                   accessibilityRole="button"
@@ -955,6 +954,13 @@ const styles = StyleSheet.create({
     minWidth: LOCAL_ACTION_HIT,
     justifyContent: "center",
     paddingHorizontal: 4,
+  },
+  headerSelectAll: {
+    minHeight: LOCAL_ACTION_HIT,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    maxWidth: 108,
   },
   headerIconBtn: {
     width: LOCAL_ACTION_HIT,

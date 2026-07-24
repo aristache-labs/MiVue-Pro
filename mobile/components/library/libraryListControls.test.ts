@@ -18,25 +18,22 @@ describe("LibraryListControls contracts", () => {
     assert.match(library, /search:\s*""/);
   });
 
-  it("Library and Local share LibraryListControls with Filters before Sort", () => {
+  it("Camera Library keeps LibraryListControls; Local uses compact utility bar", () => {
     assert.match(library, /LibraryListControls/);
-    assert.match(local, /LibraryListControls/);
+    assert.doesNotMatch(local, /LibraryListControls/);
+    assert.match(local, /LocalLibraryUtilityBar/);
     assert.match(controls, /Filters/);
     assert.match(controls, /Sort/);
     assert.match(controls, /LIBRARY_LIST_CONTROLS_HEIGHT = 48/);
-    assert.match(controls, /LIBRARY_LIST_CONTROLS_TOP_GAP = 12/);
-    assert.match(controls, /LIBRARY_LIST_CONTROLS_BOTTOM_GAP = 12/);
-    assert.match(controls, /Radius\.lg/);
     const filtersIdx = controls.indexOf('accessibilityLabel="Filters"');
     const sortIdx = controls.indexOf('accessibilityLabel="Sort recordings"');
     assert.ok(filtersIdx > 0 && sortIdx > filtersIdx);
   });
 
-  it("Local header keeps Refresh only; Filter/Sort live in list controls", () => {
+  it("Local header has no Select; Filter/Sort live in utility bar", () => {
     assert.match(local, /Refresh local library/);
-    assert.match(local, /Select files/);
+    assert.doesNotMatch(local, /accessibilityLabel="Select files"/);
     assert.doesNotMatch(local, /headerRightRow[\s\S]*setFilterOpen\(true\)/);
-    assert.doesNotMatch(local, /headerRightRow[\s\S]*setSortOpen\(true\)/);
     assert.match(local, /onPressFilters=\{\(\) => setFilterOpen\(true\)\}/);
     assert.match(local, /onPressSort=\{\(\) => setSortOpen\(true\)\}/);
     assert.match(local, /disabled=\{selecting\}/);
