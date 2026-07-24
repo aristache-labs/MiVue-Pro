@@ -24,16 +24,10 @@ describe("Library list sticky stability", () => {
   it("uses deterministic sticky overlay from viewability", () => {
     assert.match(src, /stickySectionKeyFromViewableItems/);
     assert.match(src, /styles\.stickyOverlay/);
+    assert.match(src, /LocalDateSectionHeader/);
     assert.match(src, /stickySection\.title/);
-    assert.match(src, /collapsable=\{false\}/);
-    const headerStart = src.indexOf("sectionHeader:");
-    const headerEnd = src.indexOf("sectionTitle:", headerStart);
-    assert.ok(headerStart >= 0 && headerEnd > headerStart);
-    const headerStyle = src.slice(headerStart, headerEnd);
-    assert.match(headerStyle, /alignItems:\s*"center"/);
-    assert.match(headerStyle, /zIndex:\s*10/);
-    assert.doesNotMatch(headerStyle, /alignItems:\s*"baseline"/);
-    assert.doesNotMatch(headerStyle, /position:\s*"absolute"/);
+    assert.match(src, /library-sticky-date-header/);
+    assert.match(src, /showSort/);
   });
 
   it("stabilizes queued membership so progress ticks do not rebuild sections", () => {

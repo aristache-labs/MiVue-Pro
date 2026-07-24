@@ -13,11 +13,14 @@ export interface LocalDateSectionHeaderProps {
   readonly sortDisabled?: boolean;
   readonly sortValueLabel?: string;
   readonly onPressSort?: () => void;
+  readonly sortAccessibilityHint?: string;
+  readonly sortTestID?: string;
   readonly testID?: string;
 }
 
 /**
  * Date separator: `DATE · N files` with optional global Sort on the right.
+ * Shared by Local Library and Camera Library.
  */
 export function LocalDateSectionHeader({
   title,
@@ -26,6 +29,8 @@ export function LocalDateSectionHeader({
   sortDisabled = false,
   sortValueLabel,
   onPressSort,
+  sortAccessibilityHint = "Opens sorting options",
+  sortTestID = "section-sort",
   testID,
 }: LocalDateSectionHeaderProps) {
   const { colors } = useAppTheme();
@@ -68,7 +73,7 @@ export function LocalDateSectionHeader({
           disabled={sortDisabled}
           accessibilityRole="button"
           accessibilityLabel="Sort files"
-          accessibilityHint="Opens Local Library sorting options"
+          accessibilityHint={sortAccessibilityHint}
           accessibilityValue={
             sortValueLabel
               ? { text: `Currently sorted by ${sortValueLabel}` }
@@ -82,7 +87,7 @@ export function LocalDateSectionHeader({
               opacity: sortDisabled ? 0.4 : pressed ? 0.65 : 1,
             },
           ]}
-          testID="local-section-sort"
+          testID={sortTestID}
         >
           <Ionicons
             name="swap-vertical-outline"

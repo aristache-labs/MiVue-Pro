@@ -644,6 +644,8 @@ export default function LocalLibraryScreen() {
               showSort
               sortDisabled={selecting}
               sortValueLabel={localSortBarLabel(sort)}
+              sortAccessibilityHint="Opens Local Library sorting options"
+              sortTestID="local-section-sort"
               onPressSort={() => {
                 if (selecting) return;
                 setSortOpen(true);

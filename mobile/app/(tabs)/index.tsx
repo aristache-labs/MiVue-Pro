@@ -5,6 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  BackHandler,
   Modal,
   Platform,
   Pressable,
@@ -57,11 +58,13 @@ import {
   shouldEnqueueOnDownloadPress,
 } from "@/components/camera/remoteDownloadState";
 import { LOCAL_ACTION_HIT, LOCAL_LIBRARY_LIST_BOTTOM_PADDING } from "@/components/local/localLibrarySections";
+import { LocalDateSectionHeader } from "@/components/local/LocalDateSectionHeader";
+import { LocalSelectionContextBar } from "@/components/local/LocalSelectionContextBar";
+import { localSortBarLabel } from "@/components/local/localLibrarySelection";
 import { selectAllFilteredA11yLabel } from "@/components/local/localCopy";
 import {
   LibraryCategoryTabs,
 } from "@/components/library/LibraryCategoryTabs";
-import { LibraryListControls } from "@/components/library/LibraryListControls";
 import {
   classifyLibrarySelection,
   libraryCancelActionLabel,
@@ -69,7 +72,6 @@ import {
   libraryCancelConfirmTitle,
   libraryDownloadActionLabel,
   libraryDownloadA11yLabel,
-  librarySelectionTitle,
   pruneSelectionToPaths,
 } from "@/components/library/librarySelection";
 import { SelectionActionBand } from "@/components/library/SelectionActionBand";
@@ -223,7 +225,9 @@ export default function LibraryScreen() {
     [selectedFiles, queueItems, localNames, queuePosition],
   );
 
-  const showSelectionBar = selecting && selected.size > 0;
+  const showSelectionBar = selecting;
+  const allFilteredSelected =
+    selected.size === filtered.length && filtered.length > 0;
   const [activeThumbnailPaths, setActiveThumbnailPaths] = useState(() => new Set<string>());
   const [stickySectionKey, setStickySectionKey] = useState<string | null>(null);
   const viewabilityConfig = useRef(LIBRARY_THUMB_VIEWABILITY).current;
@@ -342,6 +346,15 @@ export default function LibraryScreen() {
     setCancelConfirmOpen(false);
   }, []);
 
+  useEffect(() => {
+    if (!selecting) return undefined;
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      exitSelection();
+      return true;
+    });
+    return () => sub.remove();
+  }, [selecting, exitSelection]);
+
   const toggleSelect = useCallback((path: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
@@ -394,72 +407,64 @@ export default function LibraryScreen() {
       : undefined;
 
   useLayoutEffect(() => {
-    if (selecting) {
-      const allSelected = selected.size === filtered.length && filtered.length > 0;
-      navigation.setOptions({
-        header: () => (
-          <TabScreenHeader
-            title={librarySelectionTitle(selected.size)}
-            left={
-              <Pressable
-                onPress={exitSelection}
-                accessibilityRole="button"
-                accessibilityLabel="Cancel"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Cancel
-                </Text>
-              </Pressable>
-            }
-            right={
-              <Pressable
-                onPress={() => {
-                  if (allSelected) deselectAll();
-                  else selectAllFiltered();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  allSelected ? "Deselect all" : "Select all visible recordings"
-                }
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text
-                  style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 15 }}
-                  numberOfLines={1}
-                >
-                  {allSelected ? "Deselect all" : "Select all"}
-                </Text>
-              </Pressable>
-            }
-          />
-        ),
-      });
-      return;
-    }
-
+    const filtersDisabled = selecting || !libraryInteractive;
+    const filtersActive = activeGroups > 0;
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
           title="Library"
           left={
-            !libraryInteractive || filtered.length === 0 ? (
-              <View style={{ width: LOCAL_ACTION_HIT }} />
-            ) : (
-              <Pressable
-                onPress={() => setSelecting(true)}
-                accessibilityRole="button"
-                accessibilityLabel="Select recordings"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Text style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 16 }}>
-                  Select
-                </Text>
-              </Pressable>
-            )
+            <Pressable
+              onPress={() => {
+                if (filtersDisabled) return;
+                setFilterOpen(true);
+              }}
+              disabled={filtersDisabled}
+              accessibilityRole="button"
+              accessibilityLabel="Filters"
+              accessibilityHint="Opens Library filters"
+              accessibilityState={{ disabled: filtersDisabled, selected: filtersActive }}
+              accessibilityValue={
+                filtersActive ? { text: `${activeGroups} active` } : undefined
+              }
+              hitSlop={HitSlop44}
+              style={({ pressed }) => [
+                styles.headerIconBtn,
+                {
+                  opacity: filtersDisabled ? 0.4 : pressed ? 0.65 : 1,
+                },
+              ]}
+              testID="library-header-filters"
+            >
+              <Ionicons
+                name="options-outline"
+                size={22}
+                color={
+                  filtersDisabled
+                    ? colors.textMuted
+                    : filtersActive
+                      ? colors.brand
+                      : colors.textMuted
+                }
+              />
+              {filtersActive ? (
+                activeGroups > 1 ? (
+                  <View
+                    pointerEvents="none"
+                    style={[styles.filterBadge, { backgroundColor: colors.brand }]}
+                  >
+                    <Text style={[styles.filterBadgeText, { color: colors.onBrand }]}>
+                      {activeGroups > 99 ? "99+" : String(activeGroups)}
+                    </Text>
+                  </View>
+                ) : (
+                  <View
+                    pointerEvents="none"
+                    style={[styles.filterDot, { backgroundColor: colors.brand }]}
+                  />
+                )
+              ) : null}
+            </Pressable>
           }
           right={
             <CameraConnectionHeaderButton
@@ -475,16 +480,12 @@ export default function LibraryScreen() {
   }, [
     navigation,
     selecting,
-    selected.size,
-    filtered.length,
     libraryInteractive,
+    activeGroups,
     cameraLinkState,
     isRefreshingCamera,
     openConnectionSheet,
-    exitSelection,
-    selectAllFiltered,
-    deselectAll,
-    colors.brand,
+    colors,
   ]);
 
   const onDownload = useCallback(
@@ -589,22 +590,9 @@ export default function LibraryScreen() {
 
   const renderSectionBreak = useCallback(
     (row: CameraLibraryFileRow) => (
-      <View
-        collapsable={false}
-        style={[
-          styles.sectionHeader,
-          { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
-        ]}
-      >
-        <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {row.sectionTitle}
-        </Text>
-        <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-          {row.sectionCountLabel}
-        </Text>
-      </View>
+      <LocalDateSectionHeader title={row.sectionTitle} countLabel={row.sectionCountLabel} />
     ),
-    [colors.bg, colors.borderSoft, colors.textMuted],
+    [],
   );
 
   const renderItem = useCallback(
@@ -620,7 +608,7 @@ export default function LibraryScreen() {
       return (
         <View collapsable={false} style={styles.libraryFileRow}>
           {showSectionBreak ? renderSectionBreak(item) : null}
-          {showSectionBreak ? <View style={{ height: spacing.sm }} /> : null}
+          {showSectionBreak ? <View style={{ height: 6 }} /> : null}
           <RemoteRecordingCard
             file={item.file}
             downloadState={downloadState}
@@ -651,7 +639,6 @@ export default function LibraryScreen() {
       onResume,
       openDownloaded,
       renderSectionBreak,
-      spacing.sm,
     ],
   );
 
@@ -730,27 +717,31 @@ export default function LibraryScreen() {
       <LibraryCategoryTabs
         selectedId={category}
         counts={counts}
-        onSelect={setCategory}
+        onSelect={(id) => {
+          if (selecting) return;
+          setCategory(id);
+        }}
         disabled={!libraryInteractive || selecting}
         testID="camera-category-row"
       />
 
-      <LibraryListControls
-        activeFilterCount={activeGroups}
-        sortActive={sort !== "newest"}
-        onPressFilters={() => setFilterOpen(true)}
-        onPressSort={() => setSortOpen(true)}
-        disabled={selecting || !libraryInteractive}
-        testID="camera-list-controls"
-      />
-
       {filterChips.length > 0 || hasAdvanced ? (
-        <View style={[styles.summaryRow, { paddingHorizontal: spacing.lg }]}>
+        <View
+          style={[
+            styles.summaryRow,
+            { paddingHorizontal: spacing.lg },
+            selecting ? { opacity: 0.45 } : null,
+          ]}
+          pointerEvents={selecting ? "none" : "auto"}
+        >
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
             {filterChips.map((chip) => (
               <Pressable
                 key={chip.id}
-                onPress={() => setFilters(clearCameraFilterGroup(filters, chip.id))}
+                onPress={() => {
+                  if (selecting) return;
+                  setFilters(clearCameraFilterGroup(filters, chip.id));
+                }}
                 accessibilityRole="button"
                 accessibilityLabel={`Remove filter ${chip.label}`}
                 style={[styles.remChip, { borderColor: colors.border, backgroundColor: colors.surface }]}
@@ -768,6 +759,7 @@ export default function LibraryScreen() {
           {hasAdvanced ? (
             <Pressable
               onPress={() => {
+                if (selecting) return;
                 setFilters(EMPTY_CAMERA_FILTERS);
               }}
               accessibilityRole="button"
@@ -782,61 +774,20 @@ export default function LibraryScreen() {
         </View>
       ) : null}
 
-      <SelectionActionBand
-        visible={showSelectionBar}
-        testID="library-selection-action-band"
-        mutedMessage={
-          selectionBreakdown.downloadEligibleCount === 0 &&
-          selectionBreakdown.cancelEligibleCount === 0
-            ? "Already downloaded"
-            : undefined
-        }
-        actions={[
-          ...(selectionBreakdown.downloadEligibleCount > 0
-            ? [
-                {
-                  key: "download",
-                  tone: "brand" as const,
-                  icon: "cloud-download-outline" as const,
-                  label: libraryDownloadActionLabel(
-                    selectionBreakdown.downloadEligibleCount,
-                    formatMediaSizeMbGb(
-                      selectionBreakdown.downloadEligible.reduce((n, f) => n + f.sizeBytes, 0),
-                    ),
-                    selected.size,
-                  ),
-                  accessibilityLabel: libraryDownloadA11yLabel(
-                    selectionBreakdown.downloadEligibleCount,
-                    selected.size,
-                  ),
-                  accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
-                  onPress: () => void runBatchDownload(),
-                  disabled: batchBusy,
-                  busy: batchBusy,
-                },
-              ]
-            : []),
-          ...(selectionBreakdown.cancelEligibleCount > 0
-            ? [
-                {
-                  key: "cancel",
-                  tone: "warn" as const,
-                  icon: "close-circle-outline" as const,
-                  label: libraryCancelActionLabel(
-                    selectionBreakdown.cancelEligibleCount,
-                    selectionBreakdown.downloadEligibleCount > 0,
-                  ),
-                  accessibilityLabel: libraryCancelActionLabel(
-                    selectionBreakdown.cancelEligibleCount,
-                  ),
-                  accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
-                  onPress: () => setCancelConfirmOpen(true),
-                  disabled: batchBusy,
-                },
-              ]
-            : []),
-        ]}
-      />
+      {selecting ? (
+        <LocalSelectionContextBar
+          selectedCount={selected.size}
+          filteredCount={filtered.length}
+          allSelected={allFilteredSelected}
+          onClose={exitSelection}
+          onToggleSelectAll={() => {
+            if (allFilteredSelected) deselectAll();
+            else selectAllFiltered();
+          }}
+          selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filtered.length)}
+          testID="library-selection-context-bar"
+        />
+      ) : null}
 
       {showSkeleton ? (
         <View style={{ padding: spacing.lg, gap: spacing.sm }}>
@@ -847,23 +798,89 @@ export default function LibraryScreen() {
       ) : (
         <View style={styles.list}>
           {stickySection && filtered.length > 0 ? (
-            <View
-              collapsable={false}
-              pointerEvents="none"
-              style={[
-                styles.sectionHeader,
-                styles.stickyOverlay,
-                { backgroundColor: colors.bg, borderBottomColor: colors.borderSoft },
-              ]}
-            >
-              <Text style={[styles.sectionTitle, { color: colors.textMuted }]} numberOfLines={1}>
-                {stickySection.title}
-              </Text>
-              <Text style={[styles.sectionCount, { color: colors.textMuted }]}>
-                {stickySection.countLabel}
-              </Text>
+            <View style={[styles.stickyOverlay, { backgroundColor: colors.bg }]}>
+              <LocalDateSectionHeader
+                title={stickySection.title}
+                countLabel={stickySection.countLabel}
+                showSort
+                sortDisabled={selecting || !libraryInteractive}
+                sortValueLabel={localSortBarLabel(sort)}
+                sortAccessibilityHint="Opens Library sorting options"
+                sortTestID="library-section-sort"
+                onPressSort={() => {
+                  if (selecting || !libraryInteractive) return;
+                  setSortOpen(true);
+                }}
+                testID="library-sticky-date-header"
+              />
             </View>
           ) : null}
+
+          <SelectionActionBand
+            visible={showSelectionBar}
+            testID="library-selection-action-band"
+            mutedMessage={
+              selected.size === 0
+                ? "Select recordings"
+                : selectionBreakdown.downloadEligibleCount === 0 &&
+                    selectionBreakdown.cancelEligibleCount === 0
+                  ? "Already downloaded"
+                  : undefined
+            }
+            actions={
+              selected.size === 0
+                ? []
+                : [
+                    ...(selectionBreakdown.downloadEligibleCount > 0
+                      ? [
+                          {
+                            key: "download",
+                            tone: "brand" as const,
+                            icon: "cloud-download-outline" as const,
+                            label: libraryDownloadActionLabel(
+                              selectionBreakdown.downloadEligibleCount,
+                              formatMediaSizeMbGb(
+                                selectionBreakdown.downloadEligible.reduce(
+                                  (n, f) => n + f.sizeBytes,
+                                  0,
+                                ),
+                              ),
+                              selected.size,
+                            ),
+                            accessibilityLabel: libraryDownloadA11yLabel(
+                              selectionBreakdown.downloadEligibleCount,
+                              selected.size,
+                            ),
+                            accessibilityHint: `${selectionBreakdown.downloadEligibleCount} of ${selected.size} recordings will be added to Queue`,
+                            onPress: () => void runBatchDownload(),
+                            disabled: batchBusy,
+                            busy: batchBusy,
+                          },
+                        ]
+                      : []),
+                    ...(selectionBreakdown.cancelEligibleCount > 0
+                      ? [
+                          {
+                            key: "cancel",
+                            tone: "warn" as const,
+                            icon: "close-circle-outline" as const,
+                            label: libraryCancelActionLabel(
+                              selectionBreakdown.cancelEligibleCount,
+                              selectionBreakdown.downloadEligibleCount > 0,
+                            ),
+                            accessibilityLabel: libraryCancelActionLabel(
+                              selectionBreakdown.cancelEligibleCount,
+                            ),
+                            accessibilityHint: `${selectionBreakdown.cancelEligibleCount} Queue downloads will be cancelled`,
+                            onPress: () => setCancelConfirmOpen(true),
+                            disabled: batchBusy,
+                          },
+                        ]
+                      : []),
+                  ]
+            }
+          />
+
           <FlatList
             ref={libraryListRef}
             style={styles.list}
@@ -1094,11 +1111,35 @@ export default function LibraryScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  headerSideBtn: {
-    minHeight: LOCAL_ACTION_HIT,
-    minWidth: LOCAL_ACTION_HIT,
+  headerIconBtn: {
+    width: LOCAL_ACTION_HIT,
+    height: LOCAL_ACTION_HIT,
+    alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 4,
+  },
+  filterDot: {
+    position: "absolute",
+    top: 8,
+    right: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  filterBadge: {
+    position: "absolute",
+    top: 4,
+    right: 2,
+    minWidth: 14,
+    height: 14,
+    borderRadius: 7,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  filterBadgeText: {
+    fontSize: 9,
+    lineHeight: 10,
+    fontFamily: Type.fontBold,
   },
   banner: {
     borderWidth: StyleSheet.hairlineWidth,

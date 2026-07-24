@@ -101,22 +101,24 @@ describe("librarySelection helpers", () => {
     assert.equal(isCancellableQueueStatus("completed"), false);
   });
 
-  it("Library screen wires Select and selection mode contracts", () => {
+  it("Library screen wires long-press selection and compact chrome", () => {
     const index = readFileSync(join(__dirname, "../../app/(tabs)/index.tsx"), "utf8");
     const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
     const band = readFileSync(join(__dirname, "SelectionActionBand.tsx"), "utf8");
     const card = readFileSync(join(__dirname, "../camera/RemoteRecordingCard.tsx"), "utf8");
-    assert.match(index, /accessibilityLabel="Select recordings"/);
-    assert.match(index, /setSelecting\(true\)/);
-    assert.match(index, /librarySelectionTitle/);
+    assert.doesNotMatch(index, /accessibilityLabel="Select recordings"/);
+    assert.doesNotMatch(index, /LibraryListControls/);
+    assert.match(index, /library-header-filters/);
+    assert.match(index, /LocalDateSectionHeader/);
+    assert.match(index, /LocalSelectionContextBar/);
+    assert.match(index, /enterSelectionWith/);
     assert.match(index, /classifyLibrarySelection/);
     assert.match(index, /pruneSelectionToPaths/);
     assert.match(index, /exitSelection/);
-    assert.match(index, /!selecting/);
+    assert.match(index, /BackHandler\.addEventListener\("hardwareBackPress"/);
     assert.match(index, /stickySectionKeyFromViewableItems/);
     assert.match(index, /RefreshControl/);
     assert.match(index, /FloatingBackToTop/);
-    assert.match(index, /disabled=\{selecting \|\| !libraryInteractive\}/);
     assert.match(index, /SelectionActionBand/);
     assert.match(index, /library-selection-action-band/);
     assert.match(index, /downloaded:\s*"not_downloaded"/);
@@ -140,5 +142,10 @@ describe("librarySelection helpers", () => {
     assert.match(card, /CompactDownloadAction/);
     assert.doesNotMatch(card, /actions=\{!selecting/);
     assert.doesNotMatch(index, /cameraMutate|format SD|del\?/i);
+
+    const contextIdx = index.indexOf("<LocalSelectionContextBar");
+    const stickyIdx = index.indexOf("library-sticky-date-header");
+    const bandIdx = index.indexOf('testID="library-selection-action-band"');
+    assert.ok(contextIdx > 0 && stickyIdx > contextIdx && bandIdx > stickyIdx);
   });
 });

@@ -18,31 +18,31 @@ describe("LibraryListControls contracts", () => {
     assert.match(library, /search:\s*""/);
   });
 
-  it("Camera keeps LibraryListControls; Local uses header Filters + section Sort", () => {
-    assert.match(library, /LibraryListControls/);
+  it("Camera and Local use header Filters + section Sort; no Filters/Newest bar", () => {
+    assert.doesNotMatch(library, /LibraryListControls/);
     assert.doesNotMatch(local, /LibraryListControls/);
+    assert.match(library, /library-header-filters/);
     assert.match(local, /local-header-filters/);
+    assert.match(library, /LocalDateSectionHeader/);
     assert.match(local, /LocalDateSectionHeader/);
     assert.match(controls, /Filters/);
     assert.match(controls, /LIBRARY_LIST_CONTROLS_HEIGHT = 48/);
-    assert.match(controls, /styles\.half/);
-    assert.match(controls, /flex:\s*1/);
   });
 
-  it("Local header has Filters icon and Refresh; no Select", () => {
+  it("Local and Library headers expose Filters; no Select chrome", () => {
     assert.match(local, /Refresh local library/);
     assert.match(local, /accessibilityLabel="Filters"/);
+    assert.match(library, /accessibilityLabel="Filters"/);
     assert.doesNotMatch(local, /accessibilityLabel="Select files"/);
+    assert.doesNotMatch(library, /accessibilityLabel="Select recordings"/);
     assert.match(local, /setFilterOpen\(true\)/);
+    assert.match(library, /setFilterOpen\(true\)/);
     assert.match(local, /setSortOpen\(true\)/);
+    assert.match(library, /setSortOpen\(true\)/);
   });
 
-  it("Library keeps camera connection and wires existing filter/sort handlers", () => {
+  it("Library keeps camera connection button", () => {
     assert.match(library, /CameraConnectionHeaderButton/);
-    assert.match(library, /onPressFilters=\{\(\) => setFilterOpen\(true\)\}/);
-    assert.match(library, /onPressSort=\{\(\) => setSortOpen\(true\)\}/);
-    assert.match(library, /activeFilterCount=\{activeGroups\}/);
-    assert.match(library, /sortActive=\{sort !== "newest"\}/);
   });
 
   it("preserves FlatList sticky overlay, refresh, and Back to top", () => {
