@@ -13,13 +13,30 @@ import React, {
 } from "react";
 import { Alert, AppState, type AppStateStatus } from "react-native";
 
+import { scheduleOneShotVerify } from "@/components/onboarding/appStateVerify";
 import {
-  APP_STATE_VERIFY_DEBOUNCE_MS,
-  scheduleOneShotVerify,
-} from "@/components/onboarding/appStateVerify";
+  ACTIVE_POLL_INTERVAL_MS,
+  CAMERA_HEALTH_TIMEOUT_MS,
+  FOREGROUND_VERIFY_DEBOUNCE_MS,
+  isAppForegroundResume,
+  isBusyForHealthCheck,
+  linkStateAfterVerifyFailure,
+  nextReconnectBackoffMs,
+  shouldClearLibraryAfterFailures,
+  shouldRunActiveHealthPoll,
+  shouldRunDisconnectedReconnect,
+  shouldSkipVerifyBecauseRecent,
+  VERIFY_RETRY_AFTER_FIRST_FAILURE_MS,
+  verifyCameraReachability,
+} from "@/components/camera/cameraConnectionSupervisor";
 import {
   bumpCameraSessionGeneration,
+  CAMERA_REFRESH_IN_PROGRESS,
+  canStartCameraRefresh,
+  friendlyConnectionError,
   isCameraSessionCurrent,
+  sanitizeDiagnosticLine,
+  type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
 
 import { APP_USER_AGENT } from "../constants/Brand";
@@ -45,12 +62,6 @@ import {
   MemoryFileSink,
 } from "../packages/download-queue/src/index";
 import { AsyncStorageQueueStore, MemoryQueueStore, type QueueItem } from "../packages/local-db/src/index";
-import type { CameraLinkState } from "../components/camera/cameraLibraryModel";
-import {
-  CAMERA_REFRESH_IN_PROGRESS,
-  canStartCameraRefresh,
-  friendlyConnectionError,
-} from "../components/camera/cameraLibraryModel";
 import type { RemoteFile } from "../packages/parsers/src/index";
 import {
   applyCameraSetting,
@@ -237,6 +248,15 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   filesLenRef.current = files.length;
   /** Bumped on every remote-library clear so in-flight list responses cannot repopulate. */
   const cameraSessionGenRef = useRef(0);
+  const cameraHostRef = useRef(cameraHost);
+  cameraHostRef.current = cameraHost;
+  const demoModeRef = useRef(demoMode);
+  demoModeRef.current = demoMode;
+  const consecutiveVerifyFailuresRef = useRef(0);
+  const lastVerifiedAtRef = useRef<number | undefined>(undefined);
+  const verifyInflightLocalRef = useRef(false);
+  const healthRetryTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const reconnectAttemptRef = useRef(0);
 
   const clearRemoteCameraLibrary = useCallback(
     (nextState: "disconnected" | "connection_lost", error?: string) => {
@@ -388,6 +408,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       // IP / camera change must not reuse another camera’s software properties.
       setCameraProperties({});
       clearRemoteCameraLibrary("disconnected");
+      consecutiveVerifyFailuresRef.current = 0;
+      reconnectAttemptRef.current = 0;
+      lastVerifiedAtRef.current = undefined;
       setLastError(undefined);
       setConnectionNote(undefined);
     },
@@ -460,6 +483,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           setCameraModel(COMPAT_MODEL);
           setLastConnectedAt(new Date().toISOString());
           setConnectionNote(undefined);
+          consecutiveVerifyFailuresRef.current = 0;
+          reconnectAttemptRef.current = 0;
+          lastVerifiedAtRef.current = Date.now();
           return { ok: true };
         }
 
@@ -495,6 +521,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setCameraModel(COMPAT_MODEL);
         setLastConnectedAt(new Date().toISOString());
         setConnectionNote(undefined);
+        consecutiveVerifyFailuresRef.current = 0;
+        reconnectAttemptRef.current = 0;
+        lastVerifiedAtRef.current = Date.now();
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -510,6 +539,79 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   );
   const refreshFilesRef = useRef(refreshFiles);
   refreshFilesRef.current = refreshFiles;
+
+  const runSilentHealthCheckRef = useRef<() => Promise<void>>(async () => undefined);
+
+  const clearHealthRetryTimer = useCallback(() => {
+    if (healthRetryTimerRef.current !== undefined) {
+      clearTimeout(healthRetryTimerRef.current);
+      healthRetryTimerRef.current = undefined;
+    }
+  }, []);
+
+  const runSilentHealthCheck = useCallback(async (): Promise<void> => {
+    if (demoModeRef.current) return;
+    const host = cameraHostRef.current.trim();
+    if (!isPrivateIpv4(host)) return;
+
+    const hasActiveDownload = queue.list().some((item) => item.status === "active");
+    if (
+      isBusyForHealthCheck({
+        verifyInflight: verifyInflightLocalRef.current,
+        refreshInflight: refreshInflightRef.current,
+        settingApplyInflight: settingApplyInflightRef.current,
+        hasActiveDownload,
+      })
+    ) {
+      // An active queue row is not proof of live progress. Queue failures remain
+      // the connection-drop signal; verify again after the competing operation ends.
+      return;
+    }
+
+    if (shouldSkipVerifyBecauseRecent(lastVerifiedAtRef.current, Date.now())) return;
+
+    const requestGen = cameraSessionGenRef.current;
+    const hostAtStart = host;
+    verifyInflightLocalRef.current = true;
+    try {
+      const result = await verifyCameraReachability({
+        host,
+        deps: {
+          createTransport: (h, timeoutMs) => createLiveTransport(h, timeoutMs),
+          timeoutMs: CAMERA_HEALTH_TIMEOUT_MS,
+        },
+      });
+      if (appStateRef.current !== "active" || demoModeRef.current) return;
+      if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) return;
+      if (cameraHostRef.current.trim() !== hostAtStart) return;
+
+      if (result.ok) {
+        consecutiveVerifyFailuresRef.current = 0;
+        reconnectAttemptRef.current = 0;
+        lastVerifiedAtRef.current = Date.now();
+        clearHealthRetryTimer();
+        setLastError(undefined);
+        setCameraProperties((prev) => ({ ...prev, ...result.properties }));
+        setCameraLinkState("connected");
+        setLastConnectedAt(new Date().toISOString());
+        return;
+      }
+
+      const failures = consecutiveVerifyFailuresRef.current + 1;
+      consecutiveVerifyFailuresRef.current = failures;
+      const sanitized = sanitizeDiagnosticLine(result.error);
+      if (shouldClearLibraryAfterFailures(failures)) {
+        clearHealthRetryTimer();
+        clearRemoteCameraLibrary("connection_lost", sanitized);
+        return;
+      }
+      setCameraLinkState(linkStateAfterVerifyFailure(failures));
+    } finally {
+      verifyInflightLocalRef.current = false;
+    }
+  }, [queue, clearHealthRetryTimer, clearRemoteCameraLibrary]);
+
+  runSilentHealthCheckRef.current = runSilentHealthCheck;
 
   const refreshCameraSettings = useCallback(async (): Promise<{ ok: boolean; error?: string }> => {
     if (demoMode) {
@@ -675,29 +777,128 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [queue, downloadDir, refreshLocalFiles]);
 
   useEffect(() => {
-    let cancelVerify: (() => void) | undefined;
+    let cancelForegroundVerify: (() => void) | undefined;
+    let pollInterval: ReturnType<typeof setInterval> | undefined;
+    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const stopPollingAndReconnect = () => {
+      if (pollInterval !== undefined) {
+        clearInterval(pollInterval);
+        pollInterval = undefined;
+      }
+      if (reconnectTimer !== undefined) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = undefined;
+      }
+    };
+
+    const armDisconnectedReconnect = () => {
+      if (
+        !shouldRunDisconnectedReconnect({
+          appState: appStateRef.current,
+          demoMode: demoModeRef.current,
+          linkState: linkStateRef.current,
+        })
+      ) {
+        return;
+      }
+      if (refreshInflightRef.current) return;
+      const delay = nextReconnectBackoffMs(reconnectAttemptRef.current);
+      reconnectTimer = setTimeout(() => {
+        reconnectTimer = undefined;
+        reconnectAttemptRef.current += 1;
+        void refreshFilesRef.current();
+      }, delay);
+    };
+
+    const armActivePolling = () => {
+      if (
+        !shouldRunActiveHealthPoll({
+          appState: appStateRef.current,
+          demoMode: demoModeRef.current,
+          linkState: linkStateRef.current,
+        })
+      ) {
+        return;
+      }
+      pollInterval = setInterval(() => {
+        void runSilentHealthCheckRef.current();
+      }, ACTIVE_POLL_INTERVAL_MS);
+    };
+
+    const armUnstableRetry = () => {
+      clearHealthRetryTimer();
+      healthRetryTimerRef.current = setTimeout(() => {
+        healthRetryTimerRef.current = undefined;
+        void runSilentHealthCheckRef.current();
+      }, VERIFY_RETRY_AFTER_FIRST_FAILURE_MS);
+    };
+
+    const syncSupervisorTimers = () => {
+      stopPollingAndReconnect();
+      if (appStateRef.current !== "active" || demoModeRef.current) {
+        clearHealthRetryTimer();
+        return;
+      }
+      if (linkStateRef.current === "unstable") {
+        armUnstableRetry();
+        return;
+      }
+      if (
+        shouldRunActiveHealthPoll({
+          appState: appStateRef.current,
+          demoMode: false,
+          linkState: linkStateRef.current,
+        })
+      ) {
+        armActivePolling();
+        return;
+      }
+      armDisconnectedReconnect();
+    };
+
     const onChange = (next: AppStateStatus) => {
       const prev = appStateRef.current;
       appStateRef.current = next;
-      if (prev === "active" || next !== "active") return;
-      if (demoMode) return;
-      if (!isPrivateIpv4(cameraHost)) return;
-      // Do not assume Connected after background — clear stale list until a live probe succeeds.
-      if (linkStateRef.current === "connected" || linkStateRef.current === "unstable") {
-        clearRemoteCameraLibrary("disconnected");
+
+      if (next !== "active") {
+        cancelForegroundVerify?.();
+        cancelForegroundVerify = undefined;
+        clearHealthRetryTimer();
+        stopPollingAndReconnect();
+        return;
       }
-      if (refreshInflightRef.current) return;
-      cancelVerify?.();
-      cancelVerify = scheduleOneShotVerify(() => {
-        void refreshFilesRef.current();
-      }, APP_STATE_VERIFY_DEBOUNCE_MS);
+
+      syncSupervisorTimers();
+
+      if (!isAppForegroundResume(prev, next)) return;
+      if (demoModeRef.current) return;
+      if (!isPrivateIpv4(cameraHostRef.current)) return;
+      if (
+        !shouldRunActiveHealthPoll({
+          appState: next,
+          demoMode: false,
+          linkState: linkStateRef.current,
+        })
+      ) {
+        return;
+      }
+      // Stale-while-revalidate: keep Connected UI + files; silent GET status only.
+      cancelForegroundVerify?.();
+      cancelForegroundVerify = scheduleOneShotVerify(() => {
+        void runSilentHealthCheckRef.current();
+      }, FOREGROUND_VERIFY_DEBOUNCE_MS);
     };
+
+    syncSupervisorTimers();
     const sub = AppState.addEventListener("change", onChange);
     return () => {
-      cancelVerify?.();
+      cancelForegroundVerify?.();
+      clearHealthRetryTimer();
+      stopPollingAndReconnect();
       sub.remove();
     };
-  }, [demoMode, cameraHost, clearRemoteCameraLibrary]);
+  }, [demoMode, cameraLinkState, cameraHost, clearHealthRetryTimer]);
 
   useEffect(() => {
     let sawDrop = false;
@@ -739,6 +940,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
 
   const disconnectSession = useCallback(() => {
     clearRemoteCameraLibrary("disconnected");
+    consecutiveVerifyFailuresRef.current = 0;
+    reconnectAttemptRef.current = 0;
+    lastVerifiedAtRef.current = undefined;
     setCameraModel(undefined);
     setCameraProperties({});
     setLastConnectedAt(undefined);

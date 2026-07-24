@@ -11,9 +11,9 @@ export type ConnectionHubKind = VisibleConnectionStatus;
  * Historical success (`lastConnectedAt`) must never keep a live Connected label.
  */
 export function visibleConnectionStatus(linkState: CameraLinkState): VisibleConnectionStatus {
-  if (linkState === "connected") return "connected";
+  if (linkState === "connected" || linkState === "unstable") return "connected";
   if (linkState === "connecting") return "connecting";
-  // idle | disconnected | connection_lost | unstable | unknown → Disconnected
+  // idle | disconnected | connection_lost → Disconnected
   return "disconnected";
 }
 

@@ -15,14 +15,20 @@ describe("DemoModeContext remote library clear", () => {
     assert.match(src, /setFiles\(\[\]\)/);
   });
 
-  it("clears remote files on refresh failure, invalid IP, host change, background, queue drop, disconnect", () => {
+  it("clears remote files on refresh failure, invalid IP, host change, confirmed disconnect, queue drop", () => {
     assert.match(src, /clearRemoteCameraLibrary\("disconnected"/);
     assert.match(src, /clearRemoteCameraLibrary\("connection_lost"/);
     assert.match(src, /clearRemoteCameraLibrary\("disconnected", error\)/);
     assert.match(src, /clearRemoteCameraLibrary\("disconnected", message\)/);
     assert.match(src, /setCameraHost[\s\S]*clearRemoteCameraLibrary\("disconnected"\)/);
-    assert.match(src, /AppState\.addEventListener[\s\S]*clearRemoteCameraLibrary\("disconnected"\)/);
     assert.match(src, /disconnectSession = useCallback\(\(\) => \{\s*clearRemoteCameraLibrary\("disconnected"\)/);
+    // Foreground resume must NOT clear immediately — only after consecutive health failures.
+    assert.match(src, /runSilentHealthCheck/);
+    assert.match(src, /shouldClearLibraryAfterFailures|MAX_VERIFY_FAILURES_BEFORE_CLEAR/);
+    assert.doesNotMatch(
+      src,
+      /AppState\.addEventListener[\s\S]{0,400}clearRemoteCameraLibrary\("disconnected"\)\s*;/,
+    );
     // Queue connection drop clears remote files without wiping the download queue
     assert.match(src, /isConnectionDropError[\s\S]*setFiles\(\[\]\)/);
   });

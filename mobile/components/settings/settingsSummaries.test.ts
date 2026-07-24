@@ -24,10 +24,10 @@ describe("settingsSummaries", () => {
     assert.equal(connectionStatusLabel("connecting"), "Connecting…");
     assert.equal(connectionStatusLabel("disconnected"), "Disconnected");
     assert.equal(connectionStatusLabel("connection_lost"), "Disconnected");
-    assert.equal(connectionStatusLabel("unstable"), "Disconnected");
+    assert.equal(connectionStatusLabel("unstable"), "Connected");
     assert.equal(connectionStatusLabel("idle"), "Disconnected");
-    assert.equal(visibleConnectionStatus("unstable"), "disconnected");
-    assert.equal(connectionHubKind("unstable"), "disconnected");
+    assert.equal(visibleConnectionStatus("unstable"), "connected");
+    assert.equal(connectionHubKind("unstable"), "connected");
     assert.equal(connectionHubKind("connected"), "connected");
   });
 
@@ -42,7 +42,7 @@ describe("settingsSummaries", () => {
     );
     assert.equal(
       cameraConnectionSummary("unstable", "MiVue 866", true),
-      "Not connected · MiVue 866",
+      "Connected · MiVue 866",
     );
     assert.equal(
       cameraConnectionSummary("connected", "MiVue 866", true),
@@ -65,6 +65,7 @@ describe("settingsSummaries", () => {
     for (const label of labels) {
       assert.equal(label.includes("Unstable"), false);
     }
+    assert.equal(connectionStatusLabel("unstable"), "Connected");
   });
 
   it("formats Last connected without seconds and uses Today when appropriate", () => {
