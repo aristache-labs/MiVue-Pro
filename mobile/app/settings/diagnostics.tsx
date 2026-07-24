@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { sanitizeDiagnosticLine } from "@/components/camera/cameraLibraryModel";
 import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
+import { BackgroundDownloadSpikePanel } from "@/components/settings/BackgroundDownloadSpikePanel";
 import {
   SettingsActionRow,
   SettingsSection,
@@ -192,6 +193,8 @@ export default function SettingsDiagnosticsScreen() {
             accessibilityLabel="Export sanitized diagnostics"
           />
         </SettingsSection>
+
+        <BackgroundDownloadSpikePanel cameraHost={cameraHost} />
       </SettingsScroll>
     </View>
   );

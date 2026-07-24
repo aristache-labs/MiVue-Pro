@@ -61,6 +61,7 @@
       ],
       "./plugins/withLocalNetworkCleartext.js",
       "./plugins/withWifiSsidAccess.js",
+      "./plugins/withBackgroundDownloadSpike.js",
       "expo-video",
       "expo-web-browser",
       "@react-native-community/datetimepicker"
