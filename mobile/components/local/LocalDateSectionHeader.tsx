@@ -1,11 +1,9 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import {
-  LOCAL_ACTION_HIT,
-  localDateSectionA11yLabel,
-} from "@/components/local/localLibrarySections";
-import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
+import { LOCAL_SECTION_SORT_HIT_SLOP } from "@/components/local/localLibrarySelection";
+import { localDateSectionA11yLabel } from "@/components/local/localLibrarySections";
+import { Type, useAppTheme } from "@/constants/Theme";
 
 export interface LocalDateSectionHeaderProps {
   readonly title: string;
@@ -59,7 +57,7 @@ export function LocalDateSectionHeader({
         <Text style={[styles.dot, { color: colors.textMuted }]} importantForAccessibility="no">
           {" · "}
         </Text>
-        <Text style={[styles.count, { color: colors.textMuted }]} numberOfLines={1}>
+        <Text style={[styles.count, { color: colors.textFaint }]} numberOfLines={1}>
           {countLabel}
         </Text>
       </View>
@@ -77,7 +75,7 @@ export function LocalDateSectionHeader({
               : undefined
           }
           accessibilityState={{ disabled: sortDisabled }}
-          hitSlop={HitSlop44}
+          hitSlop={LOCAL_SECTION_SORT_HIT_SLOP}
           style={({ pressed }) => [
             styles.sortHit,
             {
@@ -108,13 +106,12 @@ export function LocalDateSectionHeader({
 
 const styles = StyleSheet.create({
   row: {
-    minHeight: 36,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
-    paddingTop: 10,
-    paddingBottom: 8,
+    paddingTop: 18,
+    paddingBottom: 14,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   leading: {
@@ -125,36 +122,37 @@ const styles = StyleSheet.create({
   },
   title: {
     flexShrink: 1,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 18,
     fontFamily: Type.fontSemi,
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
   },
   dot: {
     flexShrink: 0,
-    fontSize: 11,
-    lineHeight: 14,
+    fontSize: 13,
+    lineHeight: 18,
     fontFamily: Type.fontSemi,
+    letterSpacing: 0.2,
   },
   count: {
     flexShrink: 0,
-    fontSize: 11,
-    lineHeight: 14,
-    fontFamily: Type.font,
+    fontSize: 13,
+    lineHeight: 18,
+    fontFamily: Type.fontSemi,
+    letterSpacing: 0.2,
   },
   sortHit: {
     flexShrink: 0,
-    minWidth: LOCAL_ACTION_HIT,
-    minHeight: LOCAL_ACTION_HIT,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: 4,
     paddingHorizontal: 2,
+    // Visual compact; 44×44 touch via HitSlop44 (does not inflate separator height).
   },
   sortLabel: {
     fontSize: 13,
-    lineHeight: 16,
+    lineHeight: 18,
     fontFamily: Type.fontSemi,
   },
 });

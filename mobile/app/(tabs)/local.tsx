@@ -365,7 +365,7 @@ export default function LocalLibraryScreen() {
       return (
         <View collapsable={false} style={styles.localFileRow}>
           {startsNewSection ? renderSectionBreak(item) : null}
-          {startsNewSection ? <View style={{ height: 8 }} /> : null}
+          {startsNewSection ? <View style={{ height: 6 }} /> : null}
           <LocalLibraryCard
             item={file}
             category={fileCategory}

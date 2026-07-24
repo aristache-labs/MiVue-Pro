@@ -3,6 +3,14 @@ import type { CameraLibrarySort } from "@/components/camera/cameraLibraryModel";
 /** Long-press delay to enter selection (ms). */
 export const LOCAL_LONG_PRESS_MS = 500;
 
+/** Expands compact Sort control to ≥44×44 without inflating separator height. */
+export const LOCAL_SECTION_SORT_HIT_SLOP = {
+  top: 14,
+  bottom: 14,
+  left: 10,
+  right: 10,
+} as const;
+
 export function localSelectedCountLabel(count: number): string {
   return count === 1 ? "1 selected" : `${count} selected`;
 }

@@ -5,6 +5,7 @@ import { describe, it } from "node:test";
 
 import {
   LOCAL_LONG_PRESS_MS,
+  LOCAL_SECTION_SORT_HIT_SLOP,
   localSelectedCountLabel,
   localSelectionModeAnnouncement,
   localSortBarLabel,
@@ -79,8 +80,18 @@ describe("Local Library long-press selection", () => {
     assert.doesNotMatch(dateHeader, /Newest/);
     assert.match(dateHeader, /accessibilityLabel="Sort files"/);
     assert.match(dateHeader, /Currently sorted by/);
-    assert.match(dateHeader, /minWidth: LOCAL_ACTION_HIT/);
-    assert.match(dateHeader, /minHeight: LOCAL_ACTION_HIT/);
+    assert.match(dateHeader, /fontSize:\s*13/);
+    assert.match(dateHeader, /lineHeight:\s*18/);
+    assert.match(dateHeader, /paddingTop:\s*18/);
+    assert.match(dateHeader, /paddingBottom:\s*14/);
+    assert.match(dateHeader, /letterSpacing:\s*0\.2/);
+    assert.match(dateHeader, /LOCAL_SECTION_SORT_HIT_SLOP/);
+    assert.match(dateHeader, /hitSlop=\{LOCAL_SECTION_SORT_HIT_SLOP\}/);
+    assert.doesNotMatch(dateHeader, /minHeight:\s*LOCAL_ACTION_HIT|minHeight:\s*36/);
+    assert.ok(
+      LOCAL_SECTION_SORT_HIT_SLOP.top + 18 + LOCAL_SECTION_SORT_HIT_SLOP.bottom >= 44,
+      "Sort vertical touch target must be ≥44pt",
+    );
     assert.equal(formatCountLabel(1), "1 file");
     assert.equal(formatCountLabel(15), "15 files");
     assert.equal(
