@@ -154,7 +154,8 @@ export default function LibraryScreen() {
       if (
         item.status === "queued" ||
         item.status === "active" ||
-        item.status === "paused"
+        item.status === "paused" ||
+        item.status === "waiting_for_connection"
       ) {
         names.add(item.localName);
       }

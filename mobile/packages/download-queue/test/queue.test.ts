@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Transport, TransportRequest, TransportResponse } from "../../camera-transport/src/index";
 import { MemoryQueueStore } from "../../local-db/src/index";
 import { demoFileBytes } from "../../demo/src/index";
-import { DownloadQueue, MemoryFileSink, CAMERA_CONNECTION_LOST_MESSAGE } from "../src/index";
+import { DownloadQueue, MemoryFileSink, CAMERA_CONNECTION_LOST_MESSAGE, WAITING_FOR_CAMERA_CONNECTION_MESSAGE, isRecoverableConnectionError, isDefinitiveDownloadError } from "../src/index";
 
 class FakeTransport implements Transport {
   calls: TransportRequest[] = [];
@@ -248,7 +248,7 @@ test("pause active item then resume requeues it", async () => {
   assert.ok(after === "queued" || after === "active");
 });
 
-test("progress stall aborts active transfer as connection lost", async () => {
+test("progress stall parks active transfer as waiting_for_connection", async () => {
   class HungTransport implements Transport {
     async request(request: TransportRequest): Promise<TransportResponse> {
       return new Promise((_resolve, reject) => {
@@ -276,13 +276,187 @@ test("progress stall aborts active transfer as connection lost", async () => {
   await queue.init();
 
   await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await queue.enqueue({ remotePath: "/SD/Normal/F/B.MP4", localName: "B.MP4", expectedBytes: 100 });
   await waitUntil(
-    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "failed",
+    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "waiting_for_connection",
     2_000,
   );
-  const failed = queue.list().find((i) => i.localName === "A.MP4");
-  assert.equal(failed?.status, "failed");
-  assert.equal(failed?.errorMessage, CAMERA_CONNECTION_LOST_MESSAGE);
+  const parked = queue.list().find((i) => i.localName === "A.MP4");
+  assert.equal(parked?.status, "waiting_for_connection");
+  assert.equal(parked?.errorMessage, WAITING_FOR_CAMERA_CONNECTION_MESSAGE);
+  const next = queue.list().find((i) => i.localName === "B.MP4");
+  assert.equal(next?.status, "queued");
+  assert.equal(
+    queue.list().filter((i) => i.status === "active" || i.status === "failed").length,
+    0,
+  );
+});
+
+test("network failure parks item and does not start the next download", async () => {
+  let gets = 0;
+  class FailThenOkTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      gets += 1;
+      throw new Error("FetchTransport failed: Network request failed");
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new FailThenOkTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await queue.enqueue({ remotePath: "/SD/Normal/F/B.MP4", localName: "B.MP4", expectedBytes: 100 });
+  await waitUntil(
+    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "waiting_for_connection",
+  );
+  assert.equal(gets, 1);
+  assert.equal(queue.list().find((i) => i.localName === "B.MP4")?.status, "queued");
+  assert.equal(queue.list().find((i) => i.localName === "A.MP4")?.errorMessage, WAITING_FOR_CAMERA_CONNECTION_MESSAGE);
+});
+
+test("reconnect resumes waiting item then continues the queue", async () => {
+  let failOnce = true;
+  class FlakyTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      if (failOnce) {
+        failOnce = false;
+        throw new Error("FetchTransport failed: Network request failed");
+      }
+      return {
+        statusCode: 200,
+        headers: { "content-length": "100" },
+        body: demoFileBytes(100),
+      };
+    }
+  }
+
+  const sink = new MemoryFileSink();
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new FlakyTransport(),
+    sink,
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await queue.enqueue({ remotePath: "/SD/Normal/F/B.MP4", localName: "B.MP4", expectedBytes: 100 });
+  await waitUntil(
+    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "waiting_for_connection",
+  );
+  queue.setConnectionAvailable(true);
+  await waitUntil(() => queue.list().length === 0, 3_000);
+  assert.ok(await sink.exists("/downloads/A.MP4"));
+  assert.ok(await sink.exists("/downloads/B.MP4"));
+});
+
+test("setConnectionAvailable false does not start duplicate pumps", async () => {
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  class SlowTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      concurrent += 1;
+      maxConcurrent = Math.max(maxConcurrent, concurrent);
+      await new Promise((r) => setTimeout(r, 40));
+      concurrent -= 1;
+      return {
+        statusCode: 200,
+        headers: { "content-length": "100" },
+        body: demoFileBytes(100),
+      };
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new SlowTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  queue.setConnectionAvailable(false);
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  assert.equal(queue.list()[0]?.status, "waiting_for_connection");
+  queue.setConnectionAvailable(true);
+  queue.setConnectionAvailable(true);
+  queue.setConnectionAvailable(true);
+  await waitUntil(() => queue.list().length === 0);
+  assert.equal(maxConcurrent, 1);
+});
+
+test("removing a waiting item prevents resume after reconnect", async () => {
+  class FailTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        return { statusCode: 200, headers: { "content-length": "100" }, body: new Uint8Array() };
+      }
+      throw new Error("FetchTransport failed: Network request failed");
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new FailTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await waitUntil(
+    () => queue.list().find((i) => i.localName === "A.MP4")?.status === "waiting_for_connection",
+  );
+  const id = queue.list()[0]!.id;
+  await queue.remove(id);
+  assert.equal(queue.list().length, 0);
+  queue.setConnectionAvailable(true);
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(queue.list().length, 0);
+});
+
+test("definitive 404 stays failed and does not auto-loop", async () => {
+  let gets = 0;
+  class NotFoundTransport implements Transport {
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      if (request.method === "HEAD") {
+        gets += 1;
+        return { statusCode: 404, headers: {}, body: new Uint8Array() };
+      }
+      gets += 1;
+      return { statusCode: 404, headers: {}, body: new Uint8Array() };
+    }
+  }
+
+  const queue = new DownloadQueue({
+    store: new MemoryQueueStore(),
+    transport: new NotFoundTransport(),
+    sink: new MemoryFileSink(),
+    downloadDir: "/downloads",
+  });
+  await queue.init();
+  await queue.enqueue({ remotePath: "/SD/Normal/F/A.MP4", localName: "A.MP4", expectedBytes: 100 });
+  await waitUntil(() => queue.list().find((i) => i.localName === "A.MP4")?.status === "failed");
+  const before = gets;
+  await new Promise((r) => setTimeout(r, 40));
+  assert.equal(gets, before);
+  assert.match(queue.list()[0]?.errorMessage ?? "", /404/);
+});
+
+test("isRecoverableConnectionError classifies FetchTransport network failures", () => {
+  assert.equal(isRecoverableConnectionError("FetchTransport failed: Network request failed"), true);
+  assert.equal(isRecoverableConnectionError("HEAD HTTP 404"), false);
+  assert.equal(isDefinitiveDownloadError("HEAD HTTP 404"), true);
 });
 
 test("enqueue reuses failed item instead of duplicating", async () => {

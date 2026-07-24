@@ -71,8 +71,13 @@ test("paused exposes Resume and Cancel", () => {
   assert.deepEqual(actionsForStatus("paused"), ["resume", "cancel"]);
 });
 
-test("failed exposes Retry and Remove", () => {
-  assert.deepEqual(actionsForStatus("failed"), ["retry", "remove"]);
+test("waiting_for_connection exposes Remove only — no Retry", () => {
+  assert.deepEqual(actionsForStatus("waiting_for_connection"), ["remove"]);
+  assert.equal(isExpandedCard("waiting_for_connection"), false);
+  assert.equal(
+    queueStatusAnnouncement("A.MP4", "active", "waiting_for_connection"),
+    "Waiting for camera connection for A.MP4",
+  );
 });
 
 test("queue positions are consecutive for active + waiting", () => {

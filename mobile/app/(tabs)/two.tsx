@@ -71,6 +71,8 @@ function statusLabel(status: QueueItem["status"]): string {
       return "Paused";
     case "queued":
       return "Queued";
+    case "waiting_for_connection":
+      return "Waiting for camera";
     case "failed":
       return "Failed";
     case "cancelled":
@@ -113,7 +115,11 @@ export default function QueueScreen() {
   const hasQueueWork = useMemo(
     () =>
       visibleItems.some(
-        (item) => item.status === "active" || item.status === "paused" || item.status === "queued",
+        (item) =>
+          item.status === "active" ||
+          item.status === "paused" ||
+          item.status === "queued" ||
+          item.status === "waiting_for_connection",
       ),
     [visibleItems],
   );
@@ -311,6 +317,8 @@ export default function QueueScreen() {
         return { fg: colors.brand, bg: colors.brandSoft };
       case "paused":
         return { fg: colors.warn, bg: colors.warnSoft };
+      case "waiting_for_connection":
+        return { fg: colors.warn, bg: colors.warnSoft };
       case "queued":
         return { fg: colors.textMuted, bg: colors.surfaceMuted };
       case "failed":
@@ -455,10 +463,11 @@ export default function QueueScreen() {
           const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
           const active = isExpandedCard(item.status);
           const paused = item.status === "paused";
+          const waitingCamera = item.status === "waiting_for_connection";
           const queued = item.status === "queued";
           const terminal =
             item.status === "failed" || item.status === "cancelled";
-          const compactSide = queued || terminal;
+          const compactSide = queued || terminal || waitingCamera;
           const position = queueDisplayPosition(visibleItems, item.id);
           const tone = badgeColors(item.status);
           const label = statusLabel(item.status);
@@ -497,7 +506,9 @@ export default function QueueScreen() {
           }
 
           const metaSecond =
-            queued || item.status === "failed" || item.status === "cancelled" ? sizeLabel : undefined;
+            queued || waitingCamera || item.status === "failed" || item.status === "cancelled"
+              ? sizeLabel
+              : undefined;
           const pausedMeta =
             total > 0
               ? `${formatSizeMb(received)} / ${formatSizeMb(total)} · ${percent}%`
@@ -508,9 +519,11 @@ export default function QueueScreen() {
               ? `Downloading ${item.localName}, ${percent} percent`
               : item.status === "paused"
                 ? `Paused at ${percent} percent`
-                : item.status === "queued" && position !== undefined
-                  ? `Queued in position ${position}`
-                  : `${label} ${item.localName}`;
+                : item.status === "waiting_for_connection"
+                  ? `Waiting for camera connection for ${item.localName}`
+                  : item.status === "queued" && position !== undefined
+                    ? `Queued in position ${position}`
+                    : `${label} ${item.localName}`;
 
           const badgeText =
             queued && position !== undefined ? `Queued · #${position}` : label;
@@ -599,6 +612,13 @@ export default function QueueScreen() {
                         {item.errorMessage}
                       </Text>
                     </Pressable>
+                  ) : waitingCamera ? (
+                    <Text
+                      style={[styles.errorCompact, { color: colors.warn }]}
+                      numberOfLines={2}
+                    >
+                      {item.errorMessage ?? "Waiting for camera connection"}
+                    </Text>
                   ) : null}
                 </View>
 

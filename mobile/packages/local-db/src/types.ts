@@ -2,6 +2,7 @@ export type QueueItemStatus =
   | "queued"
   | "active"
   | "paused"
+  | "waiting_for_connection"
   | "completed"
   | "failed"
   | "cancelled";

@@ -57,7 +57,6 @@ import {
 } from "../packages/camera-transport/src/index";
 import { DEMO_FILES, DemoTransport } from "../packages/demo/src/index";
 import {
-  CAMERA_CONNECTION_LOST_MESSAGE,
   DownloadQueue,
   ExpoFileSink,
   MemoryFileSink,
@@ -187,23 +186,6 @@ function fetchTimeoutForBytes(sizeBytes: number): number {
 
 function formatMiB(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
-}
-
-function isConnectionDropError(message: string | undefined): boolean {
-  if (!message) return false;
-  if (message === CAMERA_CONNECTION_LOST_MESSAGE) return true;
-  const s = message.toLowerCase();
-  return (
-    s.includes("timeout") ||
-    s.includes("timed out") ||
-    s.includes("network") ||
-    s.includes("econnrefused") ||
-    s.includes("econnreset") ||
-    s.includes("failed to fetch") ||
-    s.includes("unreachable") ||
-    s.includes("connection lost") ||
-    s.includes("network request failed")
-  );
 }
 
 function notifyCameraDisconnected(detail?: string): void {
@@ -380,6 +362,18 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [downloadDir]);
 
   const queueRef = useRef<DownloadQueue | null>(null);
+  const onRecoverableDisconnectRef = useRef<(message: string) => void>(() => undefined);
+  onRecoverableDisconnectRef.current = (message: string) => {
+    setCameraLinkState((prev) =>
+      prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
+    );
+    setLastError(message);
+    const now = Date.now();
+    if (now - disconnectAlertAtRef.current > 4_000) {
+      disconnectAlertAtRef.current = now;
+      notifyCameraDisconnected(message);
+    }
+  };
   if (queueRef.current === null) {
     const store = isExpoGo
       ? new MemoryQueueStore()
@@ -393,11 +387,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       transport: new DemoTransport(),
       sink,
       downloadDir,
+      onRecoverableDisconnect: (message) => onRecoverableDisconnectRef.current(message),
       onChange: (items) => {
         setQueueItems(items);
-        const justFinished = items.some(
-          (item) => item.status === "completed" || item.status === "failed",
-        );
+        const justFinished = items.some((item) => item.status === "completed");
         if (justFinished) void refreshLocalFiles();
       },
     });
@@ -907,42 +900,12 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [demoMode, cameraLinkState, cameraHost, clearHealthRetryTimer]);
 
   useEffect(() => {
-    let sawDrop = false;
-    let dropDetail: string | undefined;
-    for (const item of queueItems) {
-      const prev = queueStatusRef.current.get(item.id);
-      // Only live transitions (queued/active/… → failed). Skip hydration of
-      // already-failed rows so reconnect is not overwritten by stale queue state.
-      if (
-        item.status === "failed" &&
-        prev !== undefined &&
-        prev !== "failed" &&
-        isConnectionDropError(item.errorMessage)
-      ) {
-        sawDrop = true;
-        dropDetail = item.errorMessage;
-      }
-    }
-    queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
-    if (!sawDrop) return;
+    queue.setConnectionAvailable(cameraLinkState === "connected" && !demoMode);
+  }, [cameraLinkState, demoMode, queue]);
 
-    cameraSessionGenRef.current = bumpCameraSessionGeneration(cameraSessionGenRef.current);
-    setFiles([]);
-    setCameraLinkState((prev) =>
-      prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
-    );
-    setLastError(dropDetail ?? CAMERA_CONNECTION_LOST_MESSAGE);
-    const now = Date.now();
-    if (now - disconnectAlertAtRef.current > 4_000) {
-      disconnectAlertAtRef.current = now;
-      notifyCameraDisconnected(dropDetail);
-    }
-    for (const item of queue.list()) {
-      if (item.status === "queued") {
-        void queue.pause(item.id);
-      }
-    }
-  }, [queueItems, queue]);
+  useEffect(() => {
+    queueStatusRef.current = new Map(queueItems.map((item) => [item.id, item.status]));
+  }, [queueItems]);
 
   const disconnectSession = useCallback(() => {
     clearRemoteCameraLibrary("disconnected");

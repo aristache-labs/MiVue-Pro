@@ -14,14 +14,15 @@ export function filterVisibleQueueItems(items: readonly QueueItem[]): QueueItem[
   return items.filter((item) => !isSidecarNmea(item.localName) && item.status !== "completed");
 }
 
-/** Active / paused first, then waiting, then failed / cancelled. */
+/** Active / paused / waiting-for-camera first, then queued, then failed / cancelled. */
 export function sortQueueForDisplay(items: readonly QueueItem[]): QueueItem[] {
   const rank = (status: QueueItemStatus): number => {
     if (status === "active") return 0;
     if (status === "paused") return 1;
-    if (status === "queued") return 2;
-    if (status === "failed") return 3;
-    return 4;
+    if (status === "waiting_for_connection") return 2;
+    if (status === "queued") return 3;
+    if (status === "failed") return 4;
+    return 5;
   };
   return [...items].sort((a, b) => rank(a.status) - rank(b.status));
 }
@@ -35,7 +36,11 @@ export function queueDisplayPosition(
   itemId: string,
 ): number | undefined {
   const lane = orderedVisible.filter(
-    (item) => item.status === "active" || item.status === "paused" || item.status === "queued",
+    (item) =>
+      item.status === "active" ||
+      item.status === "paused" ||
+      item.status === "queued" ||
+      item.status === "waiting_for_connection",
   );
   const index = lane.findIndex((item) => item.id === itemId);
   return index < 0 ? undefined : index + 1;
@@ -48,6 +53,8 @@ export function actionsForStatus(status: QueueItemStatus): readonly QueueAction[
     case "paused":
       return ["resume", "cancel"];
     case "queued":
+      return ["remove"];
+    case "waiting_for_connection":
       return ["remove"];
     case "failed":
       return ["retry", "remove"];
@@ -66,7 +73,7 @@ export function isExpandedCard(status: QueueItemStatus): boolean {
 }
 
 export function showsProgress(status: QueueItemStatus): boolean {
-  return status === "active" || status === "paused";
+  return status === "active" || status === "paused" || status === "waiting_for_connection";
 }
 
 export type QueueThumbSize = { readonly width: number; readonly height: number };
@@ -91,6 +98,7 @@ export function resolveQueueThumbnailUri(input: {
 export function formatQueueSummary(items: readonly QueueItem[]): string {
   const downloading = items.filter((i) => i.status === "active").length;
   const paused = items.filter((i) => i.status === "paused").length;
+  const waitingCamera = items.filter((i) => i.status === "waiting_for_connection").length;
   const waiting = items.filter((i) => i.status === "queued").length;
   const failed = items.filter((i) => i.status === "failed").length;
 
@@ -102,6 +110,11 @@ export function formatQueueSummary(items: readonly QueueItem[]): string {
   }
   if (paused > 0) {
     parts.push(paused === 1 ? "1 paused" : `${paused} paused`);
+  }
+  if (waitingCamera > 0) {
+    parts.push(
+      waitingCamera === 1 ? "1 waiting for camera" : `${waitingCamera} waiting for camera`,
+    );
   }
   if (waiting > 0) {
     parts.push(waiting === 1 ? "1 waiting" : `${waiting} waiting`);
@@ -239,6 +252,9 @@ export function queueStatusAnnouncement(
       : `Download started for ${localName}`;
   }
   if (next === "paused") return `Download paused for ${localName}`;
+  if (next === "waiting_for_connection") {
+    return `Waiting for camera connection for ${localName}`;
+  }
   if (next === "failed") return `Download failed for ${localName}`;
   if (next === "cancelled") return `Download cancelled for ${localName}`;
   if (next === "completed") return `Download completed for ${localName}`;

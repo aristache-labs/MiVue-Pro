@@ -28,7 +28,11 @@ export async function removeQueueEntrySafely(options: {
   const live = options.getLive();
   if (!live) return;
 
-  if (live.status === "active" || live.status === "queued") {
+  if (
+    live.status === "active" ||
+    live.status === "queued" ||
+    live.status === "waiting_for_connection"
+  ) {
     await options.cancelDownload(live.id);
     await waitForQueueStatus(
       options.getLive,
@@ -42,6 +46,12 @@ export async function removeQueueEntrySafely(options: {
 
   const after = options.getLive();
   if (!after) return;
-  if (after.status === "queued" || after.status === "active") return;
+  if (
+    after.status === "queued" ||
+    after.status === "active" ||
+    after.status === "waiting_for_connection"
+  ) {
+    return;
+  }
   await options.removeFromQueue(after.id);
 }
