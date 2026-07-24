@@ -96,7 +96,7 @@ test("non-date sort uses a single flat section", () => {
 test("Local screen wires shared sort sheet without Name options", () => {
   const local = readFileSync(join(__dirname, "../../app/(tabs)/local.tsx"), "utf8");
   const model = readFileSync(join(__dirname, "../camera/cameraLibraryModel.ts"), "utf8");
-  assert.match(local, /LocalLibraryUtilityBar/);
+  assert.match(local, /LibraryListControls/);
   assert.match(local, /local-sort-sheet/);
   assert.match(local, /cameraSortOptionsForCategory/);
   assert.match(local, /buildLocalLibrarySections\(filteredFiles, sort, durationByName\)/);

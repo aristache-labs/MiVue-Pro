@@ -124,10 +124,11 @@ describe("librarySelection helpers", () => {
     assert.doesNotMatch(index, /selectionBarWrap/);
     assert.doesNotMatch(index, /position:\s*"absolute"[\s\S]{0,80}selection/);
     assert.doesNotMatch(index, /bottom:\s*tabBarHeight/);
-    assert.match(local, /LocalSelectionDock/);
-    assert.match(local, /local-selection-dock|showSelectionDock/);
-    assert.doesNotMatch(local, /SelectionActionBand/);
-    assert.match(local, /localDeleteSelectionLabel|Delete local|Delete/);
+    assert.match(local, /SelectionActionBand/);
+    assert.match(local, /local-selection-action-band/);
+    assert.match(local, /LocalSelectionContextBar/);
+    assert.doesNotMatch(local, /LocalSelectionDock/);
+    assert.match(local, /localDeleteSelectionLabel|Delete local|trash-outline/);
     assert.match(local, /shareLocalFile/);
     assert.doesNotMatch(local, /localShareActionLabel/);
     assert.doesNotMatch(local, /shareLocalFiles/);

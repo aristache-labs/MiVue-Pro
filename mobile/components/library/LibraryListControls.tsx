@@ -14,6 +14,11 @@ export interface LibraryListControlsProps {
   readonly activeFilterCount: number;
   /** True when sort differs from default (newest). */
   readonly sortActive: boolean;
+  /**
+   * Optional sort segment label (e.g. Newest). When omitted, shows "Sort".
+   * Local Library passes the active sort name for consistency with the sort sheet.
+   */
+  readonly sortLabel?: string;
   readonly onPressFilters: () => void;
   readonly onPressSort: () => void;
   readonly disabled?: boolean;
@@ -26,6 +31,7 @@ export interface LibraryListControlsProps {
 export function LibraryListControls({
   activeFilterCount,
   sortActive,
+  sortLabel,
   onPressFilters,
   onPressSort,
   disabled = false,
@@ -33,6 +39,8 @@ export function LibraryListControls({
 }: LibraryListControlsProps) {
   const { colors, spacing } = useAppTheme();
   const filtersActive = activeFilterCount > 0;
+  const sortText = sortLabel ?? "Sort";
+  const sortA11yLabel = sortLabel ? `Sort: ${sortLabel}` : "Sort recordings";
 
   return (
     <View
@@ -103,7 +111,7 @@ export function LibraryListControls({
           onPress={onPressSort}
           disabled={disabled}
           accessibilityRole="button"
-          accessibilityLabel="Sort recordings"
+          accessibilityLabel={sortA11yLabel}
           accessibilityHint="Opens recording sorting options"
           accessibilityState={{ disabled, selected: sortActive }}
           style={({ pressed }) => [
@@ -125,7 +133,7 @@ export function LibraryListControls({
               { color: sortActive ? colors.brand : colors.text },
             ]}
           >
-            Sort
+            {sortText}
           </Text>
           {sortActive ? (
             <View style={[styles.sortDot, { backgroundColor: colors.brand }]} />

@@ -38,16 +38,12 @@ import {
   selectAllFilteredA11yLabel,
 } from "@/components/local/localCopy";
 import { LocalFilterSheet } from "@/components/local/LocalFilterSheet";
-import { LocalLibraryUtilityBar } from "@/components/local/LocalLibraryUtilityBar";
-import { LocalSelectionDock } from "@/components/local/LocalSelectionDock";
+import { LocalSelectionContextBar } from "@/components/local/LocalSelectionContextBar";
 import {
-  LOCAL_SELECTION_DOCK_GAP,
-  LOCAL_SELECTION_DOCK_HEIGHT,
   localSelectedCountLabel,
   localSelectionModeAnnouncement,
   localSortBarLabel,
 } from "@/components/local/localLibrarySelection";
-import { triggerLocalSelectionHaptic } from "@/components/local/localLibrarySelectionHaptic";
 import {
   buildFilterChips,
   clearFilterGroup,
@@ -78,9 +74,9 @@ import {
 } from "@/components/local/localLibrarySections";
 import { FloatingBackToTop } from "@/components/navigation/FloatingBackToTop";
 import { TabScreenHeader } from "@/components/navigation/TabScreenHeader";
-import {
-  LibraryCategoryTabs,
-} from "@/components/library/LibraryCategoryTabs";
+import { LibraryCategoryTabs } from "@/components/library/LibraryCategoryTabs";
+import { LibraryListControls } from "@/components/library/LibraryListControls";
+import { SelectionActionBand } from "@/components/library/SelectionActionBand";
 import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
 import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { createUiActionGate } from "@/components/queue/queuePresentation";
@@ -143,7 +139,6 @@ export default function LocalLibraryScreen() {
     };
   }, []);
 
-  const showSelectionDock = selecting && selected.size > 0;
   const canPullToRefresh = !selecting;
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
   const {
@@ -262,7 +257,6 @@ export default function LocalLibraryScreen() {
   const enterSelection = useCallback((uri: string) => {
     setSelecting(true);
     setSelected(new Set([uri]));
-    triggerLocalSelectionHaptic();
     void AccessibilityInfo.announceForAccessibility(localSelectionModeAnnouncement(1));
   }, []);
 
@@ -438,62 +432,6 @@ export default function LocalLibraryScreen() {
   }, [selectedFiles, deleting, deleteLocalFilesBatch, exitSelection]);
 
   useLayoutEffect(() => {
-    if (selecting) {
-      const allSelected = selected.size === filteredFiles.length && filteredFiles.length > 0;
-      navigation.setOptions({
-        header: () => (
-          <TabScreenHeader
-            title={localSelectedCountLabel(selected.size)}
-            left={
-              <Pressable
-                onPress={exitSelection}
-                accessibilityRole="button"
-                accessibilityLabel="Close selection"
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <Ionicons name="close-outline" size={24} color={colors.brand} />
-              </Pressable>
-            }
-            right={
-              <Pressable
-                onPress={() => {
-                  if (allSelected) deselectAll();
-                  else selectAllFiltered();
-                }}
-                accessibilityRole="button"
-                accessibilityLabel={
-                  allSelected ? "Deselect all" : selectAllFilteredA11yLabel(filteredFiles.length)
-                }
-                accessibilityHint={
-                  allSelected
-                    ? "Clears the current selection"
-                    : "Selects all files in the filtered list"
-                }
-                hitSlop={HitSlop44}
-                style={styles.headerSideBtn}
-              >
-                <View style={styles.headerSelectAll}>
-                  <Ionicons
-                    name={allSelected ? "checkbox" : "checkbox-outline"}
-                    size={18}
-                    color={colors.brand}
-                  />
-                  <Text
-                    style={{ color: colors.brand, fontFamily: Type.fontSemi, fontSize: 14 }}
-                    numberOfLines={1}
-                  >
-                    {allSelected ? "Deselect all" : "Select all"}
-                  </Text>
-                </View>
-              </Pressable>
-            }
-          />
-        ),
-      });
-      return;
-    }
-
     navigation.setOptions({
       header: () => (
         <TabScreenHeader
@@ -502,14 +440,14 @@ export default function LocalLibraryScreen() {
           right={
             <Pressable
               onPress={() => void runRefresh()}
-              disabled={refreshing}
+              disabled={refreshing || selecting}
               accessibilityRole="button"
               accessibilityLabel="Refresh local library"
-              accessibilityState={{ busy: refreshing, disabled: refreshing }}
+              accessibilityState={{ busy: refreshing, disabled: refreshing || selecting }}
               hitSlop={HitSlop44}
               style={({ pressed }) => [
                 styles.headerIconBtn,
-                { opacity: refreshing ? 0.5 : pressed ? 0.65 : 1 },
+                { opacity: refreshing || selecting ? 0.5 : pressed ? 0.65 : 1 },
               ]}
             >
               {refreshing ? (
@@ -522,30 +460,17 @@ export default function LocalLibraryScreen() {
         />
       ),
     });
-  }, [
-    navigation,
-    selecting,
-    selected.size,
-    filteredFiles.length,
-    refreshing,
-    colors,
-    exitSelection,
-    selectAllFiltered,
-    deselectAll,
-    runRefresh,
-  ]);
+  }, [navigation, selecting, refreshing, colors, runRefresh]);
 
   const emptyLibrary = localFiles.length === 0;
   const emptyFiltered = !emptyLibrary && filteredFiles.length === 0;
+  const allFilteredSelected =
+    selected.size === filteredFiles.length && filteredFiles.length > 0;
   const listPadBottomBase = listContentBottomPadding(
     filteredFiles.length,
     listFilledPad,
     Math.max(spacing.lg, 12),
   );
-
-  const dockReserve = showSelectionDock
-    ? LOCAL_SELECTION_DOCK_HEIGHT + LOCAL_SELECTION_DOCK_GAP + 8
-    : 0;
 
   const backToTopEnabled =
     !filterOpen &&
@@ -568,8 +493,11 @@ export default function LocalLibraryScreen() {
     itemCount: listRows.length,
   });
 
-  const listPadBottom =
-    backToTopListBottomPadding(listRows.length, hasOverflow, listPadBottomBase) + dockReserve;
+  const listPadBottom = backToTopListBottomPadding(
+    listRows.length,
+    hasOverflow,
+    listPadBottomBase,
+  );
 
   const handleListLayout = useCallback(
     (event: Parameters<typeof onViewportLayout>[0]) => {
@@ -604,13 +532,20 @@ export default function LocalLibraryScreen() {
         testID="local-category-row"
       />
 
-      <LocalLibraryUtilityBar
+      <LibraryListControls
         activeFilterCount={activeGroups}
+        sortActive={sort !== "newest"}
         sortLabel={localSortBarLabel(sort)}
-        onPressFilters={() => setFilterOpen(true)}
-        onPressSort={() => setSortOpen(true)}
+        onPressFilters={() => {
+          if (selecting) return;
+          setFilterOpen(true);
+        }}
+        onPressSort={() => {
+          if (selecting) return;
+          setSortOpen(true);
+        }}
         disabled={selecting}
-        testID="local-utility-bar"
+        testID="local-list-controls"
       />
 
       {!isFiltersEmpty(filters) ? (
@@ -664,6 +599,20 @@ export default function LocalLibraryScreen() {
         </View>
       ) : null}
 
+      {selecting ? (
+        <LocalSelectionContextBar
+          selectedCount={selected.size}
+          filteredCount={filteredFiles.length}
+          allSelected={allFilteredSelected}
+          onClose={exitSelection}
+          onToggleSelectAll={() => {
+            if (allFilteredSelected) deselectAll();
+            else selectAllFiltered();
+          }}
+          selectAllAccessibilityLabel={selectAllFilteredA11yLabel(filteredFiles.length)}
+        />
+      ) : null}
+
       <View style={styles.list}>
         {stickySection && listRows.length > 0 ? (
           <View
@@ -686,6 +635,34 @@ export default function LocalLibraryScreen() {
             </Text>
           </View>
         ) : null}
+
+        <SelectionActionBand
+          visible={selecting}
+          testID="local-selection-action-band"
+          actions={[
+            {
+              key: "delete",
+              tone: "danger",
+              icon: "trash-outline",
+              label:
+                selected.size > 1
+                  ? `Delete ${selected.size}`
+                  : "Delete",
+              accessibilityLabel:
+                selected.size === 0
+                  ? "Delete"
+                  : deleteLocalA11yLabel(selected.size),
+              accessibilityHint:
+                selected.size === 0
+                  ? "Select files to enable delete"
+                  : "Deletes selected local files from this device",
+              onPress: () => setDeleteConfirmOpen(true),
+              disabled: selected.size === 0 || deleting,
+              busy: deleting,
+            },
+          ]}
+        />
+
         <FlatList
           ref={localListRef}
           style={styles.list}
@@ -751,23 +728,6 @@ export default function LocalLibraryScreen() {
           renderItem={renderItem}
         />
       </View>
-
-      <LocalSelectionDock
-        visible={showSelectionDock}
-        bottomOffset={tabBarHeight}
-        reduceMotion={reduceMotion}
-        shareDisabled={selectedFiles.length === 0}
-        deleteDisabled={selectedFiles.length === 0}
-        deleteBusy={deleting}
-        onShare={() => {
-          void actionGateRef.current(async () => {
-            for (const file of selectedFiles) {
-              await shareLocalFile(file);
-            }
-          });
-        }}
-        onDelete={() => setDeleteConfirmOpen(true)}
-      />
 
       <FloatingBackToTop
         visible={backToTopVisible && backToTopEnabled}
@@ -949,19 +909,6 @@ const styles = StyleSheet.create({
   demoRow: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 8 },
   error: { fontSize: 12, fontFamily: Type.fontSemi, marginTop: 4, marginBottom: 4 },
   status: { fontSize: 12, fontFamily: Type.font, marginBottom: 4 },
-  headerSideBtn: {
-    minHeight: LOCAL_ACTION_HIT,
-    minWidth: LOCAL_ACTION_HIT,
-    justifyContent: "center",
-    paddingHorizontal: 4,
-  },
-  headerSelectAll: {
-    minHeight: LOCAL_ACTION_HIT,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    maxWidth: 108,
-  },
   headerIconBtn: {
     width: LOCAL_ACTION_HIT,
     height: LOCAL_ACTION_HIT,
