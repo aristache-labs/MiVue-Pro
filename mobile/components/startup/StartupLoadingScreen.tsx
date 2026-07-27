@@ -22,11 +22,21 @@ export const STARTUP_LOCAL_NOTE = "Local-first · Your recordings stay on your d
 export const STARTUP_A11Y_LABEL = `${APP_NAME} is starting`;
 
 const LOGO = require("../../assets/brand/laneory-mark-icon.png");
+const WORDMARK_ON_DARK = require("../../assets/brand/laneory-lockup-dark.png");
+const WORDMARK_ON_LIGHT = require("../../assets/brand/laneory-lockup-light.png");
 /** Trimmed mark is landscape — keep explicit height so RN never falls back to raw pixel size. */
-const LOGO_WIDTH = 88;
+const LOGO_WIDTH = 100;
 const LOGO_HEIGHT = Math.round(LOGO_WIDTH * (590 / 1037));
-const DARK_LOGO_OUTLINE_WIDTH = 96;
+const DARK_LOGO_OUTLINE_WIDTH = 108;
 const DARK_LOGO_OUTLINE_HEIGHT = Math.round(DARK_LOGO_OUTLINE_WIDTH * (590 / 1037));
+/** Transparent wordmark bounds inside the 2172 × 724 lockup assets. */
+const WORDMARK_WIDTH = 172;
+const WORDMARK_HEIGHT = Math.round(WORDMARK_WIDTH * (197 / 1182));
+const WORDMARK_SCALE = WORDMARK_WIDTH / 1182;
+const WORDMARK_LOCKUP_WIDTH = Math.round(2172 * WORDMARK_SCALE);
+const WORDMARK_LOCKUP_HEIGHT = Math.round(724 * WORDMARK_SCALE);
+const WORDMARK_OFFSET_X = Math.round(763 * WORDMARK_SCALE);
+const WORDMARK_OFFSET_Y = Math.round(286 * WORDMARK_SCALE);
 const ENTRANCE_MS = 400;
 const ENTRANCE_OFFSET = 8;
 
@@ -122,13 +132,18 @@ export function StartupLoadingScreen({ onLayout }: StartupLoadingScreenProps) {
             />
           </View>
 
-          <Text
-            style={[Type.largeTitle, styles.title, { color: colors.text, marginTop: spacing.xl }]}
-            maxFontSizeMultiplier={1.35}
+          <View
+            style={[styles.wordmarkViewport, { marginTop: spacing.xxl }]}
             accessible={false}
           >
-            {APP_NAME}
-          </Text>
+            <Image
+              source={scheme === "dark" ? WORDMARK_ON_DARK : WORDMARK_ON_LIGHT}
+              style={styles.wordmarkImage}
+              resizeMode="stretch"
+              accessible={false}
+              importantForAccessibility="no"
+            />
+          </View>
           <Text
             style={[styles.subtitle, { color: colors.textMuted, marginTop: spacing.sm }]}
             maxFontSizeMultiplier={1.3}
@@ -190,8 +205,17 @@ const styles = StyleSheet.create({
     position: "absolute",
     opacity: 0.22,
   },
-  title: {
-    textAlign: "center",
+  wordmarkViewport: {
+    width: WORDMARK_WIDTH,
+    height: WORDMARK_HEIGHT,
+    overflow: "hidden",
+  },
+  wordmarkImage: {
+    position: "absolute",
+    width: WORDMARK_LOCKUP_WIDTH,
+    height: WORDMARK_LOCKUP_HEIGHT,
+    left: -WORDMARK_OFFSET_X,
+    top: -WORDMARK_OFFSET_Y,
   },
   subtitle: {
     fontSize: Type.body.fontSize,

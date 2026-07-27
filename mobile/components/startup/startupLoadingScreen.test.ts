@@ -10,6 +10,8 @@ describe("StartupLoadingScreen", () => {
   const loaderSrc = readFileSync(join(__dirname, "./LaneoryCapsuleLoader.tsx"), "utf8");
   const layoutSrc = readFileSync(join(__dirname, "../../app/_layout.tsx"), "utf8");
   const logoPath = join(__dirname, "../../assets/brand/laneory-mark-icon.png");
+  const wordmarkDarkPath = join(__dirname, "../../assets/brand/laneory-lockup-dark.png");
+  const wordmarkLightPath = join(__dirname, "../../assets/brand/laneory-lockup-light.png");
 
   it("uses APP_NAME / Laneory from the central brand constant", () => {
     assert.equal(APP_NAME, "Laneory");
@@ -38,7 +40,7 @@ describe("StartupLoadingScreen", () => {
 
   it("presents a larger standalone mark without a circular plate", () => {
     assert.match(screenSrc, /resizeMode="contain"/);
-    assert.match(screenSrc, /LOGO_WIDTH\s*=\s*88/);
+    assert.match(screenSrc, /LOGO_WIDTH\s*=\s*100/);
     assert.match(screenSrc, /width:\s*LOGO_WIDTH,\s*height:\s*LOGO_HEIGHT/);
     assert.doesNotMatch(screenSrc, /aspectRatio/);
     assert.doesNotMatch(screenSrc, /LOGO_PLATE|LOGO_HALO|logoStack|logoWrap/);
@@ -49,9 +51,24 @@ describe("StartupLoadingScreen", () => {
     assert.match(screenSrc, /scheme\s*===\s*"dark"\s*\?\s*\(/);
     assert.match(screenSrc, /styles\.darkLogoOutline/);
     assert.match(screenSrc, /tintColor:\s*colors\.brandStrong/);
-    assert.match(screenSrc, /DARK_LOGO_OUTLINE_WIDTH\s*=\s*96/);
+    assert.match(screenSrc, /DARK_LOGO_OUTLINE_WIDTH\s*=\s*108/);
     assert.match(screenSrc, /opacity:\s*0\.22/);
     assert.doesNotMatch(screenSrc, /borderWidth|borderColor|borderRadius/);
+  });
+
+  it("renders the exact theme-aware Laneory wordmark instead of approximating its typeface", () => {
+    assert.equal(existsSync(wordmarkDarkPath), true);
+    assert.equal(existsSync(wordmarkLightPath), true);
+    assert.match(screenSrc, /assets\/brand\/laneory-lockup-dark\.png/);
+    assert.match(screenSrc, /assets\/brand\/laneory-lockup-light\.png/);
+    assert.match(
+      screenSrc,
+      /source=\{scheme\s*===\s*"dark"\s*\?\s*WORDMARK_ON_DARK\s*:\s*WORDMARK_ON_LIGHT\}/,
+    );
+    assert.match(screenSrc, /WORDMARK_WIDTH\s*=\s*172/);
+    assert.match(screenSrc, /styles\.wordmarkViewport/);
+    assert.match(screenSrc, /overflow:\s*"hidden"/);
+    assert.doesNotMatch(screenSrc, /Type\.largeTitle/);
   });
 
   it("replaces ActivityIndicator with the LaneoryCapsuleLoader", () => {
@@ -65,7 +82,6 @@ describe("StartupLoadingScreen", () => {
     assert.match(screenSrc, /useAppTheme\(\)/);
     assert.match(screenSrc, /colors\.bg/);
     assert.match(screenSrc, /colors\.textMuted/);
-    assert.match(screenSrc, /Type\.largeTitle/);
     assert.doesNotMatch(screenSrc, /#[0-9a-fA-F]{3,8}/);
     assert.doesNotMatch(screenSrc, /rgba?\(/);
     assert.match(screenSrc, /accessibilityRole="progressbar"/);
