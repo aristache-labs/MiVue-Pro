@@ -162,3 +162,18 @@ Status: **camera-confirmed** pe Mio MiVue 866 (GET only, 2026-07-24).
 ### Verificare anterioară (înlocuită)
 
 Probele din 2026-07-24 pe `status` + lista scurtă au raportat greșit absența — cheile erau pe `Vendor.DeviceInfo.Version.*` / `Net.WIFI_AP.SSID`, necerute atunci.
+
+## Capacitate card SD (total / free / used)
+
+Status: **necunoscut / neconfirmat pe cameră** (2026-07).
+
+Settings → Downloads & Storage afișează un rezumat de capacitate SD, dar **nu** există încă un endpoint CGI documentat ca `camera-confirmed` pentru `totalBytes` / `freeBytes`.
+
+Reguli produs:
+
+- Nu se inventează proprietăți CGI și nu se promovează observații `apk-observed` direct în production.
+- Pe camere live, UI-ul folosește starea `Storage information unavailable for this camera` până la validare.
+- Demo Mode folosește valori deterministe în bytes, formatate prin același helper production.
+- Spațiul ocupat **nu** se deduce din suma fișierelor listate în Library (cardul poate conține alte date).
+
+Când un endpoint GET read-only este confirmat pe o cameră deținută legal, documentează aici unitățile (octeți vs KB), răspunsul de succes și promovează la `camera-confirmed`.

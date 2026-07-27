@@ -1,9 +1,7 @@
-import Ionicons from "@expo/vector-icons/Ionicons";
 import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
-  ActivityIndicator,
   Alert,
   BackHandler,
   StyleSheet,
@@ -27,6 +25,12 @@ import {
   storageBreakdownRows,
   type StorageSizedItem,
 } from "@/components/settings/storageBreakdown";
+import { CameraSdStorageCard } from "@/components/settings/CameraSdStorageCard";
+import {
+  DEMO_CAMERA_SD_RAW,
+  presentCameraSdStorage,
+  resolveCameraSdStorageKind,
+} from "@/components/settings/cameraSdStorage";
 import {
   deleteLocalLibraryConfirmButton,
   deleteLocalLibraryConfirmMessage,
@@ -55,58 +59,36 @@ const STAT_ICONS = {
   unknown: "help-circle-outline",
 } as const;
 
-function CameraSdPlaceholder({
-  kind,
-}: {
-  readonly kind: "connecting" | "disconnected";
-}) {
-  const { colors, radius } = useAppTheme();
-  const connecting = kind === "connecting";
-  const title = connecting ? "Connecting to camera" : "Camera not connected";
-  const subtitle = connecting
-    ? "Camera statistics will appear after the connection is ready."
-    : "Connect to the camera to view SD card statistics.";
-
-  return (
-    <View
-      style={styles.placeholderRow}
-      accessibilityRole="text"
-      accessibilityLabel={`${title}. ${subtitle}`}
-    >
-      <View
-        style={[
-          styles.placeholderIcon,
-          { backgroundColor: colors.surfaceMuted, borderRadius: radius.sm },
-        ]}
-      >
-        {connecting ? (
-          <ActivityIndicator size="small" color={colors.textMuted} />
-        ) : (
-          <Ionicons name="cloud-offline-outline" size={18} color={colors.brand} />
-        )}
-      </View>
-      <View style={styles.placeholderBody}>
-        <Text style={[styles.placeholderTitle, { color: colors.text }]} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={[styles.placeholderSubtitle, { color: colors.textMuted }]} numberOfLines={3}>
-          {subtitle}
-        </Text>
-      </View>
-    </View>
-  );
-}
-
 export default function SettingsStorageScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { localFiles, files, cameraLinkState, clearThumbCache, deleteLocalFilesBatch } =
+  const { localFiles, files, cameraLinkState, clearThumbCache, deleteLocalFilesBatch, demoMode } =
     useDemoMode();
   const cameraStatus = visibleConnectionStatus(cameraLinkState);
   const cameraConnected = cameraStatus === "connected";
   const cameraConnecting = cameraStatus === "connecting";
   const [deletingLibrary, setDeletingLibrary] = useState(false);
   const deletingRef = useRef(false);
+
+  const sdKind = resolveCameraSdStorageKind({
+    connected: cameraConnected,
+    connecting: cameraConnecting,
+    demoMode,
+    hasCachedUsage: demoMode && cameraConnected,
+  });
+  const sdView = presentCameraSdStorage({
+    kind: sdKind,
+    raw: sdKind === "ready" || sdKind === "refreshing" ? DEMO_CAMERA_SD_RAW : null,
+  });
+  const cameraSdSummary =
+    sdView.percentLabel ??
+    (cameraConnected
+      ? sdKind === "unavailable"
+        ? "Unavailable"
+        : undefined
+      : cameraConnecting
+        ? "Connecting…"
+        : "Not connected");
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -138,12 +120,6 @@ export default function SettingsStorageScreen() {
 
   const localRows = useMemo(() => storageBreakdownRows(localBreakdown), [localBreakdown]);
   const cameraRows = useMemo(() => storageBreakdownRows(cameraBreakdown), [cameraBreakdown]);
-
-  const cameraSummary = cameraConnected
-    ? formatStorageStatLine(cameraBreakdown.total.count, cameraBreakdown.total.bytes)
-    : cameraConnecting
-      ? "Connecting…"
-      : "Not connected";
 
   const localEmpty = localFiles.length === 0;
   const deleteDisabled = isDeleteLocalLibraryDisabled(localFiles.length, deletingLibrary);
@@ -264,7 +240,8 @@ export default function SettingsStorageScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Camera SD card" summary={cameraSummary} style={styles.section}>
+        <SettingsSection title="Camera SD card" summary={cameraSdSummary} style={styles.section}>
+          <CameraSdStorageCard view={sdView} />
           {cameraConnected ? (
             <>
               {cameraRows.map((row) => (
@@ -277,12 +254,10 @@ export default function SettingsStorageScreen() {
                 />
               ))}
               <Text style={[styles.footnote, { color: colors.textMuted }]}>
-                Based on files currently listed by Laneory.
+                Listed recordings only — not the full SD card capacity above.
               </Text>
             </>
-          ) : (
-            <CameraSdPlaceholder kind={cameraConnecting ? "connecting" : "disconnected"} />
-          )}
+          ) : null}
         </SettingsSection>
 
         <SettingsSection title="Storage" style={styles.section}>
@@ -332,27 +307,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingTop: 8,
     paddingBottom: 10,
-  },
-  placeholderRow: {
-    minHeight: 44,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  placeholderIcon: {
-    width: 32,
-    height: 32,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  placeholderBody: { flex: 1, minWidth: 0 },
-  placeholderTitle: { fontSize: 15, fontFamily: Type.fontSemi },
-  placeholderSubtitle: {
-    fontSize: 12,
-    fontFamily: Type.font,
-    marginTop: 1,
-    lineHeight: 15,
   },
 });

@@ -54,3 +54,17 @@ export type {
   StorageSizedItem,
   StorageStatRow,
 } from "./storageBreakdown";
+export {
+  DEMO_CAMERA_SD_RAW,
+  formatSdStorageBytes,
+  normalizeCameraSdUsage,
+  presentCameraSdStorage,
+  resolveCameraSdStorageKind,
+} from "./cameraSdStorage";
+export type {
+  CameraSdRawBytes,
+  CameraSdStorageKind,
+  CameraSdStorageView,
+  CameraSdUsage,
+} from "./cameraSdStorage";
+export { CameraSdStorageCard } from "./CameraSdStorageCard";

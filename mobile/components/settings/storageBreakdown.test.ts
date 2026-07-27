@@ -129,8 +129,9 @@ describe("storageBreakdown", () => {
     assert.match(src, /formatStorageStatLine\(localBreakdown\.total/);
     assert.match(src, /title="Local library"/);
     assert.match(src, /title="Camera SD card"/);
-    assert.match(src, /Camera not connected/);
-    assert.match(src, /Connecting to camera/);
+    assert.match(src, /CameraSdStorageCard/);
+    assert.match(src, /presentCameraSdStorage/);
+    assert.match(src, /resolveCameraSdStorageKind/);
     assert.match(src, /Not connected/);
     assert.match(src, /Connecting…/);
     assert.match(src, /visibleConnectionStatus/);
@@ -138,7 +139,7 @@ describe("storageBreakdown", () => {
     assert.doesNotMatch(src, /title=\{?"Total"\}?/);
     assert.doesNotMatch(src, /STAT_ICONS\.total|total: "albums/);
     // Camera SD card section is always present (not gated by connected for the section itself)
-    assert.match(src, /summary=\{cameraSummary\}/);
+    assert.match(src, /summary=\{cameraSdSummary\}/);
     assert.match(src, /Delete local library/);
     assert.match(src, /deleteLocalFilesBatch/);
     assert.match(src, /runDeleteLocalLibraryBatch/);
