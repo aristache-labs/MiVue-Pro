@@ -2,6 +2,10 @@ import { discoverCamera } from "../discovery/discoverCamera.js";
 import {
   buildCgiPath,
   deleteRemoteFile,
+  FORMAT_SD_STATUS_PROPERTY,
+  FORMAT_SD_WIRE_PROPERTY,
+  FORMAT_SD_WIRE_VALUE,
+  formatSdCard,
   probeCgi,
   setCameraProperty,
   truncateBody,
@@ -9,7 +13,7 @@ import {
 import { createClient, endpointForHost } from "./shared.js";
 import type { CommandContext } from "./context.js";
 
-export type ProbeAction = "get" | "set" | "del";
+export type ProbeAction = "get" | "set" | "del" | "format";
 
 export interface ProbeOptions {
   readonly action: ProbeAction;
@@ -74,6 +78,39 @@ export async function runProbe(context: CommandContext, options: ProbeOptions): 
         ? "Verificare post-del: HEAD a eșuat (posibil șters)."
         : `Verificare post-del: HEAD HTTP ${after.statusCode}`,
     );
+    return;
+  }
+
+  if (options.action === "format") {
+    const path = buildCgiPath("set", {
+      property: FORMAT_SD_WIRE_PROPERTY,
+      value: FORMAT_SD_WIRE_VALUE,
+    });
+    /** Full cards / many files can keep CGI open for minutes; never retry SET. */
+    const formatTimeoutMs = Math.max(context.timeoutMs, 300_000);
+    context.logger.info(
+      `Format SD (destructive): GET ${path} după pre-check ${FORMAT_SD_STATUS_PROPERTY} (timeout ${formatTimeoutMs} ms)`,
+    );
+    if (options.dryRun || !options.confirm) {
+      context.logger.info("Dry-run format: nicio mutație trimisă.");
+      context.logger.info(
+        "Pentru formatare reală pe o cameră deținută legal: adaugă --confirm (și evită --dry-run).",
+      );
+      const pre = await probeCgi(transport, "get", { property: FORMAT_SD_STATUS_PROPERTY });
+      logProbe(context, pre);
+      return;
+    }
+    const formatClient = createClient(endpoint, { ...context, timeoutMs: formatTimeoutMs });
+    const result = await formatSdCard(formatClient.getTransport());
+    logProbe(context, result);
+    context.logger.info(`  outcome: ${result.outcome}`);
+    if (result.preStatus !== undefined) context.logger.info(`  pre SD0: ${result.preStatus}`);
+    if (result.postStatus !== undefined) context.logger.info(`  post SD0: ${result.postStatus}`);
+    if (result.outcome === "unknown") {
+      context.logger.info(
+        "Rezultat necunoscut — nu repeta --confirm. Verifică pe cameră / list / GET Camera.Menu.SD0.",
+      );
+    }
     return;
   }
 

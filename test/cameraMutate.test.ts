@@ -115,3 +115,67 @@ test("buildCgiPath and truncateBody helpers", () => {
   assert.equal(truncateBody("abc", 10), "abc");
   assert.equal(truncateBody("abcdefghij", 5), "abcde…");
 });
+
+test("formatSdCard requires READY then SETs SD0=format once", async () => {
+  const { formatSdCard, FORMAT_SD_STATUS_PROPERTY } = await import("../src/protocol/cameraMutate.js");
+  const bodies = [
+    Buffer.from(`0\nOK\n${FORMAT_SD_STATUS_PROPERTY}=READY\n`),
+    Buffer.from("0\nOK\n"),
+    Buffer.from(`0\nOK\n${FORMAT_SD_STATUS_PROPERTY}=READY\n`),
+  ];
+  let i = 0;
+  class SeqTransport implements Transport {
+    readonly requests: TransportRequest[] = [];
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      this.requests.push(request);
+      const body = bodies[i++] ?? Buffer.from("0\nOK\n");
+      return { statusCode: 200, headers: {}, body };
+    }
+  }
+  const transport = new SeqTransport();
+  const result = await formatSdCard(transport);
+  assert.equal(result.outcome, "success");
+  assert.equal(transport.requests.length, 3);
+  assert.match(transport.requests[1]?.path ?? "", /action=set&property=SD0&value=format/);
+  assert.equal(transport.requests[1]?.retryPolicy, "mutation");
+});
+
+test("formatSdCard refuses SET when SD status is not READY", async () => {
+  const { formatSdCard, FORMAT_SD_STATUS_PROPERTY } = await import("../src/protocol/cameraMutate.js");
+  const transport = new MockTransport({
+    statusCode: 200,
+    headers: {},
+    body: Buffer.from(`0\nOK\n${FORMAT_SD_STATUS_PROPERTY}=FAIL\n`),
+  });
+  await assert.rejects(formatSdCard(transport), /not READY/);
+  assert.equal(transport.requests.length, 1);
+});
+
+test("formatSdCard on SET timeout returns unknown and post-checks without retry", async () => {
+  const { formatSdCard, FORMAT_SD_STATUS_PROPERTY } = await import("../src/protocol/cameraMutate.js");
+  const { TransportError } = await import("../src/transport/types.js");
+  let sets = 0;
+  class TimeoutThenReadyTransport implements Transport {
+    readonly requests: TransportRequest[] = [];
+    async request(request: TransportRequest): Promise<TransportResponse> {
+      this.requests.push(request);
+      if (request.path.includes("action=set")) {
+        sets += 1;
+        throw new TransportError("Request timed out after 5000 ms", "ETIMEDOUT");
+      }
+      return {
+        statusCode: 200,
+        headers: {},
+        body: Buffer.from(`0\nOK\n${FORMAT_SD_STATUS_PROPERTY}=READY\n`),
+      };
+    }
+  }
+  const transport = new TimeoutThenReadyTransport();
+  const result = await formatSdCard(transport);
+  assert.equal(result.outcome, "unknown");
+  assert.equal(sets, 1);
+  assert.equal(transport.requests.filter((r) => r.path.includes("action=set")).length, 1);
+  assert.equal(transport.requests.filter((r) => r.path.includes("action=get")).length, 2);
+  assert.match(result.bodyText, /Do not retry/i);
+  assert.equal(result.postStatus, "READY");
+});

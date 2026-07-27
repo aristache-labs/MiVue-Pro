@@ -161,11 +161,13 @@ describe("storage screen delete local library contract", () => {
   });
 
   it("does not call camera-mutating or camera-contact APIs for this action", () => {
-    assert.doesNotMatch(src, /createLiveTransport|CameraClient|getStatus|listAllFiles|formatSd|\bcgi\b/i);
+    assert.doesNotMatch(src, /createLiveTransport|CameraClient|getStatus|listAllFiles|\bcgi\b/i);
     assert.doesNotMatch(src, /refreshFiles\(|setCameraHost|disconnectSession/);
     assert.doesNotMatch(src, /\bPOST\b|\bPUT\b|\bDELETE\b/);
     assert.match(src, /Clear thumbnail cache/);
     assert.match(src, /clearThumbCache/);
+    // Format SD is a separate Camera SD card action (via context), not part of local delete.
+    assert.match(src, /formatCameraSdCard/);
   });
 
   it("keeps Cache section independent from local library wipe", () => {

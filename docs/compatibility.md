@@ -2,7 +2,7 @@
 
 **Produs:** `Laneory`  
 **Statut:** registru pregătitor; nu este certificare a producătorului  
-**Ultima actualizare:** 24 iulie 2026
+**Ultima actualizare:** 27 iulie 2026
 
 Nu se declară compatibilitate cu modele sau firmware netestate. Fiecare rând necesită teste datate pe un dispozitiv deținut legal; operațiile `read` și mutative se documentează separat, împreună cu nivelul lor de validare.
 
@@ -10,7 +10,7 @@ Nu se declară compatibilitate cu modele sau firmware netestate. Fiecare rând n
 
 | Model | Firmware cameră | Proxy tehnic observat | Funcții testate (`read` / mutații) | Nivel | Data test | Note |
 |---|---|---|---|---|---|---|
-| Mio MiVue 866 | `VI100.24.50.BE1WD.10` (`Vendor.DeviceInfo.Version.Firmware`) | Server HTTP `AIT Multimedia Network Solution, UPnP/1.0 devices/1.6.19` | `read`: discovery/status, listare Normal/Event/Parking/Photo, download MP4/NMEA, checksum NMEA → GPX, software identity (Firmware / SpeedCam / Voice / AP SSID); probe mutative CLI: `set` UIMode și `del` pe o cale `/SD/` validată | `read`: `camera-confirmed`; mutații: probe confirmate pe MiVue 866, nepromovate încă la `production-validated` | 2026-07 (CLI/dashboard + mobile Settings) | Live-view RTSP indisponibil (`LiveView=NO`). Suport HTTP `Range` neconfirmat. SafetyCam=`Vendor.DeviceInfo.Version.SpeedCam`; Voice=`Vendor.DeviceInfo.Version.Voice`; SSID=`Net.WIFI_AP.SSID`. Firmware-ul sesiunilor mutative trebuie consemnat explicit înaintea unei afirmații comerciale pentru acele operații. |
+| Mio MiVue 866 | `VI100.24.50.BE1WD.10` (`Vendor.DeviceInfo.Version.Firmware`) | Server HTTP `AIT Multimedia Network Solution, UPnP/1.0 devices/1.6.19` | `read`: discovery/status, listare Normal/Event/Parking/Photo, download MP4/NMEA, checksum NMEA → GPX, software identity (Firmware / SpeedCam / Voice / AP SSID); probe mutative CLI: `set` UIMode, `del` pe `/SD/`, **format SD** `SET SD0=format` (pre 2 fișiere → post 0; SD0 rămâne READY; timeout client ≥180–300 s) | `read`: `camera-confirmed`; format SD: `production-validated` pe 866; alte mutații probe: `camera-confirmed`, nu toate `production-validated` | 2026-07 (CLI/dashboard + mobile Settings) | Live-view RTSP indisponibil (`LiveView=NO`). Suport HTTP `Range` neconfirmat. SafetyCam=`Vendor.DeviceInfo.Version.SpeedCam`; Voice=`Vendor.DeviceInfo.Version.Voice`; SSID=`Net.WIFI_AP.SSID`. Format la timeout 5 s → `ETIMEDOUT` / `unknown` (fără retry); card plin poate bloca CGI mai mult. |
 
 Header-ul `Server` AIT **nu înlocuiește** versiunea de firmware a camerei. Firmware-ul Dashcam info vine din `Vendor.DeviceInfo.Version.Firmware` (GET only).
 
@@ -18,7 +18,8 @@ Header-ul `Server` AIT **nu înlocuiește** versiunea de firmware a camerei. Fir
 
 - orice `set`/`del` neconfirmat pe modelul și firmware-ul conectat;
 - ștergerea și modificarea setărilor din aplicația mobilă, până la finalizarea validării production și a verificării post-execuție;
-- format SD și update firmware;
+- format SD pe **alte** modele/firmware decât 866 / `VI100.24.50.BE1WD.10`; pe 866 SET `SD0=format` e `production-validated`;
+- update firmware;
 - live-view / RTSP;
 - alte modele Mio/MiVue sau familii BLE;
 - resume HTTP pe baza `Range` (neconfirmat).

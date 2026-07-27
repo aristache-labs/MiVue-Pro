@@ -13,7 +13,6 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import {
-  SettingsActionRow,
   SettingsDangerRow,
   SettingsSection,
   SettingsValueRow,
@@ -34,6 +33,14 @@ import {
   isDeleteLocalLibraryDisabled,
   runDeleteLocalLibraryBatch,
 } from "@/components/settings/deleteLocalLibraryCopy";
+import {
+  formatSdCardConfirmButton,
+  formatSdCardDisabledReason,
+  formatSdCardResultTitle,
+  formatSdCardSecondConfirmMessage,
+  formatSdCardSubtitle,
+  formatSdCardWarningMessage,
+} from "@/components/settings/formatSdCardCopy";
 import { normalizeLocalFiles } from "@/components/local/localLibraryFilters";
 import { Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode } from "@/context/DemoModeContext";
@@ -62,8 +69,14 @@ export default function SettingsStorageScreen() {
     localFiles,
     files,
     cameraLinkState,
+    cameraHost,
+    cameraModel,
+    cameraProperties,
+    demoMode,
     clearThumbCache,
     deleteLocalFilesBatch,
+    formatCameraSdCard,
+    isFormattingSdCard,
     isRefreshingCamera,
   } = useDemoMode();
   const cameraStatus = visibleConnectionStatus(cameraLinkState);
@@ -71,6 +84,7 @@ export default function SettingsStorageScreen() {
   const cameraConnecting = cameraStatus === "connecting";
   const [deletingLibrary, setDeletingLibrary] = useState(false);
   const deletingRef = useRef(false);
+  const formattingRef = useRef(false);
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -127,6 +141,12 @@ export default function SettingsStorageScreen() {
 
   const localEmpty = localFiles.length === 0;
   const deleteDisabled = isDeleteLocalLibraryDisabled(localFiles.length, deletingLibrary);
+  const formatDisabledReason = formatSdCardDisabledReason({
+    demoMode,
+    cameraConnected,
+    formatting: isFormattingSdCard,
+  });
+  const formatDisabled = formatDisabledReason !== undefined;
 
   useFocusEffect(
     useCallback(() => {
@@ -192,13 +212,58 @@ export default function SettingsStorageScreen() {
     );
   }, [clearThumbCache]);
 
-  const onFormatHelp = useCallback(() => {
+  const runFormatSdCard = useCallback(async () => {
+    if (formattingRef.current || formatDisabled) return;
+    formattingRef.current = true;
+    try {
+      const result = await formatCameraSdCard();
+      const title = formatSdCardResultTitle(result.outcome ?? (result.ok ? "success" : "failed"));
+      const body = result.message ?? result.error ?? "Format finished with no details.";
+      void AccessibilityInfo.announceForAccessibility(`${title}. ${body}`);
+      Alert.alert(title, body, [{ text: "OK" }]);
+    } finally {
+      formattingRef.current = false;
+    }
+  }, [formatCameraSdCard, formatDisabled]);
+
+  const onFormatSdCard = useCallback(() => {
+    if (formatDisabled) {
+      Alert.alert("Format SD card", formatDisabledReason ?? "Format unavailable.", [{ text: "OK" }]);
+      return;
+    }
     Alert.alert(
-      "Format on the camera",
-      "For safety, Laneory does not format or modify the SD card. Use the camera’s built-in menu and follow the camera manufacturer’s instructions.",
-      [{ text: "OK" }],
+      "Format SD card?",
+      formatSdCardWarningMessage({
+        cameraModel,
+        firmware: cameraProperties["Vendor.DeviceInfo.Version.Firmware"],
+        host: cameraHost,
+      }),
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Continue",
+          style: "destructive",
+          onPress: () => {
+            Alert.alert("Confirm format", formatSdCardSecondConfirmMessage(), [
+              { text: "Cancel", style: "cancel" },
+              {
+                text: formatSdCardConfirmButton(),
+                style: "destructive",
+                onPress: () => void runFormatSdCard(),
+              },
+            ]);
+          },
+        },
+      ],
     );
-  }, []);
+  }, [
+    formatDisabled,
+    formatDisabledReason,
+    cameraModel,
+    cameraProperties,
+    cameraHost,
+    runFormatSdCard,
+  ]);
 
   return (
     <View style={[styles.screen, { backgroundColor: colors.bg }]}>
@@ -253,15 +318,37 @@ export default function SettingsStorageScreen() {
           style={styles.section}
         >
           {showCameraBreakdown ? (
-            cameraRows.map((row) => (
-              <SettingsValueRow
-                key={`camera-${row.key}`}
-                icon={STAT_ICONS[row.key]}
-                title={row.title}
-                value={row.line}
+            <>
+              {cameraRows.map((row) => (
+                <SettingsValueRow
+                  key={`camera-${row.key}`}
+                  icon={STAT_ICONS[row.key]}
+                  title={row.title}
+                  value={row.line}
+                  compact
+                />
+              ))}
+              <SettingsDangerRow
+                icon="disc-outline"
+                title={isFormattingSdCard ? "Formatting…" : "Format SD card"}
+                subtitle={
+                  formatDisabled && !isFormattingSdCard
+                    ? formatDisabledReason
+                    : formatSdCardSubtitle(true)
+                }
                 compact
+                loading={isFormattingSdCard}
+                disabled={isFormattingSdCard}
+                onPress={isFormattingSdCard ? undefined : onFormatSdCard}
+                accessibilityLabel={
+                  formatDisabled
+                    ? `Format SD card unavailable. ${formatDisabledReason ?? ""}`
+                    : isFormattingSdCard
+                      ? "Formatting SD card"
+                      : "Format SD card"
+                }
               />
-            ))
+            </>
           ) : cameraListLoading ? (
             <View
               style={styles.cameraPlaceholder}
@@ -293,17 +380,6 @@ export default function SettingsStorageScreen() {
             value="On device"
             subtitle="Managed app storage. Files stay on this device until you export or delete them."
             compact
-          />
-        </SettingsSection>
-
-        <SettingsSection title="SD card maintenance" style={styles.section}>
-          <SettingsActionRow
-            icon="information-circle-outline"
-            title="How to format the SD card"
-            subtitle="Formatting is performed from the camera’s built-in menu"
-            compact
-            onPress={onFormatHelp}
-            accessibilityLabel="How to format the SD card"
           />
         </SettingsSection>
 

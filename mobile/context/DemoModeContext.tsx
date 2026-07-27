@@ -68,10 +68,12 @@ import {
   CameraClient,
   CAMERA_SETTING_PROPERTY,
   fetchCameraSettingProperties,
+  formatSdCard,
   isAllowedCameraSettingValue,
   isCameraSettingKey,
   type CameraSettingKey,
   type CameraSettingValueMap,
+  type FormatSdCardOutcome,
 } from "../packages/protocol/src/index";
 
 const DEFAULT_HOST = "192.72.1.1";
@@ -150,6 +152,14 @@ interface DemoModeContextValue {
   ) => Promise<{ ok: boolean; error?: string }>;
   readonly isApplyingCameraSetting: boolean;
   readonly applyingCameraSettingKey: CameraSettingKey | undefined;
+  /** Destructive SD format — one-shot CGI, no auto-retry. */
+  readonly formatCameraSdCard: () => Promise<{
+    ok: boolean;
+    outcome?: FormatSdCardOutcome;
+    error?: string;
+    message?: string;
+  }>;
+  readonly isFormattingSdCard: boolean;
   readonly mapPreference: MapPreference;
   readonly setMapPreference: (value: MapPreference) => void;
   readonly clearThumbCache: () => Promise<void>;
@@ -217,7 +227,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   const [applyingCameraSettingKey, setApplyingCameraSettingKey] = useState<
     CameraSettingKey | undefined
   >(undefined);
+  const [isFormattingSdCard, setIsFormattingSdCard] = useState(false);
   const settingApplyInflightRef = useRef(false);
+  const formatSdInflightRef = useRef(false);
   const cameraPropertiesRef = useRef(cameraProperties);
   cameraPropertiesRef.current = cameraProperties;
   const queueStatusRef = useRef<Map<string, QueueItem["status"]>>(new Map());
@@ -556,7 +568,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       isBusyForHealthCheck({
         verifyInflight: verifyInflightLocalRef.current,
         refreshInflight: refreshInflightRef.current,
-        settingApplyInflight: settingApplyInflightRef.current,
+        settingApplyInflight: settingApplyInflightRef.current || formatSdInflightRef.current,
         hasActiveDownload,
       })
     ) {
@@ -702,7 +714,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       if (!(property in cameraPropertiesRef.current)) {
         return { ok: false, error: "This setting is not reported by the camera." };
       }
-      if (settingApplyInflightRef.current) {
+      if (settingApplyInflightRef.current || formatSdInflightRef.current) {
         return { ok: false, error: "Another setting change is already in progress." };
       }
 
@@ -740,6 +752,58 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     },
     [demoMode, cameraLinkState, cameraHost],
   );
+
+  const formatCameraSdCard = useCallback(async (): Promise<{
+    ok: boolean;
+    outcome?: FormatSdCardOutcome;
+    error?: string;
+    message?: string;
+  }> => {
+    if (demoMode) {
+      return { ok: false, error: "Format SD card is unavailable in Demo Mode." };
+    }
+    if (!isCameraLibraryInteractive(cameraLinkState)) {
+      return { ok: false, error: "Camera disconnected." };
+    }
+    if (!isPrivateIpv4(cameraHost)) {
+      return { ok: false, error: "Host must be a private IPv4 address." };
+    }
+    if (settingApplyInflightRef.current || formatSdInflightRef.current) {
+      return { ok: false, error: "Another camera operation is already in progress." };
+    }
+
+    formatSdInflightRef.current = true;
+    setIsFormattingSdCard(true);
+    const requestGen = cameraSessionGenRef.current;
+    try {
+      const transport = createLiveTransport(cameraHost, 300_000);
+      const result = await formatSdCard(transport);
+      if (
+        !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
+        !isCameraLibraryInteractive(linkStateRef.current)
+      ) {
+        return { ok: false, error: "Camera disconnected." };
+      }
+      if (result.outcome === "success" || result.outcome === "unknown") {
+        void refreshFilesRef.current();
+      }
+      return {
+        ok: result.outcome === "success",
+        outcome: result.outcome,
+        message: result.message,
+        ...(result.outcome === "success" ? {} : { error: result.message }),
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!isCameraLibraryInteractive(linkStateRef.current)) {
+        return { ok: false, error: "Camera disconnected." };
+      }
+      return { ok: false, error: message };
+    } finally {
+      formatSdInflightRef.current = false;
+      setIsFormattingSdCard(false);
+    }
+  }, [demoMode, cameraLinkState, cameraHost]);
 
   React.useEffect(() => {
     if (bootOnceRef.current) return;
@@ -1230,6 +1294,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setCameraSetting,
       isApplyingCameraSetting,
       applyingCameraSettingKey,
+      formatCameraSdCard,
+      isFormattingSdCard,
       mapPreference,
       setMapPreference,
       clearThumbCache,
@@ -1273,6 +1339,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setCameraSetting,
       isApplyingCameraSetting,
       applyingCameraSettingKey,
+      formatCameraSdCard,
+      isFormattingSdCard,
       mapPreference,
       setMapPreference,
       clearThumbCache,

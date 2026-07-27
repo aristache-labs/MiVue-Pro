@@ -27,7 +27,7 @@ export interface CliOptions {
 }
 
 const categories = new Set<FileCategory>(["normal", "event", "parking", "photo", "unknown"]);
-const probeActions = new Set<ProbeAction>(["get", "set", "del"]);
+const probeActions = new Set<ProbeAction>(["get", "set", "del", "format"]);
 
 export function parseCli(argv: readonly string[]): CliOptions {
   const commandText = argv[0] ?? "help";
@@ -66,7 +66,7 @@ export function parseCli(argv: readonly string[]): CliOptions {
     firstOptionIndex = 2;
   } else if (command === "probe") {
     const value = argv[1];
-    if (value === undefined || value.startsWith("--")) fail("probe necesită acțiunea: get|set|del");
+    if (value === undefined || value.startsWith("--")) fail("probe necesită acțiunea: get|set|del|format");
     if (!probeActions.has(value as ProbeAction)) fail(`Acțiune probe invalidă: ${value}`);
     probeAction = value as ProbeAction;
     firstOptionIndex = 2;
@@ -161,6 +161,7 @@ Utilizare:
   npm run dev -- probe get [--property status] [--host 192.72.1.1]
   npm run dev -- probe set --property Flicker --value 50Hz [--dry-run|--confirm]
   npm run dev -- probe del --path /SD/Parking/F/FILE.MP4 [--dry-run|--confirm]
+  npm run dev -- probe format [--host 192.72.1.1] [--dry-run|--confirm]
 
 Opțiuni comune:
   --host <ip>       Folosește direct IP-ul camerei

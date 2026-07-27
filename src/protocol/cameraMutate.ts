@@ -316,6 +316,121 @@ export async function deleteRemoteFile(
   return mutateCgi(transport, "del", { property: remotePath }, signal);
 }
 
+/** Wire SET for SD format — apk-observed (`CameraCommand.commandFormatSDCard`). */
+export const FORMAT_SD_WIRE_PROPERTY = "SD0";
+export const FORMAT_SD_WIRE_VALUE = "format";
+/** Status GET for pre/post checks — camera-confirmed READY on MiVue 866. */
+export const FORMAT_SD_STATUS_PROPERTY = "Camera.Menu.SD0";
+
+export type FormatSdCardOutcome = "success" | "failed" | "unknown";
+
+export interface FormatSdCardResult extends CgiProbeResult {
+  readonly outcome: FormatSdCardOutcome;
+  readonly preStatus?: string;
+  readonly postStatus?: string;
+}
+
+function sdStatusFromParsed(parsed: ConfigResponse | undefined): string | undefined {
+  if (parsed === undefined) return undefined;
+  const raw =
+    parsed.properties[FORMAT_SD_STATUS_PROPERTY] ??
+    parsed.properties[FORMAT_SD_WIRE_PROPERTY] ??
+    Object.values(parsed.properties)[0];
+  if (typeof raw !== "string") return undefined;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+export function isSdCardStatusReadyForFormat(status: string | undefined): boolean {
+  return status?.trim().toUpperCase() === "READY";
+}
+
+/**
+ * Destructive SD format. Never retries. Pre-requires Camera.Menu.SD0=READY.
+ */
+export async function formatSdCard(
+  transport: Transport,
+  signal?: AbortSignal,
+): Promise<FormatSdCardResult> {
+  const pre = await probeCgi(transport, "get", { property: FORMAT_SD_STATUS_PROPERTY }, signal);
+  const preStatus = sdStatusFromParsed(pre.parsed);
+  if (pre.parsed === undefined || pre.parsed.code !== 0) {
+    throw new MiVueProtocolError(
+      pre.parsed?.code === 703
+        ? "Camera.Menu.SD0 unsupported (703) — format not sent"
+        : "Could not read Camera.Menu.SD0 before format — format not sent",
+    );
+  }
+  if (!isSdCardStatusReadyForFormat(preStatus)) {
+    throw new MiVueProtocolError(
+      `SD card not READY (status: ${preStatus ?? "unknown"}) — format not sent`,
+    );
+  }
+
+  let setResult: CgiProbeResult | undefined;
+  let transportDetail: string | undefined;
+  try {
+    setResult = await mutateCgi(
+      transport,
+      "set",
+      { property: FORMAT_SD_WIRE_PROPERTY, value: FORMAT_SD_WIRE_VALUE },
+      signal,
+    );
+  } catch (error) {
+    if (error instanceof TransportError) {
+      // Ambiguous: camera may still be formatting. Never retry SET; re-read status.
+      transportDetail = error.causeCode ?? error.message;
+    } else if (
+      error instanceof MiVueProtocolError &&
+      /Mutation result unknown after transport error/i.test(error.message)
+    ) {
+      transportDetail = error.message;
+    } else {
+      throw error;
+    }
+  }
+
+  const path = buildCgiPath("set", {
+    property: FORMAT_SD_WIRE_PROPERTY,
+    value: FORMAT_SD_WIRE_VALUE,
+  });
+  const post = await probeCgi(transport, "get", { property: FORMAT_SD_STATUS_PROPERTY }, signal);
+  const postStatus = sdStatusFromParsed(post.parsed);
+
+  if (setResult === undefined) {
+    let outcome: FormatSdCardOutcome = "unknown";
+    if (post.parsed !== undefined && post.parsed.code === 0) {
+      // READY after timeout is still ambiguous (format may not have started, or finished).
+      outcome = "unknown";
+    }
+    return {
+      action: "set",
+      path,
+      statusCode: post.statusCode,
+      bodyText: truncateBody(
+        `SET timed out/unknown (${transportDetail ?? "transport error"}); post-check only. ` +
+          "Do not retry automatically — verify on camera / list files.",
+      ),
+      outcome,
+      ...(preStatus === undefined ? {} : { preStatus }),
+      ...(postStatus === undefined ? {} : { postStatus }),
+      ...(post.parsed === undefined ? {} : { parsed: post.parsed }),
+    };
+  }
+
+  let outcome: FormatSdCardOutcome = "unknown";
+  if (post.parsed !== undefined && post.parsed.code === 0) {
+    outcome = isSdCardStatusReadyForFormat(postStatus) ? "success" : "failed";
+  }
+
+  return {
+    ...setResult,
+    outcome,
+    ...(preStatus === undefined ? {} : { preStatus }),
+    ...(postStatus === undefined ? {} : { postStatus }),
+  };
+}
+
 function decodeBody(response: TransportResponse): string {
   return new TextDecoder().decode(response.body);
 }

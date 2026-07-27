@@ -126,12 +126,14 @@ npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK --dry-ru
 npm run dev -- probe set --property Camera.Menu.UIMode --value PLAYBACK --confirm
 npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --dry-run
 npm run dev -- probe del --path /SD/Parking/F/PARK….MP4 --confirm
+npm run dev -- probe format --host 192.72.1.1 --dry-run
+npm run dev -- probe format --host 192.72.1.1 --confirm
 ```
 
-- `set` / `del` fără `--confirm` sunt dry-run.
-- Allowlist set: `Camera.Menu.UIMode` — valoare confirmată live: `PLAYBACK` (`MENU`/`UNKNOWN` → 701).
+- `set` / `del` / `format` fără `--confirm` sunt dry-run.
+- Allowlist set (dashboard): `Camera.Menu.UIMode` — valoare confirmată live: `PLAYBACK` (`MENU`/`UNKNOWN` → 701).
 - Delete confirmat live: `action=del&property=/SD/…` → `0 OK`, HEAD ulterior 404.
-- Format card SD: **exclus temporar**.
+- Format card SD: **`production-validated`** pe 866 — `action=set&property=SD0&value=format` → `0 OK`, list 2→0; vezi **Format card SD**. Timeout client ≥300 s (card plin poate dura); **destructiv**, fără retry.
 - Dashboard mutate: `MIVUE_ALLOW_MUTATE=1`.
 - Firmware update rămâne dezactivat.
 
@@ -192,7 +194,7 @@ Nu retesta pe acest firmware fără dovezi de alt transport:
 - `Camera.Menu.SDState`
 - `Vendor.DeviceInfo.SDCardError`, `SDType1`, `SDType2`, `SDType3`
 
-`Vendor.DeviceInfo.FormatFreeSDcard` rămâne doar observație APK (**niciun SET**).
+`Vendor.DeviceInfo.FormatFreeSDcard` = flag de capabilitate în APK (`isFormatFreeSdCard`); pe 866 GET → `703`. **Nu** este comanda de formatare.
 
 `FreeSpace` / `TotalSpace` / `AvailableSpace` apar în APK ca API-uri de **spațiu local pe telefon** (download gate / StatFs), nu ca proprietăți CGI Camera/Vendor.
 
@@ -200,7 +202,53 @@ Nu retesta pe acest firmware fără dovezi de alt transport:
 
 `action=dir` expune `<size>` per fișier + `amount` pe pagină — **nu** capacitatea cardului.
 
-### Reguli produs
+## Format card SD
+
+Status (2026-07-27): **`production-validated`** pe Mio MiVue 866 / firmware `VI100.24.50.BE1WD.10` (CLI `probe format --confirm --timeout 180000`, post-check list 2→0). Origine CGI: **`apk-observed`** MiVue+Pro `1.1.220.1`.
+
+### CGI (SET — destructiv)
+
+```http
+GET /cgi-bin/Config.cgi?action=set&property=SD0&value=format HTTP/1.0
+```
+
+| Câmp | Valoare | Sursă |
+|---|---|---|
+| path | `/cgi-bin/Config.cgi` | `buildRequestUrl` |
+| `action` | `set` | `commandFormatSDCard` |
+| `property` | `SD0` | `PROPERTY_FORMAT_SDCARD` |
+| `value` | `format` | `COMMAND_FORMAT_SDCARD` / literal în metodă |
+
+### camera-confirmed / production-validated — live 866 (2026-07-27)
+
+| Pas | Rezultat |
+|---|---|
+| Pre `GET Camera.Menu.SD0` | `0 OK`, `READY` |
+| Pre `list --summary` | 2 fișiere (`normal=2`) |
+| `SET property=SD0&value=format` | HTTP 200, `0 OK` (timeout client ≥180–300 s; la 5 s → `ETIMEDOUT` / `unknown`, fără retry — carduri pline pot bloca CGI mai mult) |
+| Post `GET Camera.Menu.SD0` | `0 OK`, `READY` |
+| Post `list --summary` | 0 fișiere |
+
+Nu confunda cu:
+
+| Observație | Semnificație |
+|---|---|
+| `GET …&property=Camera.Menu.SD0` → `READY` (866) | stare card; **nu** bytes; post-format rămâne `READY` |
+| `Vendor.DeviceInfo.FormatFreeSDcard` | flag APK; 703 pe 866 |
+| `action=set&property=FactoryReset&value=Camera` | restore setări (`commandResetToDefault`), **nu** format SD |
+
+Flux APK: dialog confirmare → opțional stop recording / `isSupportResetDefault` → `SendRequestWithCallback(commandFormatSDCard())` → refresh UI; analytics `Event_settings_formatsd`.
+
+### Reguli produs (format)
+
+- Clasificare request: **`destructive`** — fără retry automat; la timeout re-citește `Camera.Menu.SD0` + listare; marchează `unknown` până la verificare.
+- Nu trimite SET din UI / polling; doar prin `formatSdCard` / `formatCameraSdCard` (strat central).
+- UI Settings → Downloads & Storage → Camera SD card: buton **Format SD card** doar când există conexiune / breakdown (aceeași condiție ca statisticile); confirmare în doi pași (token `FORMAT`).
+- CLI: `npm run dev -- probe format [--dry-run|--confirm]` — dry-run citește `Camera.Menu.SD0` fără SET; `--confirm` folosește timeout ≥300 s (card plin / multe fișiere).
+- Nivel: SET **`production-validated`** pe 866 / `VI100.24.50.BE1WD.10`; alte modele/firmware rămân neconfirmate.
+- Copy legal: formatul e permis numai după confirmare explicită multi-pas.
+
+### Reguli produs (capacitate)
 
 - Nu se inventează proprietăți CGI și nu se promovează `apk-observed` direct în production.
 - Pe camere live, UI-ul Settings folosește `Storage information unavailable for this camera` până când există GET confirmat pentru **total** (și free/used dacă e cazul) cu unități documentate.

@@ -117,7 +117,7 @@ export const TERMS_OF_USE_DOCUMENT: LegalDocument = Object.freeze({
       title: "6. Camera access",
       paragraphs: Object.freeze([
         "The mobile product uses HTTP GET and HEAD for browsing and downloading. Camera settings change only when you explicitly select a new value and confirm Apply.",
-        "Laneory does not delete files on the camera, format the SD card, or update camera firmware through the app.",
+        "Formatting the camera SD card is available only when connected to a supported camera, after explicit multi-step confirmation, and permanently erases recordings on that card. Laneory does not delete individual files on the camera or update camera firmware through the app.",
       ]),
     }),
     Object.freeze({

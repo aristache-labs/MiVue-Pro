@@ -36,6 +36,17 @@ export type {
   FrequencyValue,
   TimeZoneValue,
 } from "./cameraSettings";
+export {
+  buildFormatSdCardPath,
+  formatSdCard,
+  FORMAT_SD_CONFIRM_TOKEN,
+  FORMAT_SD_STATUS_PROPERTY,
+  FORMAT_SD_WIRE_PROPERTY,
+  FORMAT_SD_WIRE_VALUE,
+  isSdCardStatusReadyForFormat,
+  readSdCardStatus,
+} from "./formatSdCard";
+export type { FormatSdCardOutcome, FormatSdCardResult } from "./formatSdCard";
 export type {
   CameraEndpoint,
   CameraInfo,
