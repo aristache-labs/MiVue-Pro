@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import {
   AccessibilityInfo,
   Animated,
@@ -22,7 +22,12 @@ export const STARTUP_STATUS_MESSAGE = `Starting ${APP_NAME}…`;
 export const STARTUP_LOCAL_NOTE = "Local-first · Your recordings stay on your device.";
 export const STARTUP_A11Y_LABEL = `${APP_NAME} is starting`;
 
-const LOGO = require("../../assets/images/android-icon-monochrome.png");
+const LOGO = require("../../assets/brand/laneory-mark-icon.png");
+/** Trimmed mark is landscape — keep explicit height so RN never falls back to raw pixel size. */
+const LOGO_WIDTH = 56;
+const LOGO_HEIGHT = Math.round(LOGO_WIDTH * (590 / 1037));
+const LOGO_PLATE = 88;
+const LOGO_HALO = 108;
 const ENTRANCE_MS = 400;
 const ENTRANCE_OFFSET = 8;
 
@@ -92,18 +97,28 @@ export function StartupLoadingScreen({ onLayout }: StartupLoadingScreenProps) {
           ]}
           accessible={false}
         >
-          <View style={styles.logoStack} accessible={false}>
+          <View style={[styles.logoStack, { width: LOGO_HALO, height: LOGO_HALO }]} accessible={false}>
             <View
-              style={[styles.halo, { backgroundColor: colors.brandSoft }]}
+              style={[
+                styles.halo,
+                {
+                  backgroundColor: colors.brandSoft,
+                  width: LOGO_HALO,
+                  height: LOGO_HALO,
+                  borderRadius: LOGO_HALO / 2,
+                },
+              ]}
               accessible={false}
             />
             <View
               style={[
                 styles.logoWrap,
                 {
+                  width: LOGO_PLATE,
+                  height: LOGO_PLATE,
                   backgroundColor: colors.surfaceElevated,
                   borderColor: colors.borderSoft,
-                  borderRadius: radius.xl,
+                  borderRadius: radius.pill,
                   shadowColor: colors.text,
                 },
                 Platform.select({ android: { elevation: 4 }, default: {} }),
@@ -112,7 +127,8 @@ export function StartupLoadingScreen({ onLayout }: StartupLoadingScreenProps) {
             >
               <Image
                 source={LOGO}
-                style={[styles.logo, { tintColor: colors.brand }]}
+                style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
+                resizeMode="contain"
                 accessible={false}
                 importantForAccessibility="no"
               />
@@ -178,32 +194,21 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   logoStack: {
-    width: 124,
-    height: 124,
     alignItems: "center",
     justifyContent: "center",
   },
   halo: {
     position: "absolute",
-    width: 124,
-    height: 124,
-    borderRadius: 62,
     opacity: 0.6,
   },
   logoWrap: {
-    width: 94,
-    height: 94,
     borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
     shadowOpacity: 0.1,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 4 },
-  },
-  logo: {
-    width: 56,
-    height: 56,
-    resizeMode: "contain",
   },
   title: {
     textAlign: "center",

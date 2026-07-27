@@ -9,7 +9,7 @@ describe("StartupLoadingScreen", () => {
   const screenSrc = readFileSync(join(__dirname, "./StartupLoadingScreen.tsx"), "utf8");
   const loaderSrc = readFileSync(join(__dirname, "./LaneoryCapsuleLoader.tsx"), "utf8");
   const layoutSrc = readFileSync(join(__dirname, "../../app/_layout.tsx"), "utf8");
-  const logoPath = join(__dirname, "../../assets/images/android-icon-monochrome.png");
+  const logoPath = join(__dirname, "../../assets/brand/laneory-mark-icon.png");
 
   it("uses APP_NAME / Laneory from the central brand constant", () => {
     assert.equal(APP_NAME, "Laneory");
@@ -30,10 +30,21 @@ describe("StartupLoadingScreen", () => {
     assert.doesNotMatch(screenSrc, /\bSkip\b|\bRetry\b|\bContinue\b/);
   });
 
-  it("uses the existing monochrome logo asset with brand tint", () => {
+  it("uses the trimmed Laneory brand mark asset without tinting", () => {
     assert.equal(existsSync(logoPath), true);
-    assert.match(screenSrc, /android-icon-monochrome\.png/);
-    assert.match(screenSrc, /tintColor:\s*colors\.brand\b/);
+    assert.match(screenSrc, /assets\/brand\/laneory-mark-icon\.png/);
+    assert.doesNotMatch(screenSrc, /android-icon-monochrome\.png/);
+    assert.doesNotMatch(screenSrc, /tintColor/);
+  });
+
+  it("presents the logo plate as a full circle with an explicitly sized mark", () => {
+    assert.match(screenSrc, /borderRadius:\s*radius\.pill/);
+    assert.doesNotMatch(screenSrc, /borderRadius:\s*radius\.xl/);
+    assert.match(screenSrc, /resizeMode="contain"/);
+    assert.match(screenSrc, /overflow:\s*"hidden"/);
+    assert.match(screenSrc, /LOGO_WIDTH\s*=\s*56/);
+    assert.match(screenSrc, /width:\s*LOGO_WIDTH,\s*height:\s*LOGO_HEIGHT/);
+    assert.doesNotMatch(screenSrc, /aspectRatio/);
   });
 
   it("replaces ActivityIndicator with the LaneoryCapsuleLoader", () => {
@@ -49,7 +60,6 @@ describe("StartupLoadingScreen", () => {
     assert.match(screenSrc, /colors\.surfaceElevated/);
     assert.match(screenSrc, /colors\.borderSoft/);
     assert.match(screenSrc, /colors\.brandSoft/);
-    assert.match(screenSrc, /colors\.brand\b/);
     assert.match(screenSrc, /colors\.textMuted/);
     assert.match(screenSrc, /Type\.largeTitle/);
     assert.doesNotMatch(screenSrc, /#[0-9a-fA-F]{3,8}/);
