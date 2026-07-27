@@ -4,8 +4,11 @@ downloads/
 *.log
 .env
 .analysis/
+.analysis2/
 .agents/
 .cursor/
 .codebase-memory.json
 androguard.db
 MiVue+Pro_*.xapk
+*.apk
+*.xapk

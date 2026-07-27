@@ -165,15 +165,70 @@ Probele din 2026-07-24 pe `status` + lista scurtă au raportat greșit absența 
 
 ## Capacitate card SD (total / free / used)
 
-Status: **necunoscut / neconfirmat pe cameră** (2026-07).
+Status (2026-07-27): **nu există încă CGI `camera-confirmed` pentru total/free bytes**. Transportul de rețea pentru capacitate rămâne neconfirmat.
 
-Settings → Downloads & Storage afișează un rezumat de capacitate SD, dar **nu** există încă un endpoint CGI documentat ca `camera-confirmed` pentru `totalBytes` / `freeBytes`.
+Cercetare locală (XAPK `1.1.220.1`, DEX): vezi `.analysis/sd-storage-endpoint/` (gitignored).
 
-Reguli produs:
+### camera-confirmed — UI fizic MiVue 866 only (transport CGI neconfirmat)
 
-- Nu se inventează proprietăți CGI și nu se promovează observații `apk-observed` direct în production.
-- Pe camere live, UI-ul folosește starea `Storage information unavailable for this camera` până la validare.
-- Demo Mode folosește valori deterministe în bytes, formatate prin același helper production.
-- Spațiul ocupat **nu** se deduce din suma fișierelor listate în Library (cardul poate conține alte date).
+Pe ecranul camerei **System → Storage Allocation** (observație pe dispozitiv deținut legal; fără promovare de endpoint):
 
-Când un endpoint GET read-only este confirmat pe o cameră deținută legal, documentează aici unitățile (octeți vs KB), răspunsul de succes și promovează la `camera-confirmed`.
+- afișează capacitatea **`58 GB`** (constantă pe cele patru profiluri observate) pentru un card nominal **64 GB**, formatat și gol — interpretare: capacitate **utilizabilă**, nu spațiu ocupat; tot fără transport CGI confirmat;
+- patru profiluri de **alocare** (nu usage): Normal / Event / Parking / Photo;
+- Profile 1: 70 / 8 / 8 / 1; Profile 2: 62 / 16 / 8 / 1; Profile 3: 58 / 8 / 20 / 1; Profile 4: 78 / 8 / Parking Off / 1;
+- procentele vizibile însumează 87% pe fiecare profil (Parking Off = 0); semnificația restului de 13% este **nedovedită**.
+
+Această observație **nu** specifică un endpoint CGI și **nu** autorizează hardcodarea `58 GB` în production.
+
+### apk-observed — status / alocare / capabilități (nu capacitate în bytes)
+
+| Property (GET) | Rol aparent | Notă |
+|---|---|---|
+| `Camera.Menu.StorageAllocation` | index profil/tip alocare | app oficială: ecran Type 1/2/3; SET potențial legat de format — **nu SET** |
+| `Camera.Menu.List.StorageAllocation` | lista opțiunilor | în dump APK fără `=…` sample |
+| `Camera.Menu.SD0` | stare card; sample dump `READY` | enum, nu bytes |
+| `Camera.Menu.SDState` | stare card (nume) | valoare neconfirmată live |
+| `Vendor.DeviceInfo.SDCardError` | flag eroare card | capabilitate/stare |
+| `Vendor.DeviceInfo.SDType1` / `SDType2` / `SDType3` | tip/capabilitate alocare | legate de note Type 1/2/3, nu de GB |
+| `Vendor.DeviceInfo.FormatFreeSDcard` | flag feature format | **doar GET**; format rămâne exclus |
+
+`FreeSpace` / `TotalSpace` / `AvailableSpace` apar în APK ca API-uri de **spațiu local pe telefon** (download gate), nu ca `Camera.Menu.*` CGI pentru capacitatea cardului.
+
+`property=status` live: `0 OK` + `status=` gol — fără câmpuri de capacitate.
+
+Nu s-au găsit în XAPK stringuri `58 GB` sau tabelele de procente 70/8/8/1 etc. — acestea apar pe UI-ul firmware, nu ca resurse ale aplicației.
+
+### Reguli produs
+
+- Nu se inventează proprietăți CGI și nu se promovează `apk-observed` direct în production.
+- Pe camere live, UI-ul Settings folosește `Storage information unavailable for this camera` până când există GET confirmat pentru **total** (și free/used dacă e cazul) cu unități documentate.
+- Nu hardcoda `58 GB` din UI-ul fizic.
+- Demo Mode poate folosi bytes deterministe numai ca preview UI.
+- Spațiul ocupat **nu** se deduce din suma fișierelor listate în Library și **nu** din procentele de alocare.
+
+### Validare pe MiVue 866 (read-only)
+
+Cu Wi‑Fi cameră activ:
+
+```text
+npm run dev -- probe get --property status --host 192.72.1.1
+npm run dev -- probe get --property Vendor.DeviceInfo.Version.Firmware --host 192.72.1.1
+npm run dev -- probe get --property Camera.Menu.StorageAllocation --host 192.72.1.1
+npm run dev -- probe get --property Camera.Menu.List.StorageAllocation --host 192.72.1.1
+npm run dev -- probe get --property Camera.Menu.SD0 --host 192.72.1.1
+npm run dev -- probe get --property Camera.Menu.SDState --host 192.72.1.1
+npm run dev -- probe get --property Vendor.DeviceInfo.SDCardError --host 192.72.1.1
+npm run dev -- probe get --property Vendor.DeviceInfo.SDType1 --host 192.72.1.1
+npm run dev -- probe get --property Vendor.DeviceInfo.SDType2 --host 192.72.1.1
+npm run dev -- probe get --property Vendor.DeviceInfo.SDType3 --host 192.72.1.1
+```
+
+Negativ (capacitate inventată):
+
+```text
+npm run dev -- probe get --property FreeSpace --host 192.72.1.1
+npm run dev -- probe get --property TotalSpace --host 192.72.1.1
+npm run dev -- probe get --property Camera.Menu.FreeSpace --host 192.72.1.1
+```
+
+Nu rula format / SET pe `StorageAllocation` sau proprietăți SD pentru această cercetare.
