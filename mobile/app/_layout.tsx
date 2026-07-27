@@ -12,13 +12,14 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native
 import { useFonts } from "expo-font";
 import { router, Stack, useSegments, type Href } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryModel";
 import { shouldAllowGateBypassSegment } from "@/components/onboarding/connectionErrors";
 import { OnboardingProvider, useOnboarding } from "@/components/onboarding/OnboardingProvider";
+import { StartupLoadingScreen } from "@/components/startup/StartupLoadingScreen";
 import { DemoModeProvider, useDemoMode } from "@/context/DemoModeContext";
 import { Palette, Type } from "@/constants/Theme";
 
@@ -92,12 +93,15 @@ function RootLayoutNav() {
   const top = String(segments[0] ?? "");
   const allowOutsideOnboarding = shouldAllowGateBypassSegment(top);
   const bootReady = ready && cameraBootstrapDone;
+  const splashHiddenRef = useRef(false);
 
-  useEffect(() => {
-    if (bootReady) {
-      void SplashScreen.hideAsync();
-    }
-  }, [bootReady]);
+  const hideNativeSplash = useCallback(() => {
+    if (splashHiddenRef.current) return;
+    splashHiddenRef.current = true;
+    void SplashScreen.hideAsync().catch(() => {
+      // Already hidden or unavailable — safe to ignore.
+    });
+  }, []);
 
   // Prefer imperative replace over focus Redirect — on Android, focus Redirect
   // can race the root stack and surface unhandled GO_BACK in Expo Go.
@@ -109,7 +113,7 @@ function RootLayoutNav() {
   }, [bootReady, gateActive, allowOutsideOnboarding]);
 
   if (!bootReady) {
-    return null;
+    return <StartupLoadingScreen onLayout={hideNativeSplash} />;
   }
 
   return (

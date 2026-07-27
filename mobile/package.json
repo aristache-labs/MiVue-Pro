@@ -62,7 +62,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "prebuild": "expo prebuild",
-    "test": "node --import tsx --test packages/parsers/test/*.test.ts packages/download-queue/test/*.test.ts packages/demo/test/*.test.ts packages/camera-transport/test/*.test.ts packages/protocol/test/*.test.ts modules/background-download-spike/test/*.test.ts components/environment/*.test.ts components/gps/*.test.ts components/queue/*.test.ts components/local/*.test.ts components/player/*.test.ts components/camera/*.test.ts components/onboarding/*.test.ts components/settings/*.test.ts components/feedback/*.test.ts components/media/*.test.ts components/navigation/*.test.ts components/sheets/*.test.ts components/library/*.test.ts hooks/*.test.ts context/*.test.ts",
+    "test": "node --import tsx --test packages/parsers/test/*.test.ts packages/download-queue/test/*.test.ts packages/demo/test/*.test.ts packages/camera-transport/test/*.test.ts packages/protocol/test/*.test.ts modules/background-download-spike/test/*.test.ts components/environment/*.test.ts components/gps/*.test.ts components/queue/*.test.ts components/local/*.test.ts components/player/*.test.ts components/camera/*.test.ts components/onboarding/*.test.ts components/settings/*.test.ts components/feedback/*.test.ts components/media/*.test.ts components/navigation/*.test.ts components/sheets/*.test.ts components/library/*.test.ts components/startup/*.test.ts hooks/*.test.ts context/*.test.ts",
     "typecheck": "tsc --noEmit",
     "licenses:generate": "node scripts/generate-third-party-licenses.cjs",
     "licenses:check": "node scripts/generate-third-party-licenses.cjs --check"
