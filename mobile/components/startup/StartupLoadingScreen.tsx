@@ -4,7 +4,6 @@ import {
   Animated,
   Easing,
   Image,
-  Platform,
   StyleSheet,
   Text,
   View,
@@ -24,10 +23,10 @@ export const STARTUP_A11Y_LABEL = `${APP_NAME} is starting`;
 
 const LOGO = require("../../assets/brand/laneory-mark-icon.png");
 /** Trimmed mark is landscape — keep explicit height so RN never falls back to raw pixel size. */
-const LOGO_WIDTH = 56;
+const LOGO_WIDTH = 88;
 const LOGO_HEIGHT = Math.round(LOGO_WIDTH * (590 / 1037));
-const LOGO_PLATE = 88;
-const LOGO_HALO = 108;
+const DARK_LOGO_OUTLINE_WIDTH = 96;
+const DARK_LOGO_OUTLINE_HEIGHT = Math.round(DARK_LOGO_OUTLINE_WIDTH * (590 / 1037));
 const ENTRANCE_MS = 400;
 const ENTRANCE_OFFSET = 8;
 
@@ -36,7 +35,7 @@ type StartupLoadingScreenProps = {
 };
 
 export function StartupLoadingScreen({ onLayout }: StartupLoadingScreenProps) {
-  const { colors, scheme, radius, spacing } = useAppTheme();
+  const { colors, scheme, spacing } = useAppTheme();
   const insets = useSafeAreaInsets();
   const opacity = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(ENTRANCE_OFFSET)).current;
@@ -97,42 +96,30 @@ export function StartupLoadingScreen({ onLayout }: StartupLoadingScreenProps) {
           ]}
           accessible={false}
         >
-          <View style={[styles.logoStack, { width: LOGO_HALO, height: LOGO_HALO }]} accessible={false}>
-            <View
-              style={[
-                styles.halo,
-                {
-                  backgroundColor: colors.brandSoft,
-                  width: LOGO_HALO,
-                  height: LOGO_HALO,
-                  borderRadius: LOGO_HALO / 2,
-                },
-              ]}
-              accessible={false}
-            />
-            <View
-              style={[
-                styles.logoWrap,
-                {
-                  width: LOGO_PLATE,
-                  height: LOGO_PLATE,
-                  backgroundColor: colors.surfaceElevated,
-                  borderColor: colors.borderSoft,
-                  borderRadius: radius.pill,
-                  shadowColor: colors.text,
-                },
-                Platform.select({ android: { elevation: 4 }, default: {} }),
-              ]}
-              accessible={false}
-            >
+          <View style={styles.logoStage} accessible={false}>
+            {scheme === "dark" ? (
               <Image
                 source={LOGO}
-                style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
+                style={[
+                  styles.darkLogoOutline,
+                  {
+                    width: DARK_LOGO_OUTLINE_WIDTH,
+                    height: DARK_LOGO_OUTLINE_HEIGHT,
+                    tintColor: colors.brandStrong,
+                  },
+                ]}
                 resizeMode="contain"
                 accessible={false}
                 importantForAccessibility="no"
               />
-            </View>
+            ) : null}
+            <Image
+              source={LOGO}
+              style={{ width: LOGO_WIDTH, height: LOGO_HEIGHT }}
+              resizeMode="contain"
+              accessible={false}
+              importantForAccessibility="no"
+            />
           </View>
 
           <Text
@@ -193,22 +180,15 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     alignItems: "center",
   },
-  logoStack: {
+  logoStage: {
+    width: DARK_LOGO_OUTLINE_WIDTH,
+    height: DARK_LOGO_OUTLINE_HEIGHT,
     alignItems: "center",
     justifyContent: "center",
   },
-  halo: {
+  darkLogoOutline: {
     position: "absolute",
-    opacity: 0.6,
-  },
-  logoWrap: {
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
+    opacity: 0.22,
   },
   title: {
     textAlign: "center",
