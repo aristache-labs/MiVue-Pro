@@ -6,6 +6,8 @@ import { Type, useAppTheme } from "@/constants/Theme";
 interface SettingsSectionProps extends ViewProps {
   readonly title: string;
   readonly summary?: string;
+  /** When set, overrides the default spoken label for `summary`. */
+  readonly summaryAccessibilityLabel?: string;
   readonly children: React.ReactNode;
 }
 
@@ -13,6 +15,7 @@ interface SettingsSectionProps extends ViewProps {
 export function SettingsSection({
   title,
   summary,
+  summaryAccessibilityLabel,
   children,
   style,
   ...rest
@@ -26,7 +29,7 @@ export function SettingsSection({
           <Text
             style={[styles.sectionSummary, { color: colors.textMuted }]}
             numberOfLines={1}
-            accessibilityLabel={summary}
+            accessibilityLabel={summaryAccessibilityLabel ?? summary}
           >
             {summary}
           </Text>

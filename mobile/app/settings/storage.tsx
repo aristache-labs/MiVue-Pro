@@ -2,6 +2,7 @@ import { Stack, router, useFocusEffect } from "expo-router";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   AccessibilityInfo,
+  ActivityIndicator,
   Alert,
   BackHandler,
   StyleSheet,
@@ -21,16 +22,11 @@ import {
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import {
   aggregateStorageBreakdown,
+  formatCameraListedFilesAccessibility,
   formatStorageStatLine,
   storageBreakdownRows,
   type StorageSizedItem,
 } from "@/components/settings/storageBreakdown";
-import { CameraSdStorageCard } from "@/components/settings/CameraSdStorageCard";
-import {
-  DEMO_CAMERA_SD_RAW,
-  presentCameraSdStorage,
-  resolveCameraSdStorageKind,
-} from "@/components/settings/cameraSdStorage";
 import {
   deleteLocalLibraryConfirmButton,
   deleteLocalLibraryConfirmMessage,
@@ -62,33 +58,19 @@ const STAT_ICONS = {
 export default function SettingsStorageScreen() {
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
-  const { localFiles, files, cameraLinkState, clearThumbCache, deleteLocalFilesBatch, demoMode } =
-    useDemoMode();
+  const {
+    localFiles,
+    files,
+    cameraLinkState,
+    clearThumbCache,
+    deleteLocalFilesBatch,
+    isRefreshingCamera,
+  } = useDemoMode();
   const cameraStatus = visibleConnectionStatus(cameraLinkState);
   const cameraConnected = cameraStatus === "connected";
   const cameraConnecting = cameraStatus === "connecting";
   const [deletingLibrary, setDeletingLibrary] = useState(false);
   const deletingRef = useRef(false);
-
-  const sdKind = resolveCameraSdStorageKind({
-    connected: cameraConnected,
-    connecting: cameraConnecting,
-    demoMode,
-    hasCachedUsage: demoMode && cameraConnected,
-  });
-  const sdView = presentCameraSdStorage({
-    kind: sdKind,
-    raw: sdKind === "ready" || sdKind === "refreshing" ? DEMO_CAMERA_SD_RAW : null,
-  });
-  const cameraSdSummary =
-    sdView.percentLabel ??
-    (cameraConnected
-      ? sdKind === "unavailable"
-        ? "Unavailable"
-        : undefined
-      : cameraConnecting
-        ? "Connecting…"
-        : "Not connected");
 
   const categoryByName = useMemo(() => {
     const map = new Map<string, FileCategory>();
@@ -101,6 +83,7 @@ export default function SettingsStorageScreen() {
   const localBreakdown = useMemo(() => {
     const normalized = normalizeLocalFiles(localFiles, categoryByName);
     const items: StorageSizedItem[] = normalized.map((entry) => ({
+      id: entry.file.uri,
       category: entry.category,
       sizeBytes: entry.file.sizeBytes,
     }));
@@ -108,18 +91,39 @@ export default function SettingsStorageScreen() {
   }, [localFiles, categoryByName]);
 
   const cameraBreakdown = useMemo(() => {
-    if (!cameraConnected) {
-      return aggregateStorageBreakdown([]);
-    }
     const items: StorageSizedItem[] = files.map((file) => ({
+      id: file.path,
       category: file.category,
       sizeBytes: file.sizeBytes,
     }));
     return aggregateStorageBreakdown(items);
-  }, [files, cameraConnected]);
+  }, [files]);
 
   const localRows = useMemo(() => storageBreakdownRows(localBreakdown), [localBreakdown]);
   const cameraRows = useMemo(() => storageBreakdownRows(cameraBreakdown), [cameraBreakdown]);
+
+  const hasCameraListedFiles = files.length > 0;
+  const cameraListLoading =
+    !hasCameraListedFiles && (cameraConnecting || isRefreshingCamera);
+  const showCameraBreakdown = hasCameraListedFiles || cameraConnected;
+
+  const cameraSdSummary = cameraListLoading
+    ? "Loading…"
+    : hasCameraListedFiles || cameraConnected
+      ? formatStorageStatLine(cameraBreakdown.total.count, cameraBreakdown.total.bytes, {
+          allSizesKnown: cameraBreakdown.allSizesKnown,
+        })
+      : "Unavailable";
+
+  const cameraSdSummaryA11y = cameraListLoading
+    ? "Loading camera file list"
+    : hasCameraListedFiles || cameraConnected
+      ? formatCameraListedFilesAccessibility(
+          cameraBreakdown.total.count,
+          cameraBreakdown.total.bytes,
+          { allSizesKnown: cameraBreakdown.allSizesKnown },
+        )
+      : "Camera file list unavailable";
 
   const localEmpty = localFiles.length === 0;
   const deleteDisabled = isDeleteLocalLibraryDisabled(localFiles.length, deletingLibrary);
@@ -210,7 +214,9 @@ export default function SettingsStorageScreen() {
       >
         <SettingsSection
           title="Local library"
-          summary={formatStorageStatLine(localBreakdown.total.count, localBreakdown.total.bytes)}
+          summary={formatStorageStatLine(localBreakdown.total.count, localBreakdown.total.bytes, {
+            allSizesKnown: localBreakdown.allSizesKnown,
+          })}
           style={styles.section}
         >
           {localRows.map((row) => (
@@ -240,24 +246,44 @@ export default function SettingsStorageScreen() {
           />
         </SettingsSection>
 
-        <SettingsSection title="Camera SD card" summary={cameraSdSummary} style={styles.section}>
-          <CameraSdStorageCard view={sdView} />
-          {cameraConnected ? (
-            <>
-              {cameraRows.map((row) => (
-                <SettingsValueRow
-                  key={`camera-${row.key}`}
-                  icon={STAT_ICONS[row.key]}
-                  title={row.title}
-                  value={row.line}
-                  compact
-                />
-              ))}
-              <Text style={[styles.footnote, { color: colors.textMuted }]}>
-                Listed recordings only — not the full SD card capacity above.
+        <SettingsSection
+          title="Camera SD card"
+          summary={cameraSdSummary}
+          summaryAccessibilityLabel={cameraSdSummaryA11y}
+          style={styles.section}
+        >
+          {showCameraBreakdown ? (
+            cameraRows.map((row) => (
+              <SettingsValueRow
+                key={`camera-${row.key}`}
+                icon={STAT_ICONS[row.key]}
+                title={row.title}
+                value={row.line}
+                compact
+              />
+            ))
+          ) : cameraListLoading ? (
+            <View
+              style={styles.cameraPlaceholder}
+              accessibilityLabel="Loading camera file list"
+              testID="camera-sd-card-loading"
+            >
+              <ActivityIndicator size="small" color={colors.textMuted} />
+              <Text style={[styles.cameraPlaceholderText, { color: colors.textMuted }]}>
+                Loading…
               </Text>
-            </>
-          ) : null}
+            </View>
+          ) : (
+            <View
+              style={styles.cameraPlaceholder}
+              accessibilityLabel="Connect to the camera to view listed recordings"
+              testID="camera-sd-card-unavailable"
+            >
+              <Text style={[styles.cameraPlaceholderText, { color: colors.textMuted }]}>
+                Connect to the camera to view listed recordings.
+              </Text>
+            </View>
+          )}
         </SettingsSection>
 
         <SettingsSection title="Storage" style={styles.section}>
@@ -300,12 +326,18 @@ const styles = StyleSheet.create({
   screen: { flex: 1 },
   section: { marginBottom: 10 },
   sectionLast: { marginBottom: 0 },
-  footnote: {
-    fontSize: 12,
-    fontFamily: Type.font,
-    lineHeight: 16,
+  cameraPlaceholder: {
+    minHeight: 48,
     paddingHorizontal: 12,
-    paddingTop: 8,
-    paddingBottom: 10,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  cameraPlaceholderText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: Type.font,
+    lineHeight: 18,
   },
 });

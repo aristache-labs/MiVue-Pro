@@ -5,13 +5,18 @@ import { join } from "node:path";
 
 import {
   aggregateStorageBreakdown,
+  formatCameraListedFilesAccessibility,
   formatStorageStatLine,
   storageBreakdownRows,
   type StorageSizedItem,
 } from "./storageBreakdown";
 
-function item(category: StorageSizedItem["category"], sizeBytes: number): StorageSizedItem {
-  return { category, sizeBytes };
+function item(
+  category: StorageSizedItem["category"],
+  sizeBytes: number,
+  id?: string,
+): StorageSizedItem {
+  return id === undefined ? { category, sizeBytes } : { category, sizeBytes, id };
 }
 
 describe("storageBreakdown", () => {
@@ -32,6 +37,18 @@ describe("storageBreakdown", () => {
     assert.equal(breakdown.unknown.count, 1);
     assert.equal(breakdown.total.count, 6);
     assert.equal(breakdown.total.bytes, 700);
+    assert.equal(breakdown.allSizesKnown, true);
+  });
+
+  it("deduplicates by id / path", () => {
+    const breakdown = aggregateStorageBreakdown([
+      item("normal", 100, "/SD/Normal/F/A.MP4"),
+      item("normal", 100, "/SD/Normal/F/A.MP4"),
+      item("parking", 50, "/SD/Parking/F/B.MP4"),
+    ]);
+    assert.equal(breakdown.total.count, 2);
+    assert.equal(breakdown.total.bytes, 150);
+    assert.equal(breakdown.normal.count, 1);
   });
 
   it("treats zero or invalid sizeBytes as zero bytes but still counts the file", () => {
@@ -46,6 +63,22 @@ describe("storageBreakdown", () => {
     assert.equal(breakdown.normal.bytes, 0);
     assert.equal(breakdown.parking.bytes, 0);
     assert.equal(breakdown.event.bytes, 0);
+    assert.equal(breakdown.allSizesKnown, false);
+  });
+
+  it("omits byte total from lines when sizes are not fully known", () => {
+    const breakdown = aggregateStorageBreakdown([
+      item("normal", Number.NaN),
+      item("parking", 1024 * 1024),
+    ]);
+    assert.equal(breakdown.allSizesKnown, false);
+    assert.equal(
+      formatStorageStatLine(breakdown.total.count, breakdown.total.bytes, {
+        allSizesKnown: breakdown.allSizesKnown,
+      }),
+      "2 files",
+    );
+    assert.equal(storageBreakdownRows(breakdown)[0]?.line, "1 file");
   });
 
   it("includes unknown in Total and hides Other when zero", () => {
@@ -72,7 +105,7 @@ describe("storageBreakdown", () => {
       item("unknown", 512 * 1024),
     ]);
     const rows = storageBreakdownRows(breakdown);
-    assert.equal(rows.some((r) => r.key === "total" || r.title === "Total"), false);
+    assert.equal(rows.some((r) => r.title === "Total"), false);
     assert.equal(breakdown.total.count, 3);
     assert.equal(breakdown.total.bytes, 3.5 * 1024 * 1024);
     assert.equal(
@@ -83,6 +116,7 @@ describe("storageBreakdown", () => {
       rows.map((r) => r.key),
       ["normal", "parking", "event", "photo", "unknown"],
     );
+    assert.equal(rows[0]?.title, "Normal");
   });
 
   it("formats singular and plural file labels", () => {
@@ -90,6 +124,18 @@ describe("storageBreakdown", () => {
     assert.match(formatStorageStatLine(2, 1024 * 1024), /^2 files ·/);
     assert.equal(formatStorageStatLine(0, 0), "0 files");
     assert.doesNotMatch(formatStorageStatLine(0, 0), /·/);
+  });
+
+  it("formats camera listed-files accessibility without claiming capacity", () => {
+    assert.equal(
+      formatCameraListedFilesAccessibility(354, 40.37 * 1024 ** 3),
+      "354 camera files, 40.37 gigabytes listed",
+    );
+    assert.equal(
+      formatCameraListedFilesAccessibility(1, 1024 * 1024),
+      "1 camera file, 1.0 megabytes listed",
+    );
+    assert.equal(formatCameraListedFilesAccessibility(0, 0), "0 camera files listed");
   });
 
   it("category sum equals Total", () => {
@@ -116,32 +162,38 @@ describe("storageBreakdown", () => {
     assert.equal(sumBytes, breakdown.total.bytes);
   });
 
-  it("storage screen layout and connection placeholders stay read-only", () => {
+  it("storage screen matches Local Library layout without capacity Storage block", () => {
     const src = readFileSync(join(__dirname, "../../app/settings/storage.tsx"), "utf8");
     assert.doesNotMatch(src, /Open Local Library/);
     assert.doesNotMatch(src, /\bPOST\b|\bPUT\b|\bDELETE\b/);
     assert.doesNotMatch(src, /createLiveTransport|CameraClient|getStatus|listAllFiles|formatSd|cgi/i);
+    assert.doesNotMatch(src, /CameraSdStorageCard|presentCameraSdStorage|resolveCameraSdStorageKind/);
+    assert.doesNotMatch(src, /Storage information unavailable for this camera/);
+    assert.doesNotMatch(src, /Listed recordings only/);
+    assert.doesNotMatch(src, /progressbar|camera-sd-storage-progress|58 GB|DEMO_CAMERA_SD/);
     assert.match(src, /How to format the SD card/);
     assert.match(src, /Format on the camera/);
     assert.match(src, /SettingsChromeHeader/);
     assert.match(src, /normalizeLocalFiles/);
     assert.match(src, /aggregateStorageBreakdown/);
     assert.match(src, /formatStorageStatLine\(localBreakdown\.total/);
+    assert.match(src, /formatStorageStatLine\(cameraBreakdown\.total/);
+    assert.match(src, /formatCameraListedFilesAccessibility/);
     assert.match(src, /title="Local library"/);
     assert.match(src, /title="Camera SD card"/);
-    assert.match(src, /CameraSdStorageCard/);
-    assert.match(src, /presentCameraSdStorage/);
-    assert.match(src, /resolveCameraSdStorageKind/);
-    assert.match(src, /Not connected/);
-    assert.match(src, /Connecting…/);
+    assert.match(src, /summaryAccessibilityLabel=\{cameraSdSummaryA11y\}/);
+    assert.match(src, /Loading…/);
+    assert.match(src, /Unavailable/);
+    assert.match(src, /isRefreshingCamera/);
     assert.match(src, /visibleConnectionStatus/);
-    // Total is not a category row title
+    assert.match(src, /id: file\.path/);
     assert.doesNotMatch(src, /title=\{?"Total"\}?/);
     assert.doesNotMatch(src, /STAT_ICONS\.total|total: "albums/);
-    // Camera SD card section is always present (not gated by connected for the section itself)
-    assert.match(src, /summary=\{cameraSdSummary\}/);
     assert.match(src, /Delete local library/);
     assert.match(src, /deleteLocalFilesBatch/);
     assert.match(src, /runDeleteLocalLibraryBatch/);
+    // Shared breakdown rows for both sections
+    assert.match(src, /storageBreakdownRows\(localBreakdown\)/);
+    assert.match(src, /storageBreakdownRows\(cameraBreakdown\)/);
   });
 });
