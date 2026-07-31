@@ -39,6 +39,11 @@ import {
   sanitizeDiagnosticLine,
   type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
+import {
+  appLog,
+  observeQueueForAppLogs,
+  type QueueLogSnapshot,
+} from "@/components/diagnostics/appLogStore";
 
 import { APP_USER_AGENT } from "../constants/Brand";
 import { assertManagedLocalMediaUri } from "../components/local/localLibraryDelete";
@@ -262,6 +267,12 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setFiles([]);
       setCameraLinkState(nextState);
       if (error !== undefined) setLastError(error);
+      appLog.warn(
+        "connection",
+        error
+          ? `library cleared → ${nextState}: ${error}`
+          : `library cleared → ${nextState}`,
+      );
     },
     [],
   );
@@ -374,12 +385,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   }, [downloadDir]);
 
   const queueRef = useRef<DownloadQueue | null>(null);
+  const queueLogSnapshotRef = useRef<Map<string, QueueLogSnapshot>>(new Map());
   const onRecoverableDisconnectRef = useRef<(message: string) => void>(() => undefined);
   onRecoverableDisconnectRef.current = (message: string) => {
     setCameraLinkState((prev) =>
       prev === "idle" || prev === "disconnected" ? prev : "connection_lost",
     );
     setLastError(message);
+    appLog.error("connection", `recoverable disconnect: ${message}`);
     const now = Date.now();
     if (now - disconnectAlertAtRef.current > 4_000) {
       disconnectAlertAtRef.current = now;
@@ -402,6 +415,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       onRecoverableDisconnect: (message) => onRecoverableDisconnectRef.current(message),
       onChange: (items) => {
         setQueueItems(items);
+        queueLogSnapshotRef.current = observeQueueForAppLogs(
+          queueLogSnapshotRef.current,
+          items,
+        );
         const justFinished = items.some((item) => item.status === "completed");
         if (justFinished) void refreshLocalFiles();
       },
@@ -472,6 +489,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setIsRefreshingCamera(true);
       const prevLink = linkStateRef.current;
       setCameraLinkState("connecting");
+      appLog.info("connection", `refresh start host=${host} from=${prevLink}`);
       // Never show a stale remote list while reconnecting from an unavailable state.
       if (prevLink !== "connected" && prevLink !== "unstable") {
         setFiles([]);
@@ -485,6 +503,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           );
           const page = await client.listAllFiles({ pageSize: 32, maxFiles: 200 });
           if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+            appLog.warn("connection", "refresh aborted: camera session changed");
             return { ok: false, error: "Camera session changed." };
           }
           setFiles(page.files);
@@ -495,6 +514,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           consecutiveVerifyFailuresRef.current = 0;
           reconnectAttemptRef.current = 0;
           lastVerifiedAtRef.current = Date.now();
+          appLog.info("connection", `refresh ok (demo) files=${page.files.length}`);
           return { ok: true };
         }
 
@@ -513,6 +533,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         const status = await client.getStatus();
         const page = await client.listAllFiles({ pageSize: 32, maxFiles: 500 });
         if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+          appLog.warn("connection", "refresh aborted: camera session changed");
           return { ok: false, error: "Camera session changed." };
         }
         let settingsProps: Readonly<Record<string, string>> = {};
@@ -522,6 +543,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           // status properties still usable
         }
         if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
+          appLog.warn("connection", "refresh aborted: camera session changed");
           return { ok: false, error: "Camera session changed." };
         }
         setCameraProperties({ ...status.properties, ...settingsProps });
@@ -533,11 +555,13 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         consecutiveVerifyFailuresRef.current = 0;
         reconnectAttemptRef.current = 0;
         lastVerifiedAtRef.current = Date.now();
+        appLog.info("connection", `refresh ok files=${page.files.length}`);
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         // Never keep Connected/Unstable or a stale list after timeout or network failure.
         clearRemoteCameraLibrary("disconnected", message);
+        appLog.error("connection", `refresh failed: ${message}`);
         return { ok: false, error: message };
       } finally {
         refreshInflightRef.current = false;
@@ -611,6 +635,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       const failures = consecutiveVerifyFailuresRef.current + 1;
       consecutiveVerifyFailuresRef.current = failures;
       const sanitized = sanitizeDiagnosticLine(result.error);
+      appLog.warn("connection", `health check fail #${failures}: ${sanitized}`);
       if (shouldClearLibraryAfterFailures(failures)) {
         clearHealthRetryTimer();
         clearRemoteCameraLibrary("connection_lost", sanitized);
@@ -1014,12 +1039,13 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         if (!demoMode) {
           if (!isPrivateIpv4(cameraHost)) {
             setLastError("Host must be a private IPv4 address.");
+            appLog.error("download", "enqueue blocked: invalid host");
             return;
           }
           if (!nativeTcpReady && file.sizeBytes > FETCH_MAX_DOWNLOAD_BYTES) {
-            setLastError(
-              `${file.name} is ~${formatMiB(file.sizeBytes)}. Expo Go Fetch cannot download clips over ${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} (memory/timeout). Pick a smaller file, use Demo Mode, download via PC CLI, or wait for native Http10Tcp (Apple Developer).`,
-            );
+            const msg = `${file.name} is ~${formatMiB(file.sizeBytes)}. Expo Go Fetch cannot download clips over ${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} (memory/timeout). Pick a smaller file, use Demo Mode, download via PC CLI, or wait for native Http10Tcp (Apple Developer).`;
+            setLastError(msg);
+            appLog.error("download", `enqueue blocked: ${file.name} too large for Expo Go`);
             return;
           }
           // Fail fast when the link is already dead — avoid "Starting download…" hangs.
@@ -1059,7 +1085,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         }
         setLastError(undefined);
       } catch (error) {
-        setLastError(error instanceof Error ? error.message : String(error));
+        const message = error instanceof Error ? error.message : String(error);
+        setLastError(message);
+        appLog.error("download", `enqueue error: ${message}`);
       }
     },
     [demoMode, cameraHost, queue, nativeTcpReady, enqueueNmeaSidecar, clearRemoteCameraLibrary],

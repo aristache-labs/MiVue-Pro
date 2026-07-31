@@ -5,11 +5,13 @@ import { Alert, BackHandler, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { sanitizeDiagnosticLine } from "@/components/camera/cameraLibraryModel";
+import { getAppLogs, hydrateAppLogs, subscribeAppLogs } from "@/components/diagnostics/appLogStore";
 import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import { BackgroundDownloadSpikePanel } from "@/components/settings/BackgroundDownloadSpikePanel";
 import {
   SettingsActionRow,
+  SettingsCategoryRow,
   SettingsSection,
   SettingsValueRow,
   diagnosticsRequestStatus,
@@ -47,12 +49,18 @@ export default function SettingsDiagnosticsScreen() {
   const [exporting, setExporting] = useState(false);
   const [lastTestAt, setLastTestAt] = useState<string | undefined>();
   const [allowed, setAllowed] = useState(() => internalToolsEnabled());
+  const [logCount, setLogCount] = useState(() => getAppLogs().length);
 
   useEffect(() => {
     if (!internalToolsEnabled()) {
       setAllowed(false);
       router.replace("/(tabs)/settings" as Parameters<typeof router.replace>[0]);
     }
+  }, []);
+
+  useEffect(() => {
+    void hydrateAppLogs().then(() => setLogCount(getAppLogs().length));
+    return subscribeAppLogs(() => setLogCount(getAppLogs().length));
   }, []);
 
   useFocusEffect(
@@ -179,6 +187,18 @@ export default function SettingsDiagnosticsScreen() {
             icon="hardware-chip-outline"
             title="Transport"
             value={transportLabel({ nativeTcpReady, isExpoGo })}
+          />
+        </SettingsSection>
+
+        <SettingsSection title="Developer logs">
+          <SettingsCategoryRow
+            icon="terminal-outline"
+            title="Open developer logs"
+            summary={`${logCount} stored · filters, export, clear`}
+            onPress={() =>
+              router.push("/settings/dev-logs" as Parameters<typeof router.push>[0])
+            }
+            accessibilityLabel="Open developer logs"
           />
         </SettingsSection>
 

@@ -87,17 +87,26 @@ export default function SettingsHubScreen() {
 
       <SettingsSection title="Support">
         {showDiagnostics ? (
-          <SettingsCategoryRow
-            icon="pulse-outline"
-            title="Diagnostics"
-            summary={diagnosticsSummary({
-              hasEverTested,
-              lastError,
-              linkState: cameraLinkState,
-            })}
-            onPress={() => push("/settings/diagnostics")}
-            accessibilityLabel="Diagnostics"
-          />
+          <>
+            <SettingsCategoryRow
+              icon="pulse-outline"
+              title="Diagnostics"
+              summary={diagnosticsSummary({
+                hasEverTested,
+                lastError,
+                linkState: cameraLinkState,
+              })}
+              onPress={() => push("/settings/diagnostics")}
+              accessibilityLabel="Diagnostics"
+            />
+            <SettingsCategoryRow
+              icon="terminal-outline"
+              title="Developer Logs"
+              summary="Connection, download, errors · local"
+              onPress={() => push("/settings/dev-logs")}
+              accessibilityLabel="Developer Logs"
+            />
+          </>
         ) : null}
         <SettingsCategoryRow
           icon="document-text-outline"

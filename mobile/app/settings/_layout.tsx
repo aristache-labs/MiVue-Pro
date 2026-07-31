@@ -22,6 +22,7 @@ export default function SettingsStackLayout() {
       <Stack.Screen name="storage" options={{ title: "Downloads & Storage" }} />
       <Stack.Screen name="maps-privacy" options={{ title: "Maps & Privacy" }} />
       <Stack.Screen name="diagnostics" options={{ title: "Diagnostics" }} />
+      <Stack.Screen name="dev-logs" options={{ title: "Developer Logs" }} />
       <Stack.Screen name="legal" options={{ title: "Legal" }} />
       <Stack.Screen name="about" options={{ title: "About Laneory", headerShown: false }} />
     </Stack>
