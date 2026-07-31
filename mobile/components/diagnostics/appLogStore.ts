@@ -8,6 +8,8 @@ import {
   APP_LOG_MAX_ENTRIES,
   appendToRing,
   formatDownloadRateBps,
+  isAppLogCategory,
+  isAppLogLevel,
   type AppLogCategory,
   type AppLogEntry,
   type AppLogLevel,
@@ -34,11 +36,13 @@ const STORAGE_KEY = "@laneory/app_logs_v1";
 const DOWNLOAD_RATE_MIN_INTERVAL_MS = 2_500;
 
 let entries: AppLogEntry[] = [];
+let pendingBeforeHydrate: AppLogEntry[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | undefined;
 let persistTimer: ReturnType<typeof setTimeout> | undefined;
 let seq = 0;
 const listeners = new Set<() => void>();
+let consoleCaptureInstalled = false;
 
 function notify(): void {
   for (const listener of listeners) listener();
@@ -88,27 +92,41 @@ export async function hydrateAppLogs(): Promise<void> {
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
         if (Array.isArray(parsed)) {
-          entries = parsed
-            .filter((row): row is AppLogEntry => {
-              if (!row || typeof row !== "object") return false;
+          const stored = parsed
+            .map((row): AppLogEntry | undefined => {
+              if (!row || typeof row !== "object") return undefined;
               const r = row as Record<string, unknown>;
-              return (
+              if (
                 typeof r.id === "string" &&
                 typeof r.ts === "string" &&
-                typeof r.level === "string" &&
-                typeof r.category === "string" &&
+                isAppLogLevel(r.level) &&
                 typeof r.message === "string"
-              );
+              ) {
+                return {
+                  id: r.id,
+                  ts: r.ts,
+                  level: r.level,
+                  category: isAppLogCategory(r.category) ? r.category : "app",
+                  message: r.message,
+                };
+              }
+              return undefined;
             })
+            .filter((row): row is AppLogEntry => row !== undefined);
+          const pendingIds = new Set(pendingBeforeHydrate.map((entry) => entry.id));
+          entries = [...pendingBeforeHydrate, ...stored.filter((entry) => !pendingIds.has(entry.id))]
             .slice(0, APP_LOG_MAX_ENTRIES);
         }
       }
     } catch {
-      entries = [];
+      entries = pendingBeforeHydrate.slice(0, APP_LOG_MAX_ENTRIES);
     } finally {
       hydrated = true;
+      const shouldPersistPending = pendingBeforeHydrate.length > 0;
+      pendingBeforeHydrate = [];
       hydratePromise = undefined;
       notify();
+      if (shouldPersistPending) schedulePersist();
     }
   })();
   return hydratePromise;
@@ -122,8 +140,13 @@ export function appendAppLog(
   if (!internalToolsEnabled()) return;
   const entry = makeEntry(level, category, message);
   entries = appendToRing(entries, entry);
+  if (!hydrated) pendingBeforeHydrate = appendToRing(pendingBeforeHydrate, entry);
   notify();
-  schedulePersist();
+  if (hydrated) {
+    schedulePersist();
+  } else {
+    void hydrateAppLogs();
+  }
 }
 
 export const appLog = {
@@ -138,8 +161,57 @@ export const appLog = {
   },
 };
 
+/**
+ * Mirrors uncaught console warnings/errors into the sanitized local ring.
+ * Keeps the native console intact and compresses identical bursts.
+ */
+export function installConsoleAppLogCapture(): () => void {
+  if (!internalToolsEnabled() || consoleCaptureInstalled) return () => undefined;
+  consoleCaptureInstalled = true;
+  const originalWarn = console.warn;
+  const originalError = console.error;
+  let lastFingerprint = "";
+  let lastAtMs = 0;
+
+  const mirror = (level: "warn" | "error", args: readonly unknown[]) => {
+    const line = args
+      .map((value) => {
+        if (value instanceof Error) return `${value.name}: ${value.message}`;
+        if (typeof value === "string") return value;
+        return String(value);
+      })
+      .join(" ")
+      .trim();
+    if (!line) return;
+    const fingerprint = `${level}:${line}`;
+    const nowMs = Date.now();
+    if (fingerprint === lastFingerprint && nowMs - lastAtMs < 2_000) return;
+    lastFingerprint = fingerprint;
+    lastAtMs = nowMs;
+    appendAppLog(level, "app", `console.${level}: ${line}`);
+  };
+
+  const capturedWarn: typeof console.warn = (...args) => {
+    originalWarn(...args);
+    mirror("warn", args);
+  };
+  const capturedError: typeof console.error = (...args) => {
+    originalError(...args);
+    mirror("error", args);
+  };
+  console.warn = capturedWarn;
+  console.error = capturedError;
+
+  return () => {
+    if (console.warn === capturedWarn) console.warn = originalWarn;
+    if (console.error === capturedError) console.error = originalError;
+    consoleCaptureInstalled = false;
+  };
+}
+
 export async function clearAppLogs(): Promise<void> {
   entries = [];
+  pendingBeforeHydrate = [];
   notify();
   if (persistTimer !== undefined) {
     clearTimeout(persistTimer);

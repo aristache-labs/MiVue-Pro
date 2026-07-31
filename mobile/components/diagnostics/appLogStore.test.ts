@@ -71,6 +71,8 @@ describe("appLogFormat", () => {
     assert.equal(filterAppLogs(entries, { category: "download" }).length, 2);
     assert.equal(filterAppLogs(entries, { level: "error" }).length, 1);
     assert.equal(filterAppLogs(entries, { category: "download", level: "warn" }).length, 1);
+    assert.equal(filterAppLogs(entries, { query: "STALL" }).length, 1);
+    assert.equal(filterAppLogs(entries, { query: "connection" }).length, 1);
   });
 
   it("builds export text", () => {

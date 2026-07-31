@@ -10,9 +10,17 @@ import {
 } from "@expo-google-fonts/source-sans-3";
 import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { router, Stack, useSegments, type Href } from "expo-router";
+import {
+  ErrorBoundary as RouterErrorBoundary,
+  router,
+  Stack,
+  useSegments,
+  type ErrorBoundaryProps,
+  type Href,
+} from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useCallback, useEffect, useRef } from "react";
+import { AppState, type AppStateStatus } from "react-native";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
@@ -20,10 +28,29 @@ import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryMod
 import { shouldAllowGateBypassSegment } from "@/components/onboarding/connectionErrors";
 import { OnboardingProvider, useOnboarding } from "@/components/onboarding/OnboardingProvider";
 import { StartupLoadingScreen } from "@/components/startup/StartupLoadingScreen";
+import {
+  appLog,
+  hydrateAppLogs,
+  installConsoleAppLogCapture,
+} from "@/components/diagnostics/appLogStore";
 import { DemoModeProvider, useDemoMode } from "@/context/DemoModeContext";
 import { Palette, Type } from "@/constants/Theme";
 
-export { ErrorBoundary } from "expo-router";
+export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
+  useEffect(() => {
+    appLog.error("ui", `unhandled render error: ${error.message}`);
+  }, [error]);
+
+  return (
+    <RouterErrorBoundary
+      error={error}
+      retry={() => {
+        appLog.info("ui", "render error retry requested");
+        return retry();
+      }}
+    />
+  );
+}
 
 export const unstable_settings = {
   initialRouteName: "(tabs)",
@@ -69,7 +96,10 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
-    if (error) throw error;
+    if (error) {
+      appLog.error("load", `font loading failed: ${error.message}`);
+      throw error;
+    }
   }, [error]);
 
   if (!loaded) {
@@ -94,6 +124,34 @@ function RootLayoutNav() {
   const allowOutsideOnboarding = shouldAllowGateBypassSegment(top);
   const bootReady = ready && cameraBootstrapDone;
   const splashHiddenRef = useRef(false);
+  const startupLoggedRef = useRef(false);
+  const appStateRef = useRef<AppStateStatus>(AppState.currentState);
+  const routePath = segments.join("/") || "root";
+
+  useEffect(() => {
+    void hydrateAppLogs();
+    const restoreConsoleCapture = installConsoleAppLogCapture();
+    appLog.info("load", "application shell mounted");
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (appStateRef.current === nextState) return;
+      appLog.info("background", `app state ${appStateRef.current} -> ${nextState}`);
+      appStateRef.current = nextState;
+    });
+    return () => {
+      subscription.remove();
+      restoreConsoleCapture();
+    };
+  }, []);
+
+  useEffect(() => {
+    appLog.info("navigation", `route ${routePath}`);
+  }, [routePath]);
+
+  useEffect(() => {
+    if (!bootReady || startupLoggedRef.current) return;
+    startupLoggedRef.current = true;
+    appLog.info("load", "startup complete; navigation ready");
+  }, [bootReady]);
 
   const hideNativeSplash = useCallback(() => {
     if (splashHiddenRef.current) return;

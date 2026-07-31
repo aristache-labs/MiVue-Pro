@@ -1,5 +1,19 @@
 export type AppLogLevel = "info" | "warn" | "error";
-export type AppLogCategory = "connection" | "download" | "error" | "app";
+export const APP_LOG_CATEGORIES = [
+  "app",
+  "load",
+  "navigation",
+  "ui",
+  "connection",
+  "download",
+  "library",
+  "playback",
+  "storage",
+  "settings",
+  "background",
+] as const;
+
+export type AppLogCategory = (typeof APP_LOG_CATEGORIES)[number];
 
 export type AppLogEntry = {
   readonly id: string;
@@ -37,10 +51,7 @@ export type AppLogLevelFilter = "all" | AppLogLevel;
 
 export const APP_LOG_CATEGORY_FILTERS: readonly AppLogCategoryFilter[] = [
   "all",
-  "connection",
-  "download",
-  "error",
-  "app",
+  ...APP_LOG_CATEGORIES,
 ];
 
 export const APP_LOG_LEVEL_FILTERS: readonly AppLogLevelFilter[] = [
@@ -55,15 +66,33 @@ export function filterAppLogs(
   opts: {
     readonly category?: AppLogCategoryFilter;
     readonly level?: AppLogLevelFilter;
+    readonly query?: string;
   } = {},
 ): AppLogEntry[] {
   const category = opts.category ?? "all";
   const level = opts.level ?? "all";
+  const query = opts.query?.trim().toLocaleLowerCase() ?? "";
   return entries.filter((entry) => {
     if (category !== "all" && entry.category !== category) return false;
     if (level !== "all" && entry.level !== level) return false;
+    if (
+      query.length > 0 &&
+      !entry.message.toLocaleLowerCase().includes(query) &&
+      !entry.category.toLocaleLowerCase().includes(query) &&
+      !entry.level.toLocaleLowerCase().includes(query)
+    ) {
+      return false;
+    }
     return true;
   });
+}
+
+export function isAppLogLevel(value: unknown): value is AppLogLevel {
+  return value === "info" || value === "warn" || value === "error";
+}
+
+export function isAppLogCategory(value: unknown): value is AppLogCategory {
+  return typeof value === "string" && APP_LOG_CATEGORIES.includes(value as AppLogCategory);
 }
 
 export function buildAppLogExportText(
