@@ -470,11 +470,14 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [queue],
   );
   const clearThumbCache = useCallback(async () => {
+    appLog.info("storage", "thumbnail cache clear start");
     try {
       await FileSystem.deleteAsync(thumbDir, { idempotent: true });
       await FileSystem.makeDirectoryAsync(thumbDir, { intermediates: true });
-    } catch {
-      // ignore
+      appLog.info("storage", "thumbnail cache clear success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      appLog.error("storage", `thumbnail cache clear failed: ${message}`);
     }
   }, [thumbDir]);
 
@@ -724,22 +727,28 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       value: CameraSettingValueMap[K],
     ): Promise<{ ok: boolean; error?: string }> => {
       if (demoMode) {
+        appLog.warn("settings", `camera setting blocked key=${key}: Demo Mode`);
         return { ok: false, error: "Camera settings are unavailable in Demo Mode." };
       }
       if (!isCameraLibraryInteractive(cameraLinkState)) {
+        appLog.warn("settings", `camera setting blocked key=${key}: camera disconnected`);
         return { ok: false, error: "Camera disconnected." };
       }
       if (!isPrivateIpv4(cameraHost)) {
+        appLog.warn("settings", `camera setting blocked key=${key}: invalid camera host`);
         return { ok: false, error: "Host must be a private IPv4 address." };
       }
       if (!isCameraSettingKey(key) || !isAllowedCameraSettingValue(key, value)) {
+        appLog.warn("settings", `camera setting blocked key=${key}: unsupported value`);
         return { ok: false, error: "Unsupported camera setting." };
       }
       const property = CAMERA_SETTING_PROPERTY[key];
       if (!(property in cameraPropertiesRef.current)) {
+        appLog.warn("settings", `camera setting blocked key=${key}: capability not reported`);
         return { ok: false, error: "This setting is not reported by the camera." };
       }
       if (settingApplyInflightRef.current || formatSdInflightRef.current) {
+        appLog.warn("settings", `camera setting blocked key=${key}: operation already in progress`);
         return { ok: false, error: "Another setting change is already in progress." };
       }
 
@@ -747,6 +756,13 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setIsApplyingCameraSetting(true);
       setApplyingCameraSettingKey(key);
       const requestGen = cameraSessionGenRef.current;
+      const previousValue = cameraPropertiesRef.current[property] ?? "unknown";
+      const firmware =
+        cameraPropertiesRef.current["Vendor.DeviceInfo.Version.Firmware"] ?? "unknown";
+      appLog.info(
+        "settings",
+        `camera setting start key=${key} property=${property} from=${previousValue} to=${value} model=${cameraModel ?? "unknown"} firmware=${firmware}`,
+      );
       try {
         const transport = createLiveTransport(cameraHost, 15_000);
         const result = await applyCameraSetting(transport, key, value);
@@ -754,6 +770,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
           !isCameraLibraryInteractive(linkStateRef.current)
         ) {
+          appLog.warn(
+            "settings",
+            `camera setting result discarded key=${key} requested=${value}: camera session changed`,
+          );
           return { ok: false, error: "Camera disconnected." };
         }
         setCameraProperties((prev) => ({
@@ -762,12 +782,24 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           [property]: value,
         }));
         setLastError(undefined);
+        appLog.info(
+          "settings",
+          `camera setting success key=${key} from=${previousValue} to=${value} verified=true`,
+        );
         return { ok: true };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         if (!isCameraLibraryInteractive(linkStateRef.current)) {
+          appLog.error(
+            "settings",
+            `camera setting failed_or_unknown key=${key} requested=${value}: camera disconnected`,
+          );
           return { ok: false, error: "Camera disconnected." };
         }
+        appLog.error(
+          "settings",
+          `camera setting failed_or_unknown key=${key} requested=${value}: ${message}`,
+        );
         return { ok: false, error: message };
       } finally {
         settingApplyInflightRef.current = false;
@@ -775,7 +807,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         setApplyingCameraSettingKey(undefined);
       }
     },
-    [demoMode, cameraLinkState, cameraHost],
+    [demoMode, cameraLinkState, cameraHost, cameraModel],
   );
 
   const formatCameraSdCard = useCallback(async (): Promise<{
@@ -785,21 +817,31 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     message?: string;
   }> => {
     if (demoMode) {
+      appLog.warn("storage", "format SD blocked: Demo Mode");
       return { ok: false, error: "Format SD card is unavailable in Demo Mode." };
     }
     if (!isCameraLibraryInteractive(cameraLinkState)) {
+      appLog.warn("storage", "format SD blocked: camera disconnected");
       return { ok: false, error: "Camera disconnected." };
     }
     if (!isPrivateIpv4(cameraHost)) {
+      appLog.warn("storage", "format SD blocked: invalid camera host");
       return { ok: false, error: "Host must be a private IPv4 address." };
     }
     if (settingApplyInflightRef.current || formatSdInflightRef.current) {
+      appLog.warn("storage", "format SD blocked: camera operation already in progress");
       return { ok: false, error: "Another camera operation is already in progress." };
     }
 
     formatSdInflightRef.current = true;
     setIsFormattingSdCard(true);
     const requestGen = cameraSessionGenRef.current;
+    const firmware =
+      cameraPropertiesRef.current["Vendor.DeviceInfo.Version.Firmware"] ?? "unknown";
+    appLog.warn(
+      "storage",
+      `format SD start model=${cameraModel ?? "unknown"} firmware=${firmware}`,
+    );
     try {
       const transport = createLiveTransport(cameraHost, 300_000);
       const result = await formatSdCard(transport);
@@ -807,10 +849,18 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
         !isCameraLibraryInteractive(linkStateRef.current)
       ) {
+        appLog.error("storage", "format SD failed_or_unknown: camera session changed");
         return { ok: false, error: "Camera disconnected." };
       }
       if (result.outcome === "success" || result.outcome === "unknown") {
         void refreshFilesRef.current();
+      }
+      if (result.outcome === "success") {
+        appLog.info("storage", `format SD success verified=true: ${result.message}`);
+      } else if (result.outcome === "unknown") {
+        appLog.warn("storage", `format SD outcome=unknown: ${result.message}`);
+      } else {
+        appLog.error("storage", `format SD failed: ${result.message}`);
       }
       return {
         ok: result.outcome === "success",
@@ -821,14 +871,16 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       if (!isCameraLibraryInteractive(linkStateRef.current)) {
+        appLog.error("storage", "format SD failed_or_unknown: camera disconnected");
         return { ok: false, error: "Camera disconnected." };
       }
+      appLog.error("storage", `format SD failed_or_unknown: ${message}`);
       return { ok: false, error: message };
     } finally {
       formatSdInflightRef.current = false;
       setIsFormattingSdCard(false);
     }
-  }, [demoMode, cameraLinkState, cameraHost]);
+  }, [demoMode, cameraLinkState, cameraHost, cameraModel]);
 
   React.useEffect(() => {
     if (bootOnceRef.current) return;
@@ -1262,6 +1314,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
 
   const deleteLocalFilesBatch = useCallback(
     async (files: readonly LocalMediaFile[]) => {
+      const requestedBytes = files.reduce((sum, file) => sum + Math.max(0, file.sizeBytes), 0);
+      appLog.warn(
+        "storage",
+        `delete local library start files=${files.length} bytes=${requestedBytes}`,
+      );
       let deleted = 0;
       let failed = 0;
       for (const file of files) {
@@ -1277,7 +1334,26 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
           failed += 1;
         }
       }
-      await refreshLocalFiles();
+      try {
+        await refreshLocalFiles();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        appLog.error(
+          "storage",
+          `delete local library refresh failed deleted=${deleted} failed=${failed}: ${message}`,
+        );
+        throw error;
+      }
+      if (failed === 0) {
+        appLog.info("storage", `delete local library success deleted=${deleted} failed=0`);
+      } else if (deleted > 0) {
+        appLog.warn(
+          "storage",
+          `delete local library partial deleted=${deleted} failed=${failed}`,
+        );
+      } else {
+        appLog.error("storage", `delete local library failed deleted=0 failed=${failed}`);
+      }
       return { deleted, failed };
     },
     [downloadDir, refreshLocalFiles],
