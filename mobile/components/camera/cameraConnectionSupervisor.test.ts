@@ -200,6 +200,15 @@ describe("DemoModeContext supervisor wiring", () => {
       appStateBlock,
       /shouldRunActiveHealthPoll[\s\S]*linkState:\s*linkStateRef\.current/,
     );
+    assert.match(
+      appStateBlock,
+      /next !== "active"[\s\S]*queue\.setConnectionAvailable\(false\)/,
+    );
+    assert.match(
+      appStateBlock,
+      /queueCanResume[\s\S]*queue\.setConnectionAvailable\(queueCanResume\)/,
+    );
+    assert.match(contextSrc, /createdQueue\.setConnectionAvailable\(false\)/);
   });
 
   it("keeps full refreshFiles for bootstrap/manual/reconnect paths", () => {

@@ -407,7 +407,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       FileSystem.documentDirectory !== null && FileSystem.documentDirectory !== undefined
         ? new ExpoFileSink(FileSystem)
         : new MemoryFileSink();
-    queueRef.current = new DownloadQueue({
+    const createdQueue = new DownloadQueue({
       store,
       transport: new DemoTransport(),
       sink,
@@ -423,6 +423,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         if (justFinished) void refreshLocalFiles();
       },
     });
+    // The connection supervisor is authoritative. Never let restored work start
+    // before the current camera session has been confirmed.
+    createdQueue.setConnectionAvailable(false);
+    queueRef.current = createdQueue;
   }
   const queue = queueRef.current;
 
@@ -1002,6 +1006,19 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       appStateRef.current = next;
 
       if (next !== "active") {
+        const pendingCount = queue.list().filter(
+          (item) =>
+            item.status === "active" ||
+            item.status === "queued" ||
+            item.status === "waiting_for_connection",
+        ).length;
+        if (pendingCount > 0) {
+          appLog.info(
+            "download",
+            `queue suspended appState=${next} pending=${pendingCount}`,
+          );
+        }
+        queue.setConnectionAvailable(false);
         cancelForegroundVerify?.();
         cancelForegroundVerify = undefined;
         clearHealthRetryTimer();
@@ -1010,6 +1027,21 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       }
 
       syncSupervisorTimers();
+
+      const queueCanResume =
+        linkStateRef.current === "connected" && !demoModeRef.current;
+      queue.setConnectionAvailable(queueCanResume);
+      if (queueCanResume) {
+        const pendingCount = queue.list().filter(
+          (item) =>
+            item.status === "active" ||
+            item.status === "queued" ||
+            item.status === "waiting_for_connection",
+        ).length;
+        if (pendingCount > 0) {
+          appLog.info("download", `queue resume requested pending=${pendingCount}`);
+        }
+      }
 
       if (!isAppForegroundResume(prev, next)) return;
       if (demoModeRef.current) return;
@@ -1038,10 +1070,12 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       stopPollingAndReconnect();
       sub.remove();
     };
-  }, [demoMode, cameraLinkState, cameraHost, clearHealthRetryTimer]);
+  }, [demoMode, cameraLinkState, cameraHost, clearHealthRetryTimer, queue]);
 
   useEffect(() => {
-    queue.setConnectionAvailable(cameraLinkState === "connected" && !demoMode);
+    queue.setConnectionAvailable(
+      appStateRef.current === "active" && cameraLinkState === "connected" && !demoMode,
+    );
   }, [cameraLinkState, demoMode, queue]);
 
   useEffect(() => {

@@ -396,6 +396,32 @@ test("setConnectionAvailable false does not start duplicate pumps", async () => 
   assert.equal(maxConcurrent, 1);
 });
 
+test("reaffirming an available connection starts restored queued work", async () => {
+  const store = new MemoryQueueStore();
+  const sink = new MemoryFileSink();
+  const transport = new FakeTransport();
+  const now = new Date().toISOString();
+  await store.save([
+    {
+      id: "restored-queued",
+      remotePath: "/SD/Normal/F/RESTORED.MP4",
+      localName: "RESTORED.MP4",
+      expectedBytes: 100,
+      status: "queued",
+      createdAt: now,
+      updatedAt: now,
+    },
+  ]);
+  const queue = new DownloadQueue({ store, transport, sink, downloadDir: "/downloads" });
+  await queue.init();
+
+  // A refresh may reconfirm `true` while the queue already believes it is online.
+  queue.setConnectionAvailable(true);
+
+  await waitUntil(() => queue.list().length === 0);
+  assert.ok(await sink.exists("/downloads/RESTORED.MP4"));
+});
+
 test("removing a waiting item prevents resume after reconnect", async () => {
   class FailTransport implements Transport {
     async request(request: TransportRequest): Promise<TransportResponse> {

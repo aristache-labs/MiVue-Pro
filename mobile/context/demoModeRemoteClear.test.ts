@@ -25,7 +25,10 @@ describe("DemoModeContext remote library clear", () => {
     assert.match(src, /runSilentHealthCheck/);
     assert.match(src, /shouldClearLibraryAfterFailures|MAX_VERIFY_FAILURES_BEFORE_CLEAR/);
     // Queue parks downloads via waiting_for_connection; supervisor gates pump — no fail→pause cascade.
-    assert.match(src, /setConnectionAvailable\(cameraLinkState === "connected"/);
+    assert.match(
+      src,
+      /setConnectionAvailable\(\s*appStateRef\.current === "active" && cameraLinkState === "connected"/,
+    );
     assert.match(src, /onRecoverableDisconnect/);
     assert.doesNotMatch(src, /isConnectionDropError/);
   });

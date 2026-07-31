@@ -90,10 +90,10 @@ export class DownloadQueue {
 
   /**
    * Gate from connection supervisor. When false, abort the active transfer into
-   * `waiting_for_connection` and do not start queued work. When true again, pump resumes.
+   * `waiting_for_connection` and do not start queued work. A true signal is also
+   * an idempotent kick so restored/stalled queued work cannot remain dormant.
    */
   setConnectionAvailable(available: boolean): void {
-    const was = this.connectionAvailable;
     this.connectionAvailable = available;
     if (!available) {
       if (this.activeId !== undefined && this.activeController !== undefined) {
@@ -102,9 +102,7 @@ export class DownloadQueue {
       }
       return;
     }
-    if (!was) {
-      void this.pump();
-    }
+    void this.pump();
   }
 
   async init(): Promise<void> {
