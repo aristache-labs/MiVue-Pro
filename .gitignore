@@ -7,6 +7,7 @@ downloads/
 .analysis2/
 .agents/
 .cursor/
+.codegraph/
 .codebase-memory.json
 androguard.db
 MiVue+Pro_*.xapk

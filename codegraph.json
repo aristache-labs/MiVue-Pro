@@ -1,0 +1,22 @@
+{
+  "include": [
+    ".analysis/sd-storage-endpoint/",
+    ".analysis2/"
+  ],
+  "exclude": [
+    ".analysis2/_extracted/arm64-v8a-1.1.220.1/",
+    ".analysis2/_extracted/armeabi-v7a-1.1.220.1/",
+    ".analysis2/_extracted/navman-1.1.124.1/",
+    ".analysis2/sd-storage-research/_apk_tmp/",
+    ".analysis2/sd-storage-research/_decompiled/",
+    ".analysis2/sd-storage-research/_format_dex.bin",
+    ".analysis2/by-source/armeabi-v7a-1.1.220.1/",
+    "APK/",
+    "downloads/",
+    ".agents/",
+    ".cursor/",
+    "mobile/.expo/",
+    "mobile/dist/",
+    "androguard.db"
+  ]
+}
