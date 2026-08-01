@@ -3,6 +3,7 @@ import { assertRemoteSdPath } from "../../camera-transport/src/index";
 import {
   parseConfigResponse,
   parseFileListXml,
+  parseMenuPropertyValue,
   type CameraEndpoint,
   type CameraInfo,
   type CompleteFileListResponse,
@@ -79,6 +80,16 @@ export class CameraClient {
       throw new CameraProtocolError(`Camera rejected property ${property}: ${parsed.code} ${parsed.message}`);
     }
     return parsed;
+  }
+
+  async getMenuProperty(property: string, signal?: AbortSignal): Promise<string | undefined> {
+    const query = new URLSearchParams({ action: "get", property: "Camera.Menu.Property" });
+    const response = await this.transport.request({
+      method: "GET",
+      path: `/cgi-bin/Config.cgi?${query.toString()}`,
+      ...(signal === undefined ? {} : { signal }),
+    });
+    return parseMenuPropertyValue(readText(response), property);
   }
 
   async getInfo(signal?: AbortSignal): Promise<CameraInfo> {

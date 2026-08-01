@@ -216,8 +216,7 @@ async function fetchCameraPreviewCapability(
   client: CameraClient,
 ): Promise<Readonly<Record<string, string>>> {
   try {
-    const menu = await client.getProperty("Camera.Menu.Property");
-    const value = menu.properties[CAMERA_PLAYBACK_PREVIEW_PROPERTY];
+    const value = await client.getMenuProperty(CAMERA_PLAYBACK_PREVIEW_PROPERTY);
     return value === undefined ? {} : { [CAMERA_PLAYBACK_PREVIEW_PROPERTY]: value };
   } catch {
     return {};

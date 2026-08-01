@@ -171,6 +171,7 @@ Status (2026-08-01):
 
 - **photo preview: `camera-confirmed`** pe MiVue 866 — fotografia este citită read-only prin `GET` pe calea validată `/SD/.../*.JPG`, salvată în cache-ul local de thumbnails și afișată în viewer;
 - `Vendor.DeviceInfo.SupportPlaybackPreview=YES`: **capability `camera-confirmed`** pe MiVue 866 / `VI100.24.50.BE1WD.10`, citită din agregatul GET-only `Camera.Menu.Property`;
+- răspunsul agregatului `Camera.Menu.Property` este document XML cu root `<camera>`, nu răspuns CGI text `0 / OK`; se parsează separat, iar o eroare de format nu este tratată drept lipsă de suport;
 - streamingul video Laneory prin URL-ul read-only `http://192.72.1.1/SD/.../*.MP4`: **implementation-preview**, încă necesită validare fizică end-to-end pe iOS și Android înainte de promovare la `production-validated`.
 
 Flux video implementat pentru branch-ul intern `preview`:

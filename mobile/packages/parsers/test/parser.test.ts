@@ -1,12 +1,41 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ProtocolParseError, parseConfigResponse, parseFileListXml } from "../src/parser";
+import {
+  ProtocolParseError,
+  parseConfigResponse,
+  parseFileListXml,
+  parseMenuPropertyValue,
+} from "../src/parser";
 
 test("parseConfigResponse preserves empty property values", () => {
   const result = parseConfigResponse("0\r\nOK\r\nstatus=\r\n");
   assert.equal(result.code, 0);
   assert.equal(result.message, "OK");
   assert.deepEqual(result.properties, { status: "" });
+});
+
+test("parseMenuPropertyValue reads a named value from the camera XML aggregate", () => {
+  const property = "Vendor.DeviceInfo.SupportPlaybackPreview";
+  assert.equal(
+    parseMenuPropertyValue(
+      `<?xml version="1.0"?><camera><property name="${property}" value="YES" /></camera>`,
+      property,
+    ),
+    "YES",
+  );
+  assert.equal(
+    parseMenuPropertyValue(
+      `<?xml version="1.0"?><camera><item><name>${property}</name><value>YES</value></item></camera>`,
+      property,
+    ),
+    "YES",
+  );
+  assert.equal(parseMenuPropertyValue("<camera />", property), undefined);
+});
+
+test("parseMenuPropertyValue rejects non-XML and unsafe property names", () => {
+  assert.throws(() => parseMenuPropertyValue("0\nOK\n", "Camera.Menu.Property"), ProtocolParseError);
+  assert.throws(() => parseMenuPropertyValue("<camera />", "bad\r\nname"), ProtocolParseError);
 });
 
 test("parseFileListXml parses confirmed metadata shape", () => {
