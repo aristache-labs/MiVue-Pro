@@ -40,6 +40,12 @@ import {
   type CameraLinkState,
 } from "@/components/camera/cameraLibraryModel";
 import {
+  buildCameraPreviewUrl,
+  CAMERA_PLAYBACK_PREVIEW_PROPERTY,
+  cameraPreviewAvailability,
+  type CameraPreviewKind,
+} from "@/components/camera/cameraPreview";
+import {
   appLog,
   observeQueueForAppLogs,
   type QueueLogSnapshot,
@@ -101,6 +107,15 @@ export interface LocalMediaFile {
   readonly sizeBytes: number;
   readonly kind: "video" | "image" | "other";
 }
+
+export type CameraPreviewResult =
+  | {
+      readonly ok: true;
+      readonly uri: string;
+      readonly kind: CameraPreviewKind;
+      readonly source: "camera" | "cache";
+    }
+  | { readonly ok: false; readonly error: string };
 
 export type MapPreference = "online" | "schematic";
 
@@ -170,6 +185,10 @@ interface DemoModeContextValue {
   readonly clearThumbCache: () => Promise<void>;
   /** Fetch camera SD thumbnail (GET /thumb…); cached on disk. Failures return undefined. */
   readonly resolveCameraThumbUri: (remotePath: string) => Promise<string | undefined>;
+  /** Read-only camera media preview. Video is capability-gated and HEAD-verified. */
+  readonly resolveCameraPreview: (file: RemoteFile) => Promise<CameraPreviewResult>;
+  /** Prevent health polling from competing with an active camera video stream. */
+  readonly setCameraPreviewActive: (active: boolean) => void;
 }
 
 const DemoModeContext = createContext<DemoModeContextValue | undefined>(undefined);
@@ -191,6 +210,18 @@ function createLiveTransport(host: string, timeoutMs = 30_000): Transport {
     userAgent: APP_USER_AGENT,
     fs: FileSystem,
   });
+}
+
+async function fetchCameraPreviewCapability(
+  client: CameraClient,
+): Promise<Readonly<Record<string, string>>> {
+  try {
+    const menu = await client.getProperty("Camera.Menu.Property");
+    const value = menu.properties[CAMERA_PLAYBACK_PREVIEW_PROPERTY];
+    return value === undefined ? {} : { [CAMERA_PLAYBACK_PREVIEW_PROPERTY]: value };
+  } catch {
+    return {};
+  }
 }
 
 function fetchTimeoutForBytes(sizeBytes: number): number {
@@ -252,6 +283,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
   cameraHostRef.current = cameraHost;
   const demoModeRef = useRef(demoMode);
   demoModeRef.current = demoMode;
+  const cameraPreviewActiveRef = useRef(false);
   const consecutiveVerifyFailuresRef = useRef(0);
   const lastVerifiedAtRef = useRef<number | undefined>(undefined);
   const verifyInflightLocalRef = useRef(false);
@@ -353,6 +385,10 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     [demoMode, cameraHost, thumbDir, acquireThumbSlot, releaseThumbSlot],
   );
 
+  const setCameraPreviewActive = useCallback((active: boolean) => {
+    cameraPreviewActiveRef.current = active;
+  }, []);
+
   const refreshLocalFiles = useCallback(async () => {
     try {
       if (FileSystem.documentDirectory === null || FileSystem.documentDirectory === undefined) {
@@ -429,6 +465,76 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
     queueRef.current = createdQueue;
   }
   const queue = queueRef.current;
+
+  const resolveCameraPreview = useCallback(
+    async (file: RemoteFile): Promise<CameraPreviewResult> => {
+      const hostAtStart = cameraHostRef.current.trim();
+      const requestGen = cameraSessionGenRef.current;
+      const availability = cameraPreviewAvailability({
+        file,
+        linkState: linkStateRef.current,
+        cameraHost: hostAtStart,
+        cameraProperties: cameraPropertiesRef.current,
+        demoMode: demoModeRef.current,
+      });
+      if (!availability.available) {
+        appLog.warn("playback", `preview blocked ${file.name}: ${availability.reason}`);
+        return { ok: false, error: availability.reason };
+      }
+
+      if (availability.kind === "image") {
+        const uri = await resolveCameraThumbUri(file.path);
+        if (!uri) {
+          appLog.warn("playback", `photo preview failed ${file.name}`);
+          return { ok: false, error: "The photo preview could not be loaded from the camera." };
+        }
+        if (
+          !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
+          cameraHostRef.current.trim() !== hostAtStart ||
+          !isCameraLibraryInteractive(linkStateRef.current)
+        ) {
+          return { ok: false, error: "The camera connection changed while loading the preview." };
+        }
+        appLog.info("playback", `photo preview ready ${file.name}`);
+        return { ok: true, uri, kind: "image", source: "cache" };
+      }
+
+      if (queue.list().some((item) => item.status === "active")) {
+        const error = "Wait for the active download to finish before previewing this video.";
+        appLog.warn("playback", `video preview blocked active download ${file.name}`);
+        return { ok: false, error };
+      }
+
+      try {
+        const client = new CameraClient(
+          { host: hostAtStart, httpPort: 80, rtspPort: 554 },
+          createLiveTransport(hostAtStart, ENQUEUE_PROBE_TIMEOUT_MS),
+        );
+        const head = await client.headFile(file.path);
+        if (head.statusCode < 200 || head.statusCode >= 300) {
+          throw new Error(`Camera returned HTTP ${head.statusCode}`);
+        }
+        if (
+          !isCameraSessionCurrent(requestGen, cameraSessionGenRef.current) ||
+          cameraHostRef.current.trim() !== hostAtStart ||
+          !isCameraLibraryInteractive(linkStateRef.current)
+        ) {
+          return { ok: false, error: "The camera connection changed while preparing the preview." };
+        }
+        const uri = buildCameraPreviewUrl(hostAtStart, file.path);
+        appLog.info("playback", `video preview ready ${file.name}`);
+        return { ok: true, uri, kind: "video", source: "camera" };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        appLog.warn("playback", `video preview failed ${file.name}: ${message}`);
+        return {
+          ok: false,
+          error: "Video preview could not start. Check the camera connection or download the file.",
+        };
+      }
+    },
+    [queue, resolveCameraThumbUri],
+  );
 
   const setCameraHost = useCallback(
     (host: string) => {
@@ -549,11 +655,12 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
         } catch {
           // status properties still usable
         }
+        const previewProps = await fetchCameraPreviewCapability(client);
         if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
           appLog.warn("connection", "refresh aborted: camera session changed");
           return { ok: false, error: "Camera session changed." };
         }
-        setCameraProperties({ ...status.properties, ...settingsProps });
+        setCameraProperties({ ...status.properties, ...settingsProps, ...previewProps });
         setFiles(page.files);
         setCameraLinkState("connected");
         setCameraModel(COMPAT_MODEL);
@@ -591,6 +698,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
 
   const runSilentHealthCheck = useCallback(async (): Promise<void> => {
     if (demoModeRef.current) return;
+    if (cameraPreviewActiveRef.current) return;
     const host = cameraHostRef.current.trim();
     if (!isPrivateIpv4(host)) return;
 
@@ -705,10 +813,11 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       const client = new CameraClient({ host: cameraHost, httpPort: 80, rtspPort: 554 }, transport);
       const status = await client.getStatus();
       const settingsProps = await fetchCameraSettingProperties(transport);
+      const previewProps = await fetchCameraPreviewCapability(client);
       if (!isCameraSessionCurrent(requestGen, cameraSessionGenRef.current)) {
         return { ok: false, error: "Camera session changed." };
       }
-      setCameraProperties({ ...status.properties, ...settingsProps });
+      setCameraProperties({ ...status.properties, ...settingsProps, ...previewProps });
       setCameraLinkState("connected");
       setCameraModel(COMPAT_MODEL);
       setLastConnectedAt(new Date().toISOString());
@@ -1438,6 +1547,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setMapPreference,
       clearThumbCache,
       resolveCameraThumbUri,
+      resolveCameraPreview,
+      setCameraPreviewActive,
     }),
     [
       demoMode,
@@ -1483,6 +1594,8 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
       setMapPreference,
       clearThumbCache,
       resolveCameraThumbUri,
+      resolveCameraPreview,
+      setCameraPreviewActive,
     ],
   );
 

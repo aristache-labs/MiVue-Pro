@@ -14,6 +14,8 @@ Nu se declară compatibilitate cu modele sau firmware netestate. Fiecare rând n
 
 Header-ul `Server` AIT **nu înlocuiește** versiunea de firmware a camerei. Firmware-ul Dashcam info vine din `Vendor.DeviceInfo.Version.Firmware` (GET only).
 
+Preview media (2026-08-01): pe MiVue 866, fotografia remote prin GET și flagul `Vendor.DeviceInfo.SupportPlaybackPreview=YES` sunt `camera-confirmed`. Playerul video direct Laneory este disponibil numai în channel-ul intern `preview` și rămâne `implementation-preview` până la validarea fizică iOS + Android; suportul HTTP `Range`/seek rămâne neconfirmat.
+
 ## Funcții în afara afirmațiilor de compatibilitate store (până la validare completă)
 
 - orice `set`/`del` neconfirmat pe modelul și firmware-ul conectat;
@@ -23,6 +25,7 @@ Header-ul `Server` AIT **nu înlocuiește** versiunea de firmware a camerei. Fir
 - live-view / RTSP;
 - alte modele Mio/MiVue sau familii BLE;
 - resume HTTP pe baza `Range` (neconfirmat).
+- promovarea preview-ului video remote în production înainte de testarea fizică iOS + Android, inclusiv clip mare, seek și reconnect/fallback.
 
 ## Surse
 

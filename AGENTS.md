@@ -413,3 +413,12 @@ Trademark clearance rămâne obligatorie înainte de submit.
 „Mio” și „MiVue” se folosesc numai factual, fără a sugera afiliere, aprobare sau caracter oficial.
 
 Vezi `docs/legal/trademark-usage.md`.
+
+## EAS Update după modificări validate
+
+- Pentru modificările OTA-compatible din `mobile/` (JavaScript, TypeScript și asset-uri), rulează întotdeauna un EAS Update pe branch-ul `preview` după ce verificările relevante au trecut; acesta este fluxul utilizat de build-urile curente ale proiectului.
+- Folosește un mesaj descriptiv și raportează utilizatorului ID-ul sau URL-ul update-ului publicat.
+- Păstrează `development` și `production` blocate până când utilizatorul cere explicit alt target.
+- Dacă schimbarea include cod nativ, plugin-uri Expo, permisiuni, entitlements sau dependențe native care necesită un build nou, nu publica un update OTA incompatibil; raportează că este necesar un EAS Build.
+- Dacă validarea are numai eșecuri baseline cunoscute și fără legătură cu schimbarea, update-ul `preview` poate continua, dar eșecurile trebuie raportate clar.
+- Dacă autentificarea sau rețeaua împiedică publicarea, nu declara succesul; oferă comanda exactă de reluat după deblocare.

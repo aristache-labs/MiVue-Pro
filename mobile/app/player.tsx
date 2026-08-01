@@ -51,11 +51,23 @@ import type { FileCategory, GpsSample } from "@/packages/parsers/src/index";
 type PlaybackUiStatus = "loading" | "ready" | "buffering" | "error" | "unsupported";
 
 export default function PlayerScreen() {
-  const params = useLocalSearchParams<{ uri?: string; name?: string; kind?: string }>();
+  const params = useLocalSearchParams<{
+    uri?: string;
+    name?: string;
+    kind?: string;
+    source?: string;
+    size?: string;
+    category?: string;
+  }>();
   const uri = typeof params.uri === "string" ? params.uri : "";
   const name = typeof params.name === "string" ? params.name : "Media";
   const kind = typeof params.kind === "string" ? params.kind : "other";
-  const { shareLocalFile, files } = useDemoMode();
+  const fromCamera = params.source === "camera";
+  const requestedSize =
+    typeof params.size === "string" && Number.isFinite(Number(params.size))
+      ? Math.max(0, Number(params.size))
+      : 0;
+  const { shareLocalFile, files, setCameraPreviewActive } = useDemoMode();
   const { colors } = useAppTheme();
   const insets = useSafeAreaInsets();
 
@@ -72,6 +84,14 @@ export default function PlayerScreen() {
   const { hasOverflow, onViewportLayout, onContentSizeChange } = useVerticalOverflow();
 
   const category: FileCategory | undefined = useMemo(() => {
+    if (
+      params.category === "normal" ||
+      params.category === "parking" ||
+      params.category === "event" ||
+      params.category === "photo"
+    ) {
+      return params.category;
+    }
     if (isImage) return "photo";
     const remote = files.find((f) => f.name === name);
     if (!remote) return undefined;
@@ -84,11 +104,22 @@ export default function PlayerScreen() {
       return remote.category;
     }
     return undefined;
-  }, [files, name, isImage]);
+  }, [files, name, isImage, params.category]);
+
+  useEffect(() => {
+    if (!fromCamera) return undefined;
+    setCameraPreviewActive(true);
+    return () => setCameraPreviewActive(false);
+  }, [fromCamera, setCameraPreviewActive]);
 
   useEffect(() => {
     if (!uri) {
       setFileMissing(true);
+      return;
+    }
+    if (fromCamera) {
+      setFileMissing(false);
+      setSizeBytes(requestedSize);
       return;
     }
     let cancelled = false;
@@ -113,7 +144,7 @@ export default function PlayerScreen() {
     return () => {
       cancelled = true;
     };
-  }, [uri]);
+  }, [uri, fromCamera, requestedSize]);
 
   const title = truncatePlayerFilename(name);
 
@@ -141,7 +172,7 @@ export default function PlayerScreen() {
               tone="ghost"
               size={28}
               onPress={close}
-              accessibilityLabel="Close video player"
+              accessibilityLabel={isImage ? "Close photo viewer" : "Close video player"}
             />
             <View style={styles.titleCenter}>
               <View style={styles.titleIdentityRow}>
@@ -155,20 +186,24 @@ export default function PlayerScreen() {
                 {category ? <CompactMediaCategoryBadge category={category} /> : null}
               </View>
             </View>
-            <IconButton
-              icon="share-outline"
-              tone="ghost"
-              size={28}
-              onPress={() =>
-                void shareLocalFile({
-                  name,
-                  uri,
-                  sizeBytes,
-                  kind: isVideo ? "video" : isImage ? "image" : "other",
-                })
-              }
-              accessibilityLabel={`Share ${name}`}
-            />
+            {fromCamera ? (
+              <View style={styles.headerActionSpacer} />
+            ) : (
+              <IconButton
+                icon="share-outline"
+                tone="ghost"
+                size={28}
+                onPress={() =>
+                  void shareLocalFile({
+                    name,
+                    uri,
+                    sizeBytes,
+                    kind: isVideo ? "video" : isImage ? "image" : "other",
+                  })
+                }
+                accessibilityLabel={`Share ${name}`}
+              />
+            )}
           </View>
           <HeaderDivider variant="screen" testID="player-header-divider" />
         </View>
@@ -195,7 +230,7 @@ export default function PlayerScreen() {
         {fileMissing ? (
           <View style={styles.centerMessage}>
             <Text style={[styles.centerText, { color: colors.text }]}>
-              Video file is no longer available on this device.
+              Media is no longer available.
             </Text>
             <Pressable
               onPress={close}
@@ -235,6 +270,8 @@ export default function PlayerScreen() {
             onFullscreenChange={setFullscreen}
             onClose={close}
             onDuration={setDurationSec}
+            gpsEnabled={!fromCamera}
+            remoteSource={fromCamera}
           />
         ) : null}
 
@@ -260,6 +297,8 @@ function VideoWithGps({
   onFullscreenChange,
   onClose,
   onDuration,
+  gpsEnabled,
+  remoteSource,
 }: {
   readonly uri: string;
   readonly clipName: string;
@@ -267,6 +306,8 @@ function VideoWithGps({
   readonly onFullscreenChange: (value: boolean) => void;
   readonly onClose: () => void;
   readonly onDuration: (seconds: number) => void;
+  readonly gpsEnabled: boolean;
+  readonly remoteSource: boolean;
 }) {
   const { colors, spacing } = useAppTheme();
   const { mapPreference, setMapPreference } = useDemoMode();
@@ -305,6 +346,12 @@ function VideoWithGps({
   // Load NMEA once; normalize/sort once.
   useEffect(() => {
     let cancelled = false;
+    if (!gpsEnabled) {
+      setGpsWaiting(false);
+      setTrack({ samples: [], timesMs: [], startMs: 0, partial: false });
+      setGpsStatus("unavailable");
+      return undefined;
+    }
     setGpsWaiting(true);
     void (async () => {
       const loaded = await loadSiblingNmea(uri);
@@ -324,7 +371,7 @@ function VideoWithGps({
     return () => {
       cancelled = true;
     };
-  }, [uri]);
+  }, [uri, gpsEnabled]);
 
   // Re-evaluate partial when duration becomes known.
   useEffect(() => {
@@ -451,7 +498,7 @@ function VideoWithGps({
   }, [player]);
 
   const frame = telemetryFrame ?? track?.samples[activeIndex];
-  const showGpsChrome = !fullscreen;
+  const showGpsChrome = !fullscreen && gpsEnabled;
   const mapModeLabel = mapMode === "online" ? "Online map" : "Local schematic";
   const isFollowingUi =
     following && mapMode === "online" && (gpsStatus === "synchronized" || gpsStatus === "partial");
@@ -515,7 +562,9 @@ function VideoWithGps({
             <Text style={styles.overlayText}>
               {playStatus === "unsupported"
                 ? "This video format is not supported on this device."
-                : "Unable to play this video."}
+                : remoteSource
+                  ? "Unable to stream this video from the camera. Check the connection or download it first."
+                  : "Unable to play this video."}
             </Text>
             <View style={styles.errorActions}>
               {playStatus === "error" ? (
@@ -793,6 +842,7 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     minWidth: 0,
   },
+  headerActionSpacer: { width: 44, height: 44 },
   titleIdentityRow: {
     flexDirection: "row",
     alignItems: "center",

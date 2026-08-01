@@ -2,6 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { CameraThumb } from "@/components/camera/CameraThumb";
+import type { CameraPreviewAvailability } from "@/components/camera/cameraPreview";
 import { formatMediaSizeMbGb } from "@/components/camera/cameraLibraryModel";
 import {
   remoteDetailPrimaryLabel,
@@ -39,6 +40,9 @@ interface RemoteDetailSheetProps {
   readonly onDownload: (file: RemoteFile) => void;
   readonly onResume?: (file: RemoteFile) => void;
   readonly onPlay?: (file: RemoteFile) => void;
+  readonly previewAvailability?: CameraPreviewAvailability;
+  readonly previewLoading?: boolean;
+  readonly onPreview?: (file: RemoteFile) => void;
   readonly onViewQueue?: () => void;
 }
 
@@ -53,6 +57,9 @@ export function RemoteDetailSheet({
   onDownload,
   onResume,
   onPlay,
+  previewAvailability,
+  previewLoading = false,
+  onPreview,
   onViewQueue,
 }: RemoteDetailSheetProps) {
   const { colors } = useAppTheme();
@@ -85,6 +92,8 @@ export function RemoteDetailSheet({
             : undefined;
         const primary = remoteDetailPrimaryLabel(downloadState);
         const showQueue = shouldShowViewInQueue(downloadState);
+        const showRemotePreview =
+          downloadState.kind !== "downloaded" && previewAvailability?.available === true;
         const primaryEnabled =
           shouldEnqueueOnDownloadPress(downloadState) ||
           downloadState.kind === "paused" ||
@@ -158,9 +167,22 @@ export function RemoteDetailSheet({
               </View>
             </View>
 
+            {showRemotePreview && onPreview ? (
+              <PrimaryButton
+                label={previewAvailability.kind === "image" ? "View photo" : "Preview video"}
+                loadingLabel="Preparing preview…"
+                onPress={() => onPreview(file)}
+                loading={previewLoading}
+                icon={previewAvailability.kind === "image" ? "eye-outline" : "play"}
+                accessibilityLabel={`${
+                  previewAvailability.kind === "image" ? "View photo" : "Preview video"
+                } ${file.name}`}
+              />
+            ) : null}
             <PrimaryButton
               label={primary}
               onPress={onPrimary}
+              variant={showRemotePreview ? "outline" : "filled"}
               disabled={!primaryEnabled}
               icon={
                 downloadState.kind === "downloaded"
@@ -173,6 +195,13 @@ export function RemoteDetailSheet({
               }
               accessibilityLabel={`${primary} ${file.name}`}
             />
+            {downloadState.kind !== "downloaded" &&
+            previewAvailability &&
+            !previewAvailability.available ? (
+              <Text style={[styles.previewHint, { color: colors.textMuted }]}>
+                {previewAvailability.reason}
+              </Text>
+            ) : null}
             {showQueue && onViewQueue ? (
               <PrimaryButton
                 label="View download queue"
@@ -214,4 +243,5 @@ const styles = StyleSheet.create({
   metaCol: { flex: 1, gap: 2 },
   metaLabel: { fontSize: 12, fontFamily: Type.font },
   metaValue: { fontSize: 14, fontFamily: Type.fontSemi },
+  previewHint: { fontSize: 12, lineHeight: 17, fontFamily: Type.font, marginTop: 8 },
 });

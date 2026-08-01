@@ -12,6 +12,7 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -22,9 +23,11 @@ import {
   APP_LOG_MAX_ENTRIES,
   buildAppLogExportText,
   filterAppLogs,
+  groupAppLogsByLocalDay,
   type AppLogCategory,
   type AppLogCategoryFilter,
   type AppLogEntry,
+  type AppLogGroup,
   type AppLogLevel,
   type AppLogLevelFilter,
 } from "@/components/diagnostics/appLogFormat";
@@ -35,6 +38,9 @@ import {
   subscribeAppLogs,
 } from "@/components/diagnostics/appLogStore";
 import { internalToolsEnabled } from "@/components/environment/resolveInternalTools";
+import { StaticBackdropSheet } from "@/components/media/StaticBackdropSheet";
+import { MEDIA_SHEET_PAD_H, MEDIA_SHEET_RADIUS } from "@/components/media/mediaCardTokens";
+import { CompactSheetHeader, SHEET_BODY_PAD_TOP } from "@/components/sheets/SheetHeader";
 import { SettingsChromeHeader } from "@/components/settings/SettingsChromeHeader";
 import { APP_NAME } from "@/constants/Brand";
 import { Type, useAppTheme, type ThemeColors } from "@/constants/Theme";
@@ -212,18 +218,24 @@ function ActionButton({
   );
 }
 
-function LogEntryCard({ entry }: { readonly entry: AppLogEntry }) {
+function LogEntryCard({ entry, onPress }: { readonly entry: AppLogGroup; readonly onPress: () => void }) {
   const { colors, radius } = useAppTheme();
   const appearance = getLevelAppearance(entry.level, colors);
   const stamp = formatEntryTime(entry.ts);
+  const firstStamp = formatEntryTime(entry.firstTs);
+  const lastStamp = formatEntryTime(entry.lastTs);
   return (
-    <View
-      style={[
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${appearance.label.toLowerCase()} ${CATEGORY_LABELS[entry.category]} log details`}
+      style={({ pressed }) => [
         styles.logCard,
         {
           borderRadius: radius.lg,
           borderColor: colors.borderSoft,
           backgroundColor: colors.surfaceElevated,
+          opacity: pressed ? 0.78 : 1,
         },
       ]}
     >
@@ -248,8 +260,180 @@ function LogEntryCard({ entry }: { readonly entry: AppLogEntry }) {
         <Text selectable style={[styles.logMessage, { color: colors.text }]}>
           {entry.message}
         </Text>
+        {entry.occurrenceCount > 1 ? (
+          <View
+            style={[styles.repeatSummary, { backgroundColor: colors.surfaceMuted }]}
+            accessible
+            accessibilityLabel={`${entry.occurrenceCount} occurrences from ${firstStamp.time} to ${lastStamp.time}`}
+          >
+            <Ionicons name="repeat-outline" size={12} color={colors.textMuted} />
+            <Text style={[styles.repeatSummaryText, { color: colors.textMuted }]}>
+              {entry.occurrenceCount} occurrences · {firstStamp.time}–{lastStamp.time}
+            </Text>
+          </View>
+        ) : null}
       </View>
-    </View>
+    </Pressable>
+  );
+}
+
+function formatFullTimestamp(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString([], {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function LogGroupDetailSheet({
+  group,
+  visible,
+  onClose,
+}: {
+  readonly group: AppLogGroup | null;
+  readonly visible: boolean;
+  readonly onClose: () => void;
+}) {
+  const { colors, radius } = useAppTheme();
+  const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
+  const appearance = group ? getLevelAppearance(group.level, colors) : null;
+
+  return (
+    <StaticBackdropSheet
+      visible={visible && group !== null}
+      onClose={onClose}
+      enableSwipeToDismiss
+      slideDistance={Math.max(420, windowHeight)}
+      scrimTestID="developer-log-detail-scrim"
+      sheetTestID="developer-log-detail-sheet"
+      scrimAccessibilityLabel="Close log details"
+      sheetStyle={{
+        maxHeight: windowHeight * 0.86,
+        backgroundColor: colors.surfaceElevated,
+        borderColor: colors.border,
+        borderTopLeftRadius: MEDIA_SHEET_RADIUS,
+        borderTopRightRadius: MEDIA_SHEET_RADIUS,
+        paddingHorizontal: MEDIA_SHEET_PAD_H,
+        paddingBottom: Math.max(insets.bottom, 16),
+        overflow: "hidden",
+      }}
+    >
+      {({ requestClose, dragHandleProps }) => {
+        if (!group || !appearance) return null;
+        return (
+          <>
+            <CompactSheetHeader
+              title="Log details"
+              onClose={requestClose}
+              closeAccessibilityLabel="Close log details"
+              showHandle
+              dividerInset={0}
+              dragHandleProps={dragHandleProps}
+              testID="developer-log-detail-header"
+            />
+            <ScrollView
+              style={styles.detailScroll}
+              contentContainerStyle={[
+                styles.detailScrollContent,
+                { paddingTop: SHEET_BODY_PAD_TOP },
+              ]}
+              showsVerticalScrollIndicator={group.entries.length > 3}
+              bounces={group.entries.length > 1}
+            >
+              <View style={styles.detailBadgeRow}>
+                <View style={[styles.levelBadge, { backgroundColor: appearance.soft }]}>
+                  <Ionicons name={appearance.icon} size={14} color={appearance.color} />
+                  <Text style={[styles.levelBadgeText, { color: appearance.color }]}>
+                    {appearance.label}
+                  </Text>
+                </View>
+                <View style={[styles.categoryBadge, { backgroundColor: colors.surfaceMuted }]}>
+                  <Ionicons name={CATEGORY_ICONS[group.category]} size={13} color={colors.textMuted} />
+                  <Text style={[styles.categoryText, { color: colors.textMuted }]}>
+                    {CATEGORY_LABELS[group.category]}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.detailSummary,
+                  { borderRadius: radius.lg, borderColor: colors.borderSoft, backgroundColor: colors.surface },
+                ]}
+              >
+                <View style={styles.detailStat}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Occurrences</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>{group.occurrenceCount}</Text>
+                </View>
+                <View style={styles.detailStat}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>First seen</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>
+                    {formatFullTimestamp(group.firstTs)}
+                  </Text>
+                </View>
+                <View style={styles.detailStat}>
+                  <Text style={[styles.detailLabel, { color: colors.textMuted }]}>Last seen</Text>
+                  <Text style={[styles.detailValue, { color: colors.text }]}>
+                    {formatFullTimestamp(group.lastTs)}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={[styles.detailSectionTitle, { color: colors.text }]}>Latest event</Text>
+              <View
+                style={[
+                  styles.detailMessageBox,
+                  { borderRadius: radius.md, borderColor: colors.borderSoft, backgroundColor: colors.surfaceMuted },
+                ]}
+              >
+                <Text selectable style={[styles.detailMessage, { color: colors.text }]}>
+                  {group.message}
+                </Text>
+              </View>
+
+              {group.entries.length > 1 ? (
+                <>
+                  <Text style={[styles.detailSectionTitle, { color: colors.text }]}>All occurrences</Text>
+                  <View style={styles.occurrenceList}>
+                    {group.entries.map((entry, index) => (
+                      <View
+                        key={entry.id}
+                        style={[
+                          styles.occurrenceRow,
+                          {
+                            borderRadius: radius.md,
+                            borderColor: colors.borderSoft,
+                            backgroundColor: colors.surface,
+                          },
+                        ]}
+                      >
+                        <View style={styles.occurrenceHeader}>
+                          <Text style={[styles.occurrenceIndex, { color: appearance.color }]}>
+                            #{group.entries.length - index}
+                          </Text>
+                          <Text style={[styles.occurrenceTime, { color: colors.textMuted }]}>
+                            {formatFullTimestamp(entry.ts)}
+                          </Text>
+                        </View>
+                        <Text selectable style={[styles.occurrenceMessage, { color: colors.text }]}>
+                          {entry.message}
+                        </Text>
+                      </View>
+                    ))}
+                  </View>
+                </>
+              ) : null}
+            </ScrollView>
+          </>
+        );
+      }}
+    </StaticBackdropSheet>
   );
 }
 
@@ -263,6 +447,7 @@ export default function SettingsDevLogsScreen() {
   const [query, setQuery] = useState("");
   const [exporting, setExporting] = useState(false);
   const [clearing, setClearing] = useState(false);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!internalToolsEnabled()) {
@@ -293,6 +478,11 @@ export default function SettingsDevLogsScreen() {
   const filtered = useMemo(
     () => filterAppLogs(appLogs, { category, level, query }),
     [appLogs, category, level, query],
+  );
+  const grouped = useMemo(() => groupAppLogsByLocalDay(filtered), [filtered]);
+  const selectedGroup = useMemo(
+    () => grouped.find((entry) => entry.id === selectedGroupId) ?? null,
+    [grouped, selectedGroupId],
   );
   const levelCounts = useMemo(
     () => ({
@@ -356,9 +546,11 @@ export default function SettingsDevLogsScreen() {
       <Stack.Screen options={{ headerShown: false }} />
       <SettingsChromeHeader title="Developer Logs" onBack={navigateBackToSettings} />
       <FlatList
-        data={filtered}
+        data={grouped}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <LogEntryCard entry={item} />}
+        renderItem={({ item }) => (
+          <LogEntryCard entry={item} onPress={() => setSelectedGroupId(item.id)} />
+        )}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={[
           styles.listContent,
@@ -489,9 +681,12 @@ export default function SettingsDevLogsScreen() {
               <View>
                 <Text style={[styles.sectionEyebrow, { color: colors.textMuted }]}>EVENT TIMELINE</Text>
                 <Text style={[styles.resultsTitle, { color: colors.text }]}>Matching events</Text>
+                <Text style={[styles.resultsSummary, { color: colors.textMuted }]}>
+                  {grouped.length} groups from {filtered.length} raw events
+                </Text>
               </View>
               <View style={[styles.resultCountBadge, { backgroundColor: colors.surfaceMuted }]}>
-                <Text style={[styles.resultCount, { color: colors.textMuted }]}>{filtered.length}</Text>
+                <Text style={[styles.resultCount, { color: colors.textMuted }]}>{grouped.length}</Text>
               </View>
             </View>
           </View>
@@ -516,6 +711,11 @@ export default function SettingsDevLogsScreen() {
             </Text>
           </View>
         }
+      />
+      <LogGroupDetailSheet
+        group={selectedGroup}
+        visible={selectedGroup !== null}
+        onClose={() => setSelectedGroupId(null)}
       />
     </View>
   );
@@ -555,6 +755,7 @@ const styles = StyleSheet.create({
   actionLabel: { fontFamily: Type.fontSemi, fontSize: 13 },
   resultsHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   resultsTitle: { ...Type.subtitle, marginTop: 1 },
+  resultsSummary: { fontFamily: Type.font, fontSize: 10, marginTop: 2 },
   resultCountBadge: { minWidth: 34, height: 28, paddingHorizontal: 9, borderRadius: 14, alignItems: "center", justifyContent: "center" },
   resultCount: { fontFamily: Type.monoMed, fontSize: 11 },
   logCard: { minHeight: 80, borderWidth: StyleSheet.hairlineWidth, flexDirection: "row", overflow: "hidden", marginBottom: 9 },
@@ -569,6 +770,24 @@ const styles = StyleSheet.create({
   logTime: { fontFamily: Type.monoMed, fontSize: 10 },
   logDate: { fontFamily: Type.font, fontSize: 9, marginTop: -1 },
   logMessage: { fontFamily: Type.mono, fontSize: 11.5, lineHeight: 17, marginTop: 9 },
+  repeatSummary: { alignSelf: "flex-start", minHeight: 24, borderRadius: 8, flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, marginTop: 8 },
+  repeatSummaryText: { fontFamily: Type.monoMed, fontSize: 9.5 },
+  detailScroll: { flexGrow: 0, flexShrink: 1 },
+  detailScrollContent: { paddingBottom: 4 },
+  detailBadgeRow: { flexDirection: "row", alignItems: "center", gap: 7 },
+  detailSummary: { borderWidth: StyleSheet.hairlineWidth, padding: 13, gap: 12, marginTop: 14 },
+  detailStat: { gap: 3 },
+  detailLabel: { fontFamily: Type.fontSemi, fontSize: 10, textTransform: "uppercase", letterSpacing: 0.55 },
+  detailValue: { fontFamily: Type.monoMed, fontSize: 12, lineHeight: 17 },
+  detailSectionTitle: { fontFamily: Type.fontBold, fontSize: 13, marginTop: 18, marginBottom: 8 },
+  detailMessageBox: { borderWidth: StyleSheet.hairlineWidth, padding: 12 },
+  detailMessage: { fontFamily: Type.mono, fontSize: 12, lineHeight: 18 },
+  occurrenceList: { gap: 8 },
+  occurrenceRow: { borderWidth: StyleSheet.hairlineWidth, padding: 11 },
+  occurrenceHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  occurrenceIndex: { fontFamily: Type.fontBold, fontSize: 10 },
+  occurrenceTime: { flexShrink: 1, textAlign: "right", fontFamily: Type.monoMed, fontSize: 9.5 },
+  occurrenceMessage: { fontFamily: Type.mono, fontSize: 11, lineHeight: 16, marginTop: 7 },
   emptyBox: { borderWidth: StyleSheet.hairlineWidth, alignItems: "center", paddingHorizontal: 24, paddingVertical: 30 },
   emptyIcon: { width: 48, height: 48, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 12 },
   emptyTitle: { ...Type.subtitle },

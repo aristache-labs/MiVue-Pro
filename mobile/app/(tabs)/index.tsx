@@ -6,6 +6,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import {
   AccessibilityInfo,
   ActivityIndicator,
+  Alert,
   BackHandler,
   Modal,
   Platform,
@@ -54,6 +55,7 @@ import {
 } from "@/components/camera/cameraLibraryViewability";
 import { RemoteDetailSheet } from "@/components/camera/RemoteDetailSheet";
 import { RemoteRecordingCard } from "@/components/camera/RemoteRecordingCard";
+import { cameraPreviewAvailability } from "@/components/camera/cameraPreview";
 import {
   resolveRemoteDownloadState,
   shouldEnqueueOnDownloadPress,
@@ -137,6 +139,9 @@ export default function LibraryScreen() {
     isRefreshingCamera,
     cameraModel,
     cameraHost,
+    cameraProperties,
+    demoMode,
+    resolveCameraPreview,
     lastConnectedAt,
     queuePosition,
   } = useDemoMode();
@@ -153,6 +158,7 @@ export default function LibraryScreen() {
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   const localNames = useMemo(() => new Set(localFiles.map((f) => f.name)), [localFiles]);
   const queuedNames = useMemo(() => {
@@ -640,6 +646,42 @@ export default function LibraryScreen() {
     [localFiles],
   );
 
+  const detailPreviewAvailability = useMemo(
+    () =>
+      detailFile
+        ? cameraPreviewAvailability({
+            file: detailFile,
+            linkState: cameraLinkState,
+            cameraHost,
+            cameraProperties,
+            demoMode,
+          })
+        : undefined,
+    [detailFile, cameraLinkState, cameraHost, cameraProperties, demoMode],
+  );
+
+  const openCameraPreview = useCallback(
+    async (file: RemoteFile) => {
+      if (previewLoading) return;
+      setPreviewLoading(true);
+      try {
+        const result = await resolveCameraPreview(file);
+        if (!result.ok) {
+          Alert.alert("Preview unavailable", result.error);
+          return;
+        }
+        setDetailFile(null);
+        const href =
+          `/player?uri=${encodeURIComponent(result.uri)}&name=${encodeURIComponent(file.name)}` +
+          `&kind=${result.kind}&source=camera&size=${file.sizeBytes}&category=${file.category}`;
+        router.push(href as Parameters<typeof router.push>[0]);
+      } finally {
+        setPreviewLoading(false);
+      }
+    },
+    [previewLoading, resolveCameraPreview],
+  );
+
   const renderSectionBreak = useCallback(
     (row: CameraLibraryFileRow) => (
       <LocalDateSectionHeader title={row.sectionTitle} countLabel={row.sectionCountLabel} />
@@ -1086,6 +1128,9 @@ export default function LibraryScreen() {
         onDownload={onDownload}
         onResume={onResume}
         onPlay={openDownloaded}
+        previewAvailability={detailPreviewAvailability}
+        previewLoading={previewLoading}
+        onPreview={(file) => void openCameraPreview(file)}
         onViewQueue={() => {
           setDetailFile(null);
           router.push("/(tabs)/two" as Parameters<typeof router.push>[0]);

@@ -165,6 +165,27 @@ Status: **camera-confirmed** pe Mio MiVue 866 (GET only, 2026-07-24).
 
 Probele din 2026-07-24 pe `status` + lista scurtă au raportat greșit absența — cheile erau pe `Vendor.DeviceInfo.Version.*` / `Net.WIFI_AP.SSID`, necerute atunci.
 
+## Preview media din Camera Library
+
+Status (2026-08-01):
+
+- **photo preview: `camera-confirmed`** pe MiVue 866 — fotografia este citită read-only prin `GET` pe calea validată `/SD/.../*.JPG`, salvată în cache-ul local de thumbnails și afișată în viewer;
+- `Vendor.DeviceInfo.SupportPlaybackPreview=YES`: **capability `camera-confirmed`** pe MiVue 866 / `VI100.24.50.BE1WD.10`, citită din agregatul GET-only `Camera.Menu.Property`;
+- streamingul video Laneory prin URL-ul read-only `http://192.72.1.1/SD/.../*.MP4`: **implementation-preview**, încă necesită validare fizică end-to-end pe iOS și Android înainte de promovare la `production-validated`.
+
+Flux video implementat pentru branch-ul intern `preview`:
+
+1. conexiunea trebuie să fie `connected` sau `unstable`;
+2. camera trebuie să raporteze explicit `SupportPlaybackPreview=YES`;
+3. calea trebuie să fie sub `/SD/`, fără traversal/query/fragment și cu extensie video permisă;
+4. se execută `HEAD` read-only și se acceptă numai HTTP 2xx;
+5. identitatea sesiunii, host-ul și conexiunea sunt revalidate după `HEAD`;
+6. preview-ul este blocat cât timp există un download activ;
+7. health polling este suspendat cât timp playerul remote este deschis;
+8. la eroare, UI-ul recomandă download-ul local; nu există mutații și nu se inventează endpoint-uri.
+
+Limitări de validat pe dispozitiv: suport `Range`/seek, pornire pe clipuri mari, comportament la Wi-Fi lent și codec-uri. Preview-ul video direct este limitat momentan la host-ul nativ permis `192.72.1.1`; alte adrese folosesc Download până la un build care poate declara explicit politica lor cleartext.
+
 ## Capacitate card SD (total / free / used)
 
 Status (2026-07-27): **nu există CGI `camera-confirmed` pentru total/free/used bytes**. Pass-ul `.analysis2/` (același `classes.dex` sha256 ca `.analysis` pentru MiVue+Pro 1.1.220.1 + Navman 1.1.124.1) confirmă catalogul CGI fără proprietăți Free/Total/Capacity; vezi `.analysis2/sd-storage-research/verdict.md` (gitignored).

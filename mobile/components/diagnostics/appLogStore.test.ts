@@ -7,6 +7,7 @@ import {
   filterAppLogs,
   formatAppLogLine,
   formatDownloadRateBps,
+  groupAppLogsByLocalDay,
   type AppLogEntry,
 } from "./appLogFormat";
 
@@ -91,5 +92,105 @@ describe("appLogFormat", () => {
     assert.match(text, /^Test logs/);
     assert.match(text, /count=1/);
     assert.match(text, /\[info\/app\] hello/);
+  });
+
+  it("groups changing samples by event identity across the same local day", () => {
+    const at = (day: number, hour: number) => new Date(2026, 7, day, hour, 0, 0).toISOString();
+    const entries: AppLogEntry[] = [
+      {
+        id: "latest-speed",
+        ts: at(1, 21),
+        level: "info",
+        category: "download",
+        message: "speed FILE.MP4 192.6 KB/s (39%, 126547892/321637064)",
+        groupKey: "queue:speed:FILE.MP4",
+      },
+      {
+        id: "other-event",
+        ts: at(1, 20),
+        level: "info",
+        category: "connection",
+        message: "refresh start",
+      },
+      {
+        id: "older-speed",
+        ts: at(1, 19),
+        level: "info",
+        category: "download",
+        message: "speed FILE.MP4 696.6 KB/s (38%, 120895412/321637064)",
+        groupKey: "queue:speed:FILE.MP4",
+      },
+      {
+        id: "previous-day",
+        ts: at(2, 1),
+        level: "info",
+        category: "download",
+        message: "speed FILE.MP4 300.0 KB/s (40%, 130000000/321637064)",
+        groupKey: "queue:speed:FILE.MP4",
+      },
+    ];
+
+    const grouped = groupAppLogsByLocalDay(entries);
+    assert.equal(grouped.length, 3);
+    const sameDay = grouped.find(
+      (entry) => entry.groupKey === "queue:speed:FILE.MP4" && entry.lastTs === at(1, 21),
+    );
+    assert.equal(sameDay?.occurrenceCount, 2);
+    assert.equal(sameDay?.firstTs, at(1, 19));
+    assert.equal(sameDay?.lastTs, at(1, 21));
+    assert.match(sameDay?.message ?? "", /192\.6 KB\/s/);
+    assert.deepEqual(
+      sameDay?.entries.map((entry) => entry.id),
+      ["latest-speed", "older-speed"],
+    );
+  });
+
+  it("groups legacy download speed messages that predate structured keys", () => {
+    const latest = new Date(2026, 7, 1, 21, 20, 56).toISOString();
+    const earlier = new Date(2026, 7, 1, 21, 20, 38).toISOString();
+    const grouped = groupAppLogsByLocalDay([
+      {
+        id: "latest",
+        ts: latest,
+        level: "info",
+        category: "download",
+        message: "speed FILE260731-193514F.MP4 192.6 KB/s (39%, 126547892/321637064)",
+      },
+      {
+        id: "earlier",
+        ts: earlier,
+        level: "info",
+        category: "download",
+        message: "speed FILE260731-193514F.MP4 609.5 KB/s (37%, 118966480/321637064)",
+      },
+    ]);
+
+    assert.equal(grouped.length, 1);
+    assert.equal(grouped[0]?.occurrenceCount, 2);
+    assert.match(grouped[0]?.message ?? "", /192\.6 KB\/s/);
+    assert.deepEqual(
+      grouped[0]?.entries.map((entry) => entry.id),
+      ["latest", "earlier"],
+    );
+  });
+
+  it("groups identical unstructured messages but keeps severity separate", () => {
+    const ts = new Date(2026, 7, 1, 12, 0, 0).toISOString();
+    const base: AppLogEntry = {
+      id: "1",
+      ts,
+      level: "warn",
+      category: "connection",
+      message: "camera response delayed",
+    };
+    const grouped = groupAppLogsByLocalDay([
+      base,
+      { ...base, id: "2", ts: new Date(2026, 7, 1, 11, 0, 0).toISOString() },
+      { ...base, id: "3", level: "error" },
+    ]);
+
+    assert.equal(grouped.length, 2);
+    assert.equal(grouped.find((entry) => entry.level === "warn")?.occurrenceCount, 2);
+    assert.equal(grouped.find((entry) => entry.level === "error")?.occurrenceCount, 1);
   });
 });

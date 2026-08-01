@@ -31,6 +31,11 @@ export type QueueLogSnapshot = {
   readonly lastRateBytes: number;
 };
 
+export type AppLogOptions = {
+  /** Stable identity used to group changing samples in the Developer Logs UI. */
+  readonly groupKey?: string;
+};
+
 const STORAGE_KEY = "@laneory/app_logs_v1";
 /** Throttle download speed samples so progress ticks do not flood the ring. */
 const DOWNLOAD_RATE_MIN_INTERVAL_MS = 2_500;
@@ -61,6 +66,7 @@ function makeEntry(
   category: AppLogCategory,
   message: string,
   now: Date = new Date(),
+  options: AppLogOptions = {},
 ): AppLogEntry {
   seq += 1;
   return {
@@ -69,6 +75,9 @@ function makeEntry(
     level,
     category,
     message: sanitizeDiagnosticLine(message),
+    ...(options.groupKey?.trim()
+      ? { groupKey: sanitizeDiagnosticLine(options.groupKey.trim()) }
+      : {}),
   };
 }
 
@@ -108,6 +117,9 @@ export async function hydrateAppLogs(): Promise<void> {
                   level: r.level,
                   category: isAppLogCategory(r.category) ? r.category : "app",
                   message: r.message,
+                  ...(typeof r.groupKey === "string" && r.groupKey.trim().length > 0
+                    ? { groupKey: sanitizeDiagnosticLine(r.groupKey.trim()) }
+                    : {}),
                 };
               }
               return undefined;
@@ -136,9 +148,10 @@ export function appendAppLog(
   level: AppLogLevel,
   category: AppLogCategory,
   message: string,
+  options: AppLogOptions = {},
 ): void {
   if (!internalToolsEnabled()) return;
-  const entry = makeEntry(level, category, message);
+  const entry = makeEntry(level, category, message, new Date(), options);
   entries = appendToRing(entries, entry);
   if (!hydrated) pendingBeforeHydrate = appendToRing(pendingBeforeHydrate, entry);
   notify();
@@ -150,14 +163,14 @@ export function appendAppLog(
 }
 
 export const appLog = {
-  info(category: AppLogCategory, message: string): void {
-    appendAppLog("info", category, message);
+  info(category: AppLogCategory, message: string, options?: AppLogOptions): void {
+    appendAppLog("info", category, message, options);
   },
-  warn(category: AppLogCategory, message: string): void {
-    appendAppLog("warn", category, message);
+  warn(category: AppLogCategory, message: string, options?: AppLogOptions): void {
+    appendAppLog("warn", category, message, options);
   },
-  error(category: AppLogCategory, message: string): void {
-    appendAppLog("error", category, message);
+  error(category: AppLogCategory, message: string, options?: AppLogOptions): void {
+    appendAppLog("error", category, message, options);
   },
 };
 
@@ -256,12 +269,16 @@ export function observeQueueForAppLogs(
 
     if (!prior) {
       if (item.status === "queued" || item.status === "active") {
-        appLog.info("download", `queued ${item.localName} (${item.expectedBytes} bytes)`);
+        appLog.info("download", `queued ${item.localName} (${item.expectedBytes} bytes)`, {
+          groupKey: `queue:queued:${item.localName}`,
+        });
       }
     } else if (prior.status !== item.status) {
       switch (item.status) {
         case "active":
-          appLog.info("download", `started ${item.localName}`);
+          appLog.info("download", `started ${item.localName}`, {
+            groupKey: `queue:started:${item.localName}`,
+          });
           lastRateAtMs = nowMs;
           lastRateBytes = bytes;
           break;
@@ -269,22 +286,30 @@ export function observeQueueForAppLogs(
           appLog.warn(
             "download",
             `interrupted ${item.localName} @ ${bytes}/${item.expectedBytes} bytes (waiting for connection)`,
+            { groupKey: `queue:interrupted:${item.localName}` },
           );
           break;
         case "paused":
-          appLog.info("download", `paused ${item.localName} @ ${bytes} bytes`);
+          appLog.info("download", `paused ${item.localName} @ ${bytes} bytes`, {
+            groupKey: `queue:paused:${item.localName}`,
+          });
           break;
         case "completed":
-          appLog.info("download", `completed ${item.localName} (${bytes} bytes)`);
+          appLog.info("download", `completed ${item.localName} (${bytes} bytes)`, {
+            groupKey: `queue:completed:${item.localName}`,
+          });
           break;
         case "failed":
           appLog.error(
             "download",
             `failed ${item.localName}: ${item.errorMessage ?? "unknown error"}`,
+            { groupKey: `queue:failed:${item.localName}` },
           );
           break;
         case "cancelled":
-          appLog.info("download", `cancelled ${item.localName}`);
+          appLog.info("download", `cancelled ${item.localName}`, {
+            groupKey: `queue:cancelled:${item.localName}`,
+          });
           break;
         default:
           break;
@@ -302,6 +327,7 @@ export function observeQueueForAppLogs(
           `speed ${item.localName} ${formatDownloadRateBps(bps)}${
             pct !== undefined ? ` (${pct}%, ${bytes}/${item.expectedBytes})` : ` (${bytes} bytes)`
           }`,
+          { groupKey: `queue:speed:${item.localName}` },
         );
         lastRateAtMs = nowMs;
         lastRateBytes = bytes;
@@ -320,7 +346,9 @@ export function observeQueueForAppLogs(
   for (const [id, prior] of prev) {
     if (seen.has(id)) continue;
     if (prior.status === "active" || prior.status === "waiting_for_connection") {
-      appLog.warn("download", `removed while ${prior.status}: ${prior.localName}`);
+      appLog.warn("download", `removed while ${prior.status}: ${prior.localName}`, {
+        groupKey: `queue:removed:${prior.status}:${prior.localName}`,
+      });
     }
   }
 
