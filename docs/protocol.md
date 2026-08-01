@@ -170,8 +170,8 @@ Probele din 2026-07-24 pe `status` + lista scurtă au raportat greșit absența 
 Status (2026-08-01):
 
 - **photo preview: `camera-confirmed`** pe MiVue 866 — fotografia este citită read-only prin `GET` pe calea validată `/SD/.../*.JPG`, salvată în cache-ul local de thumbnails și afișată în viewer;
-- `Vendor.DeviceInfo.SupportPlaybackPreview=YES`: **capability `camera-confirmed`** pe MiVue 866 / `VI100.24.50.BE1WD.10`, citită din agregatul GET-only `Camera.Menu.Property`;
-- răspunsul agregatului `Camera.Menu.Property` este document XML cu root `<camera>`, nu răspuns CGI text `0 / OK`; se parsează separat, iar o eroare de format nu este tratată drept lipsă de suport;
+- `GET Vendor.DeviceInfo.SupportPlaybackPreview` → `0 OK`, `Vendor.DeviceInfo.SupportPlaybackPreview=YES`: **capability `camera-confirmed`** pe MiVue 866 / `VI100.24.50.BE1WD.10`;
+- `Camera.Menu.Property` răspunde ca agregat XML pe acest firmware și nu trebuie trimis prin parserul CGI text `0 / OK`; Laneory folosește proprietatea individuală confirmată de mai sus;
 - streamingul video Laneory prin URL-ul read-only `http://192.72.1.1/SD/.../*.MP4`: **implementation-preview**, încă necesită validare fizică end-to-end pe iOS și Android înainte de promovare la `production-validated`.
 
 Flux video implementat pentru branch-ul intern `preview`:
@@ -185,7 +185,7 @@ Flux video implementat pentru branch-ul intern `preview`:
 7. health polling este suspendat cât timp playerul remote este deschis;
 8. la eroare, UI-ul recomandă download-ul local; nu există mutații și nu se inventează endpoint-uri.
 
-Limitări de validat pe dispozitiv: suport `Range`/seek, pornire pe clipuri mari, comportament la Wi-Fi lent și codec-uri. Preview-ul video direct este limitat momentan la host-ul nativ permis `192.72.1.1`; alte adrese folosesc Download până la un build care poate declara explicit politica lor cleartext.
+Validare transport (2026-08-01, MiVue 866): `HEAD` pe MP4 → HTTP 200, iar `Range: bytes=0-65535` → HTTP 206 cu `Content-Range: bytes 0-65535/9408833` și 65.536 bytes; suportul HTTP Range este **camera-confirmed**. Rămân de validat playback-ul/seek-ul end-to-end în player pe iOS și Android, pornirea pe clipuri mari, comportamentul la Wi-Fi lent și codec-urile. Preview-ul video direct este limitat momentan la host-ul nativ permis `192.72.1.1`; alte adrese folosesc Download până la un build care poate declara explicit politica lor cleartext.
 
 ## Capacitate card SD (total / free / used)
 

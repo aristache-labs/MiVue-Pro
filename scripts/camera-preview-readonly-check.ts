@@ -179,7 +179,8 @@ async function main(): Promise<void> {
   console.log(`Camera: http://${CAMERA_HOST}:${CAMERA_PORT}`);
 
   try {
-    const previewValue = await client.getMenuProperty(PREVIEW_PROPERTY);
+    const capability = await client.getProperty(PREVIEW_PROPERTY);
+    const previewValue = capability.properties[PREVIEW_PROPERTY];
     const supported = ["YES", "TRUE", "1", "SUPPORTED"].includes(
       previewValue?.trim().toUpperCase() ?? "",
     );

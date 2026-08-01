@@ -1,5 +1,5 @@
 import type { Transport, TransportResponse } from "../transport/types.js";
-import { parseConfigResponse, parseFileListXml, parseMenuPropertyValue } from "./parser.js";
+import { parseConfigResponse, parseFileListXml } from "./parser.js";
 import {
   deleteRemoteFile as mutateDeleteRemoteFile,
   probeCgi as mutateProbeCgi,
@@ -67,16 +67,6 @@ export class MiVueClient {
       throw new MiVueProtocolError(`Camera rejected property ${property}: ${parsed.code} ${parsed.message}`);
     }
     return parsed;
-  }
-
-  async getMenuProperty(property: string, signal?: AbortSignal): Promise<string | undefined> {
-    const query = new URLSearchParams({ action: "get", property: "Camera.Menu.Property" });
-    const response = await this.transport.request({
-      method: "GET",
-      path: `/cgi-bin/Config.cgi?${query.toString()}`,
-      ...(signal === undefined ? {} : { signal }),
-    });
-    return parseMenuPropertyValue(readText(response), property);
   }
 
   async getInfo(signal?: AbortSignal): Promise<CameraInfo> {

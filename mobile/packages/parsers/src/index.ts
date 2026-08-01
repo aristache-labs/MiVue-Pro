@@ -9,10 +9,5 @@ export type {
   GpsSample,
   RemoteFile,
 } from "./types";
-export {
-  ProtocolParseError,
-  parseConfigResponse,
-  parseFileListXml,
-  parseMenuPropertyValue,
-} from "./parser";
+export { ProtocolParseError, parseConfigResponse, parseFileListXml } from "./parser";
 export { NmeaParseError, parseNmeaTelemetry, telemetryToGpx } from "./nmea";

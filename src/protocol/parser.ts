@@ -35,43 +35,6 @@ export function parseConfigResponse(raw: string): ConfigResponse {
   };
 }
 
-/** Parse one named value from the XML aggregate returned by Camera.Menu.Property. */
-export function parseMenuPropertyValue(raw: string, property: string): string | undefined {
-  if (!/^[A-Za-z0-9_.-]+$/u.test(property)) {
-    throw new ProtocolParseError("Invalid camera menu property name");
-  }
-  if (!/<camera\b/iu.test(raw)) {
-    throw new ProtocolParseError("Invalid camera menu property XML");
-  }
-
-  const escaped = property.replace(/[.*+?^${}()|[\]\\]/gu, "\\$&");
-  const directElement = raw.match(
-    new RegExp(`<${escaped}\\b[^>]*>([^<]*)<\\/${escaped}>`, "iu"),
-  )?.[1];
-  if (directElement !== undefined) return decodeXml(directElement.trim());
-
-  for (const tag of raw.matchAll(/<[^>]+>/gu)) {
-    if (!tag[0].includes(property)) continue;
-    const value = tag[0].match(/\bvalue\s*=\s*(?:"([^"]*)"|'([^']*)')/iu);
-    const captured = value?.[1] ?? value?.[2];
-    if (captured !== undefined) return decodeXml(captured.trim());
-  }
-
-  const assignment = raw.match(
-    new RegExp(`${escaped}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s<>"']+))`, "iu"),
-  );
-  const assigned = assignment?.[1] ?? assignment?.[2] ?? assignment?.[3];
-  if (assigned !== undefined) return decodeXml(assigned.trim());
-
-  const markerIndex = raw.indexOf(property);
-  if (markerIndex >= 0) {
-    const nearby = raw.slice(markerIndex, markerIndex + 1024);
-    const nested = nearby.match(/<value\b[^>]*>([^<]*)<\/value>/iu)?.[1];
-    if (nested !== undefined) return decodeXml(nested.trim());
-  }
-  return undefined;
-}
-
 export function parseFileListXml(raw: string): FileListResponse {
   if (!/<(?:DCIM(?:\$\*)?|Normal|Event|Parking|Photo)(?:\s|>)/i.test(raw)) {
     throw new ProtocolParseError("Response does not contain a supported MiVue file-list document");

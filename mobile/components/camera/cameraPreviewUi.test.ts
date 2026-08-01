@@ -29,7 +29,7 @@ describe("Camera Library preview wiring", () => {
     assert.match(context, /cameraHostRef\.current\.trim\(\) !== hostAtStart/);
     assert.match(context, /queue\.list\(\)\.some\(\(item\) => item\.status === "active"\)/);
     assert.match(context, /fetchCameraPreviewCapability\(client\)/);
-    assert.match(context, /client\.getMenuProperty\(CAMERA_PLAYBACK_PREVIEW_PROPERTY\)/);
+    assert.match(context, /client\.getProperty\(CAMERA_PLAYBACK_PREVIEW_PROPERTY\)/);
   });
 
   it("keeps remote previews read-only and avoids local-only player actions", () => {
