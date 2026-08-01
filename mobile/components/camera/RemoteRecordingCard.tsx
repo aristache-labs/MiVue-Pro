@@ -32,6 +32,7 @@ interface RemoteRecordingCardProps {
   readonly onLongPressSelect?: (path: string) => void;
   readonly onDownload: (file: RemoteFile) => void;
   readonly onOpenDownloaded?: (file: RemoteFile) => void;
+  readonly onPreview?: (file: RemoteFile) => void;
   readonly onOpenDetail?: (file: RemoteFile) => void;
   /** Resume paused transfer (queue id handled by parent). */
   readonly onResume?: (file: RemoteFile) => void;
@@ -47,6 +48,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   onLongPressSelect,
   onDownload,
   onOpenDownloaded,
+  onPreview,
   onOpenDetail,
   onResume,
 }: RemoteRecordingCardProps) {
@@ -63,12 +65,16 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   const suppressPressRef = useRef(false);
 
   const openBody = useCallback(() => {
-    if (isDownloaded && onOpenDownloaded) {
-      onOpenDownloaded(file);
+    onOpenDetail?.(file);
+  }, [file, onOpenDetail]);
+
+  const openThumbnail = useCallback(() => {
+    if (isDownloaded) {
+      onOpenDownloaded?.(file);
       return;
     }
-    onOpenDetail?.(file);
-  }, [file, isDownloaded, onOpenDownloaded, onOpenDetail]);
+    onPreview?.(file);
+  }, [file, isDownloaded, onOpenDownloaded, onPreview]);
 
   const onAction = useCallback(() => {
     if (downloadState.kind === "downloaded") {
@@ -105,14 +111,9 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
     onLongPressSelect?.(file.path);
   }, [selecting, onToggleSelect, onLongPressSelect, file.path]);
 
-  /** Play overlay only for downloaded videos in normal mode — never in selection. */
-  const showPlayOverlay = !selecting && isDownloaded && !isPhoto;
-
-  const playA11y = isDownloaded
-    ? isPhoto
-      ? `View ${file.name}`
-      : `Play ${file.name}`
-    : `Details for ${file.name}`;
+  /** Preview overlay is available for video and photo thumbnails outside selection mode. */
+  const showPreviewOverlay = !selecting;
+  const previewA11y = isPhoto ? `View ${file.name}` : `Play ${file.name}`;
 
   return (
     <Pressable
@@ -123,7 +124,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       accessibilityLabel={
         selecting
           ? librarySelectionCardA11y(file.name, downloadState, selected)
-          : playA11y
+          : `Details for ${file.name}`
       }
       accessibilityHint={
         selecting ? undefined : "Double tap to open. Long press to select"
@@ -150,6 +151,10 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         categoryAccent={catAccent}
         durationLabel={duration}
         selected={selecting && selected}
+        onThumbPress={selecting ? undefined : openThumbnail}
+        thumbAccessibilityLabel={previewA11y}
+        onBodyPress={selecting ? undefined : openBody}
+        bodyAccessibilityLabel={`Details for ${file.name}`}
         thumbnail={
           <CameraThumb
             remotePath={file.path}
@@ -183,7 +188,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
                 ) : null}
               </View>
             </View>
-          ) : showPlayOverlay ? (
+          ) : showPreviewOverlay ? (
             <>
               <View
                 pointerEvents="none"
@@ -197,10 +202,10 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
                   ]}
                 >
                   <Ionicons
-                    name="play"
+                    name={isPhoto ? "eye" : "play"}
                     size={16}
                     color={colors.brand}
-                    style={{ marginLeft: 2 }}
+                    style={isPhoto ? undefined : { marginLeft: 2 }}
                   />
                 </View>
               </View>

@@ -18,20 +18,21 @@ describe("Library selection-mode card content consistency", () => {
   it("uses one shared MediaCard layout with conditional overlays", () => {
     assert.match(card, /from "@\/components\/media\/MediaCard"/);
     assert.match(card, /thumbnailOverlay=\{/);
-    assert.match(card, /showPlayOverlay/);
+    assert.match(card, /showPreviewOverlay/);
     assert.match(card, /selecting \? \(/);
     assert.match(card, /library-play-overlay/);
     assert.match(card, /selectMarkHit/);
     assert.equal((card.match(/<MediaCard/g) ?? []).length, 1);
   });
 
-  it("shows Play only in normal mode for downloaded non-photo recordings", () => {
-    assert.match(card, /showPlayOverlay = !selecting && isDownloaded && !isPhoto/);
+  it("shows video or photo preview affordance outside selection mode", () => {
+    assert.match(card, /showPreviewOverlay = !selecting/);
+    assert.match(card, /name=\{isPhoto \? "eye" : "play"\}/);
     assert.match(card, /testID="library-play-overlay"/);
   });
 
   it("hides Play and shows selection checkbox in selection mode", () => {
-    assert.match(card, /selecting \? \([\s\S]*?selectMarkHit[\s\S]*?\) : showPlayOverlay/);
+    assert.match(card, /selecting \? \([\s\S]*?selectMarkHit[\s\S]*?\) : showPreviewOverlay/);
     assert.match(card, /accessibilityRole=\{selecting \? "checkbox" : "button"\}/);
     assert.match(card, /accessibilityState=\{selecting \? \{ selected, checked: selected \}/);
     assert.match(card, /testID=\{selecting \? "library-selection-card"/);
@@ -44,14 +45,16 @@ describe("Library selection-mode card content consistency", () => {
     assert.match(action, /readonly inert\?:/);
   });
 
-  it("uses one outer Pressable for tap/long-press like Local (no nested thumb/body presses)", () => {
+  it("separates thumbnail preview from body details while preserving long-press selection", () => {
     assert.match(card, /delayLongPress=\{LOCAL_LONG_PRESS_MS\}/);
     assert.match(card, /suppressPressRef/);
     assert.match(card, /onLongPress=\{handleLongPress\}/);
     assert.match(card, /onLongPressSelect\?\.\(file\.path\)/);
     assert.match(card, /Long press to select/);
-    assert.doesNotMatch(card, /onThumbPress/);
-    assert.doesNotMatch(card, /onBodyPress/);
+    assert.match(card, /onThumbPress=\{selecting \? undefined : openThumbnail\}/);
+    assert.match(card, /onBodyPress=\{selecting \? undefined : openBody\}/);
+    assert.match(card, /onPreview\?\.\(file\)/);
+    assert.match(index, /onPreview=\{selecting \? undefined/);
     assert.match(media, /accessible=\{Boolean\(onThumbPress\)\}/);
     assert.match(media, /accessible=\{Boolean\(onBodyPress\)\}/);
   });

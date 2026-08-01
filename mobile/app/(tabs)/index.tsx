@@ -714,6 +714,7 @@ export default function LibraryScreen() {
             onDownload={onDownload}
             onResume={onResume}
             onOpenDownloaded={openDownloaded}
+            onPreview={selecting ? undefined : (file) => void openCameraPreview(file)}
             onOpenDetail={selecting ? undefined : setDetailFile}
           />
         </View>
@@ -732,6 +733,7 @@ export default function LibraryScreen() {
       onDownload,
       onResume,
       openDownloaded,
+      openCameraPreview,
       renderSectionBreak,
     ],
   );
