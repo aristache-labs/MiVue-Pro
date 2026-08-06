@@ -65,10 +65,18 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   const suppressPressRef = useRef(false);
 
   const openBody = useCallback(() => {
+    if (suppressPressRef.current) {
+      suppressPressRef.current = false;
+      return;
+    }
     onOpenDetail?.(file);
   }, [file, onOpenDetail]);
 
   const openThumbnail = useCallback(() => {
+    if (suppressPressRef.current) {
+      suppressPressRef.current = false;
+      return;
+    }
     if (isDownloaded) {
       onOpenDownloaded?.(file);
       return;
@@ -152,8 +160,10 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         durationLabel={duration}
         selected={selecting && selected}
         onThumbPress={selecting ? undefined : openThumbnail}
+        onThumbLongPress={handleLongPress}
         thumbAccessibilityLabel={previewA11y}
         onBodyPress={selecting ? undefined : openBody}
+        onBodyLongPress={handleLongPress}
         bodyAccessibilityLabel={`Details for ${file.name}`}
         thumbnail={
           <CameraThumb

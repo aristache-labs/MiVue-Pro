@@ -28,8 +28,10 @@ export interface MediaCardProps {
   /** Optional overlay above thumbnail (play glyph, selection mark). */
   readonly thumbnailOverlay?: ReactNode;
   readonly onThumbPress?: () => void;
+  readonly onThumbLongPress?: () => void;
   readonly thumbAccessibilityLabel?: string;
   readonly onBodyPress?: () => void;
+  readonly onBodyLongPress?: () => void;
   readonly bodyAccessibilityLabel?: string;
   /** Right-column actions (download / share-delete). Pure slot — no business logic. */
   readonly actions?: ReactNode;
@@ -51,8 +53,10 @@ export const MediaCard = memo(function MediaCard({
   thumbnail,
   thumbnailOverlay,
   onThumbPress,
+  onThumbLongPress,
   thumbAccessibilityLabel,
   onBodyPress,
+  onBodyLongPress,
   bodyAccessibilityLabel,
   actions,
   selected = false,
@@ -77,7 +81,8 @@ export const MediaCard = memo(function MediaCard({
       <View style={styles.row}>
         <Pressable
           onPress={onThumbPress}
-          disabled={!onThumbPress}
+          onLongPress={onThumbLongPress}
+          disabled={!onThumbPress && !onThumbLongPress}
           accessibilityRole={onThumbPress ? "button" : undefined}
           accessibilityLabel={onThumbPress ? thumbAccessibilityLabel : undefined}
           accessible={Boolean(onThumbPress)}
@@ -102,7 +107,8 @@ export const MediaCard = memo(function MediaCard({
 
         <Pressable
           onPress={onBodyPress}
-          disabled={!onBodyPress}
+          onLongPress={onBodyLongPress}
+          disabled={!onBodyPress && !onBodyLongPress}
           accessibilityRole={onBodyPress ? "button" : undefined}
           accessibilityLabel={onBodyPress ? bodyAccessibilityLabel : undefined}
           accessible={Boolean(onBodyPress)}

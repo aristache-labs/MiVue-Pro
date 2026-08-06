@@ -180,7 +180,7 @@ export function CameraFilterSheet({
   onClose,
   onApply,
 }: CameraFilterSheetProps) {
-  const { colors, spacing, radius } = useAppTheme();
+  const { scheme, colors, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(initial);
   /** Single active picker — same overlay pattern as LocalFilterSheet. */
@@ -646,16 +646,18 @@ export function CameraFilterSheet({
                     style={{ marginTop: SHEET_HEADER_TO_DIVIDER }}
                     testID="camera-filter-ios-picker-divider"
                   />
-                  <DateTimePicker
-                    value={iosTemp ?? pickerValue(draft, activePicker)}
-                    mode={pickerMode}
-                    display="spinner"
-                    minuteInterval={1}
-                    is24Hour
-                    onValueChange={onPickerValueChange}
-                onDismiss={onPickerDismiss}
-                    style={{ alignSelf: "center" }}
-                  />
+                <DateTimePicker
+                  value={iosTemp ?? pickerValue(draft, activePicker)}
+                  mode={pickerMode}
+                  display="spinner"
+                  minuteInterval={1}
+                  is24Hour
+                  themeVariant={scheme}
+                  textColor={colors.text}
+                  onValueChange={onPickerValueChange}
+                  onDismiss={onPickerDismiss}
+                  style={{ alignSelf: "center" }}
+                />
                 </View>
               </Modal>
             ) : null}

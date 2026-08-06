@@ -190,7 +190,7 @@ export function LocalFilterSheet({
   onClose,
   onApply,
 }: LocalFilterSheetProps) {
-  const { colors, spacing, radius } = useAppTheme();
+  const { scheme, colors, spacing, radius } = useAppTheme();
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState(initial);
   const [activePicker, setActivePicker] = useState<PickerField | null>(null);
@@ -630,8 +630,10 @@ export function LocalFilterSheet({
                   display="spinner"
                   minuteInterval={1}
                   is24Hour
+                  themeVariant={scheme}
+                  textColor={colors.text}
                   onValueChange={onPickerValueChange}
-              onDismiss={onPickerDismiss}
+                  onDismiss={onPickerDismiss}
                   style={{ alignSelf: "center" }}
                 />
               </View>
