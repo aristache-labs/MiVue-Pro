@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 
 interface LoadingSpinnerProps {
   size?: 'small' | 'large';
@@ -10,21 +11,28 @@ interface LoadingSpinnerProps {
 
 export const LoadingSpinner = memo<LoadingSpinnerProps>(({ 
   size = 'large',
-  color = '#007AFF',
+  color,
   message,
   fullScreen = false,
 }) => {
-  const containerStyle = fullScreen ? styles.fullScreenContainer : styles.container;
+  const { theme } = useTheme();
+  const spinnerColor = color ?? theme.colors.brand;
+
+  const containerStyle = fullScreen 
+    ? [styles.fullScreenContainer, { backgroundColor: theme.colors.bg }]
+    : styles.container;
 
   return (
     <View style={containerStyle}>
       <ActivityIndicator 
         size={size} 
-        color={color}
+        color={spinnerColor}
         accessibilityLabel="Loading"
       />
       {message && (
-        <Text style={styles.message}>{message}</Text>
+        <Text style={[styles.message, { color: theme.colors.textMuted }]}>
+          {message}
+        </Text>
       )}
     </View>
   );
@@ -49,12 +57,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
   },
   message: {
     marginTop: 12,
     fontSize: 16,
-    color: '#666',
     textAlign: 'center',
   },
 });

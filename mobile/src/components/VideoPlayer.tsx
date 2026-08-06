@@ -1,6 +1,7 @@
 import React, { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { Video, ResizeMode, AVPlaybackStatus } from 'expo-av';
+import { useTheme } from '../hooks/useTheme';
 import type { CameraFile } from '../types';
 
 interface VideoPlayerProps {
@@ -16,6 +17,7 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
   autoPlay = false,
   onClose,
 }) => {
+  const { theme } = useTheme();
   const videoRef = useRef<Video>(null);
   const [isPlaying, setIsPlaying] = useState(autoPlay);
   const [isLoading, setIsLoading] = useState(true);
@@ -23,7 +25,6 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
   const [duration, setDuration] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Memoized playback status update handler
   const handlePlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (status.isLoaded) {
       setIsLoading(false);
@@ -40,7 +41,6 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     }
   }, []);
 
-  // Memoized play/pause toggle
   const togglePlayPause = useCallback(async () => {
     if (!videoRef.current) return;
     
@@ -55,7 +55,6 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     }
   }, [isPlaying]);
 
-  // Memoized seek handler
   const handleSeek = useCallback(async (newPosition: number) => {
     if (!videoRef.current) return;
     
@@ -66,7 +65,6 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     }
   }, []);
 
-  // Memoized replay handler
   const handleReplay = useCallback(async () => {
     if (!videoRef.current) return;
     
@@ -77,14 +75,12 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     }
   }, []);
 
-  // Memoized close handler
   const handleClose = useCallback(() => {
     if (onClose) {
       onClose();
     }
   }, [onClose]);
 
-  // Format time helper (memoized)
   const formatTime = useCallback((milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -92,7 +88,6 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (videoRef.current) {
@@ -101,10 +96,15 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
     };
   }, []);
 
+  // Video player uses black background for best viewing experience
+  // Controls use theme colors
+  const playerBg = '#000000';
+  const overlayBg = 'rgba(0, 0, 0, 0.8)';
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: playerBg }]}>
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { backgroundColor: overlayBg }]}>
         <Text style={styles.title} numberOfLines={1}>
           {file.name}
         </Text>
@@ -133,28 +133,31 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
         />
         
         {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <ActivityIndicator size="large" color="#fff" />
+          <View style={[styles.loadingOverlay, { backgroundColor: overlayBg }]}>
+            <ActivityIndicator size="large" color="#ffffff" />
             <Text style={styles.loadingText}>Loading video...</Text>
           </View>
         )}
         
         {error && (
-          <View style={styles.errorOverlay}>
-            <Text style={styles.errorText}>{error}</Text>
+          <View style={[styles.errorOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.9)' }]}>
+            <Text style={[styles.errorText, { color: theme.colors.danger }]}>{error}</Text>
           </View>
         )}
       </View>
 
       {/* Controls */}
-      <View style={styles.controls}>
+      <View style={[styles.controls, { backgroundColor: overlayBg }]}>
         <View style={styles.progressContainer}>
           <Text style={styles.timeText}>{formatTime(position)}</Text>
           <View style={styles.progressBar}>
             <View 
               style={[
                 styles.progressFill, 
-                { width: duration > 0 ? `${(position / duration) * 100}%` : '0%' }
+                { 
+                  width: duration > 0 ? `${(position / duration) * 100}%` : '0%',
+                  backgroundColor: theme.colors.brand 
+                }
               ]} 
             />
           </View>
@@ -173,7 +176,7 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
 
           <TouchableOpacity 
             onPress={togglePlayPause}
-            style={[styles.controlButton, styles.playButton]}
+            style={[styles.playButton, { backgroundColor: theme.colors.brand }]}
             disabled={isLoading}
             accessibilityLabel={isPlaying ? 'Pause video' : 'Play video'}
             accessibilityRole="button"
@@ -196,18 +199,17 @@ export const VideoPlayer = memo<VideoPlayerProps>(({
       </View>
 
       {/* File info */}
-      <View style={styles.info}>
+      <View style={[styles.info, { backgroundColor: overlayBg }]}>
         <Text style={styles.infoText}>
           Type: {file.type.toUpperCase()} • Size: {(file.size / (1024 * 1024)).toFixed(2)} MB
         </Text>
         {file.protected && (
-          <Text style={styles.protectedText}>🔒 Protected</Text>
+          <Text style={[styles.protectedText, { color: theme.colors.warn }]}>🔒 Protected</Text>
         )}
       </View>
     </View>
   );
 }, (prevProps, nextProps) => {
-  // Only re-render if file or uri changes
   return (
     prevProps.file.id === nextProps.file.id &&
     prevProps.uri === nextProps.uri &&
@@ -221,20 +223,18 @@ VideoPlayer.displayName = 'VideoPlayer';
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000',
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   title: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#fff',
     flex: 1,
+    color: '#ffffff',
   },
   closeButton: {
     width: 32,
@@ -245,8 +245,8 @@ const styles = StyleSheet.create({
   },
   closeButtonText: {
     fontSize: 24,
-    color: '#fff',
     fontWeight: '300',
+    color: '#ffffff',
   },
   videoContainer: {
     flex: 1,
@@ -259,30 +259,26 @@ const styles = StyleSheet.create({
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   loadingText: {
-    color: '#fff',
     marginTop: 12,
     fontSize: 16,
+    color: '#ffffff',
   },
   errorOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 20,
   },
   errorText: {
-    color: '#FF3B30',
     fontSize: 16,
     textAlign: 'center',
   },
   controls: {
     padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   progressContainer: {
     flexDirection: 'row',
@@ -290,21 +286,20 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   timeText: {
-    color: '#fff',
     fontSize: 12,
     minWidth: 40,
+    color: '#ffffff',
   },
   progressBar: {
     flex: 1,
     height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
     borderRadius: 2,
     marginHorizontal: 8,
     overflow: 'hidden',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
   },
   progressFill: {
     height: '100%',
-    backgroundColor: '#007AFF',
   },
   buttonsContainer: {
     flexDirection: 'row',
@@ -324,30 +319,30 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: '#007AFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 8,
   },
   controlButtonText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+    color: '#ffffff',
   },
   playButtonText: {
-    color: '#fff',
     fontSize: 24,
+    color: '#ffffff',
   },
   info: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
   },
   infoText: {
-    color: '#999',
     fontSize: 12,
+    color: 'rgba(255, 255, 255, 0.7)',
   },
   protectedText: {
-    color: '#FFD700',
     fontSize: 12,
   },
 });

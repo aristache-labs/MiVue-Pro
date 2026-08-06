@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ListRenderItemInfo } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 import type { CameraFile } from '../types';
 
 interface FileListProps {
@@ -18,6 +19,8 @@ const FileItem = memo<{
   onPress: (file: CameraFile) => void;
   onSelect: (fileId: string) => void;
 }>(({ file, isSelected, onPress, onSelect }) => {
+  const { theme } = useTheme();
+
   const handlePress = useCallback(() => {
     onPress(file);
   }, [file, onPress]);
@@ -40,7 +43,18 @@ const FileItem = memo<{
 
   return (
     <TouchableOpacity
-      style={[styles.fileItem, isSelected && styles.fileItemSelected]}
+      style={[
+        styles.fileItem,
+        {
+          backgroundColor: theme.colors.surfaceElevated,
+          borderColor: isSelected 
+            ? theme.colors.brand 
+            : theme.colors.borderSoft,
+        },
+        isSelected && {
+          backgroundColor: theme.colors.brandSoft,
+        },
+      ]}
       onPress={handlePress}
       onLongPress={handleLongPress}
       activeOpacity={0.7}
@@ -51,7 +65,7 @@ const FileItem = memo<{
     >
       <View style={styles.fileInfo}>
         <View style={styles.fileHeader}>
-          <Text style={styles.fileName} numberOfLines={1}>
+          <Text style={[styles.fileName, { color: theme.colors.text }]} numberOfLines={1}>
             {file.name}
           </Text>
           {file.protected && (
@@ -62,23 +76,22 @@ const FileItem = memo<{
         </View>
         
         <View style={styles.fileDetails}>
-          <Text style={styles.fileType}>{file.type.toUpperCase()}</Text>
-          <Text style={styles.fileSeparator}>•</Text>
-          <Text style={styles.fileSize}>{formatFileSize(file.size)}</Text>
-          <Text style={styles.fileSeparator}>•</Text>
-          <Text style={styles.fileDate}>{formatDate(file.date)}</Text>
+          <Text style={[styles.fileType, { color: theme.colors.textMuted }]}>{file.type.toUpperCase()}</Text>
+          <Text style={[styles.fileSeparator, { color: theme.colors.border }]}>•</Text>
+          <Text style={[styles.fileSize, { color: theme.colors.textMuted }]}>{formatFileSize(file.size)}</Text>
+          <Text style={[styles.fileSeparator, { color: theme.colors.border }]}>•</Text>
+          <Text style={[styles.fileDate, { color: theme.colors.textMuted }]}>{formatDate(file.date)}</Text>
         </View>
       </View>
       
       {isSelected && (
-        <View style={styles.checkmark}>
-          <Text style={styles.checkmarkText}>✓</Text>
+        <View style={[styles.checkmark, { backgroundColor: theme.colors.brand }]}>
+          <Text style={[styles.checkmarkText, { color: theme.colors.onBrand }]}>✓</Text>
         </View>
       )}
     </TouchableOpacity>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for optimal re-rendering
   return (
     prevProps.file.id === nextProps.file.id &&
     prevProps.file.name === nextProps.file.name &&
@@ -101,10 +114,10 @@ export const FileList = memo<FileListProps>(({
   isLoading = false,
   emptyMessage = 'No files found',
 }) => {
-  // Memoized key extractor
+  const { theme } = useTheme();
+
   const keyExtractor = useCallback((item: CameraFile) => item.id, []);
 
-  // Memoized render item
   const renderItem = useCallback(({ item }: ListRenderItemInfo<CameraFile>) => (
     <FileItem
       file={item}
@@ -114,14 +127,12 @@ export const FileList = memo<FileListProps>(({
     />
   ), [selectedFiles, onFilePress, onFileSelect]);
 
-  // Memoized empty component
   const renderEmpty = useCallback(() => (
     <View style={styles.emptyContainer}>
-      <Text style={styles.emptyText}>{emptyMessage}</Text>
+      <Text style={[styles.emptyText, { color: theme.colors.textMuted }]}>{emptyMessage}</Text>
     </View>
-  ), [emptyMessage]);
+  ), [emptyMessage, theme]);
 
-  // Memoized item separator
   const renderSeparator = useCallback(() => (
     <View style={styles.separator} />
   ), []);
@@ -129,7 +140,7 @@ export const FileList = memo<FileListProps>(({
   if (isLoading) {
     return (
       <View style={styles.loadingContainer}>
-        <Text style={styles.loadingText}>Loading files...</Text>
+        <Text style={[styles.loadingText, { color: theme.colors.textMuted }]}>Loading files...</Text>
       </View>
     );
   }
@@ -148,7 +159,7 @@ export const FileList = memo<FileListProps>(({
       initialNumToRender={15}
       windowSize={21}
       getItemLayout={(data, index) => ({
-        length: 80, // Approximate item height
+        length: 80,
         offset: 80 * index,
         index,
       })}
@@ -169,15 +180,9 @@ const styles = StyleSheet.create({
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
     borderRadius: 8,
     padding: 12,
     borderWidth: 1,
-    borderColor: '#e0e0e0',
-  },
-  fileItemSelected: {
-    backgroundColor: '#E3F2FD',
-    borderColor: '#2196F3',
   },
   fileInfo: {
     flex: 1,
@@ -190,7 +195,6 @@ const styles = StyleSheet.create({
   fileName: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#333',
     flex: 1,
   },
   protectedBadge: {
@@ -205,34 +209,28 @@ const styles = StyleSheet.create({
   },
   fileType: {
     fontSize: 12,
-    color: '#666',
     fontWeight: '600',
     textTransform: 'uppercase',
   },
   fileSeparator: {
     marginHorizontal: 6,
-    color: '#999',
     fontSize: 12,
   },
   fileSize: {
     fontSize: 12,
-    color: '#666',
   },
   fileDate: {
     fontSize: 12,
-    color: '#666',
   },
   checkmark: {
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#2196F3',
     alignItems: 'center',
     justifyContent: 'center',
     marginLeft: 8,
   },
   checkmarkText: {
-    color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
   },
@@ -247,7 +245,6 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: 16,
-    color: '#999',
   },
   loadingContainer: {
     flex: 1,
@@ -256,6 +253,5 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: '#666',
   },
 });

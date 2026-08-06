@@ -70,6 +70,13 @@ export default function SettingsHubScreen() {
 
       <SettingsSection title="App">
         <SettingsCategoryRow
+          icon="color-palette-outline"
+          title="Appearance"
+          summary="System, Dark, Light theme"
+          onPress={() => push("/settings/appearance")}
+          accessibilityLabel="Appearance"
+        />
+        <SettingsCategoryRow
           icon="folder-outline"
           title="Downloads & Storage"
           summary={storageSummary(localFiles.length, downloadedBytes)}

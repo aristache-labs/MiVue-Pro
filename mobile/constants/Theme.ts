@@ -1,4 +1,5 @@
 import { useColorScheme } from "@/components/useColorScheme";
+import { useThemePreference } from "@/src/hooks/useThemePreference";
 
 /**
  * Laneory design tokens — mapped 1:1 from web/styles.css (:root / [data-theme="dark"]).
@@ -141,7 +142,7 @@ export const Type = {
 export const HitSlop44 = { top: 8, bottom: 8, left: 8, right: 8 };
 
 export function useAppTheme() {
-  const scheme = useColorScheme() as ColorScheme;
+  const scheme = useThemePreference();
   return {
     scheme,
     colors: Palette[scheme],

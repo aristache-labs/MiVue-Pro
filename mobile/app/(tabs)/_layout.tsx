@@ -2,12 +2,11 @@ import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React from "react";
 
-import Colors from "@/constants/Colors";
-import { Type, useAppTheme } from "@/constants/Theme";
-import { useColorScheme } from "@/components/useColorScheme";
+import { Type } from "@/constants/Theme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
 import { LaneoryTabBar } from "@/components/navigation/LaneoryTabBar";
 import { SelectionTabChromeProvider } from "@/context/SelectionTabChromeContext";
+import { useTheme } from "@/src/contexts/ThemeContext";
 
 function TabBarIcon(props: {
   readonly name: React.ComponentProps<typeof Ionicons>["name"];
@@ -17,23 +16,22 @@ function TabBarIcon(props: {
 }
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-  const { colors } = useAppTheme();
+  const { theme } = useTheme();
 
   return (
     <SelectionTabChromeProvider>
       <Tabs
         tabBar={(props) => <LaneoryTabBar {...props} />}
         screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-          tabBarInactiveTintColor: colors.textMuted,
+          tabBarActiveTintColor: theme.colors.brand,
+          tabBarInactiveTintColor: theme.colors.textMuted,
           tabBarLabelStyle: { fontFamily: Type.fontSemi, fontSize: 11 },
           headerShown: useClientOnlyValue(false, true),
-          headerStyle: { backgroundColor: colors.bg },
-          headerTitleStyle: { color: colors.text, fontFamily: Type.fontBold },
+          headerStyle: { backgroundColor: theme.colors.surface },
+          headerTitleStyle: { color: theme.colors.text, fontFamily: Type.fontBold },
           tabBarStyle: {
-            backgroundColor: colors.surface,
-            borderTopColor: colors.border,
+            backgroundColor: theme.colors.surface,
+            borderTopColor: theme.colors.border,
           },
         }}
       >

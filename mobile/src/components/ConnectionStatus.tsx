@@ -1,5 +1,6 @@
 import React, { memo } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 import type { CameraStatus } from '../types';
 
 interface ConnectionStatusProps {
@@ -13,42 +14,44 @@ export const ConnectionStatus = memo<ConnectionStatusProps>(({
   cameraName,
   compact = false,
 }) => {
+  const { theme } = useTheme();
+
   const getStatusConfig = () => {
     switch (status) {
       case 'connected':
         return {
-          color: '#34C759',
+          color: theme.colors.success,
           icon: '●',
           text: 'Connected',
-          backgroundColor: '#E8F5E9',
+          backgroundColor: theme.colors.successSoft,
         };
       case 'connecting':
         return {
-          color: '#FF9500',
+          color: theme.colors.warn,
           icon: '●',
           text: 'Connecting...',
-          backgroundColor: '#FFF3E0',
+          backgroundColor: theme.colors.warnSoft,
         };
       case 'disconnected':
         return {
-          color: '#999',
+          color: theme.colors.textMuted,
           icon: '●',
           text: 'Disconnected',
-          backgroundColor: '#F5F5F5',
+          backgroundColor: theme.colors.surfaceMuted,
         };
       case 'error':
         return {
-          color: '#FF3B30',
+          color: theme.colors.danger,
           icon: '●',
           text: 'Connection Error',
-          backgroundColor: '#FFEBEE',
+          backgroundColor: theme.colors.dangerSoft,
         };
       default:
         return {
-          color: '#999',
+          color: theme.colors.textMuted,
           icon: '●',
           text: 'Unknown',
-          backgroundColor: '#F5F5F5',
+          backgroundColor: theme.colors.surfaceMuted,
         };
     }
   };
@@ -83,7 +86,9 @@ export const ConnectionStatus = memo<ConnectionStatusProps>(({
             {config.text}
           </Text>
           {cameraName && (
-            <Text style={styles.cameraName}>{cameraName}</Text>
+            <Text style={[styles.cameraName, { color: theme.colors.textMuted }]}>
+              {cameraName}
+            </Text>
           )}
         </View>
       </View>
@@ -134,7 +139,6 @@ const styles = StyleSheet.create({
   },
   cameraName: {
     fontSize: 14,
-    color: '#666',
     marginTop: 2,
   },
 });

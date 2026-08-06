@@ -8,7 +8,7 @@ import {
   SourceSans3_600SemiBold,
   SourceSans3_700Bold,
 } from "@expo-google-fonts/source-sans-3";
-import { DarkTheme, DefaultTheme, ThemeProvider } from "@react-navigation/native";
+import { DarkTheme as NavDarkTheme, DefaultTheme as NavDefaultTheme, ThemeProvider as NavThemeProvider } from "@react-navigation/native";
 import { useFonts } from "expo-font";
 import {
   ErrorBoundary as RouterErrorBoundary,
@@ -23,7 +23,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { AppState, type AppStateStatus } from "react-native";
 import "react-native-reanimated";
 
-import { useColorScheme } from "@/components/useColorScheme";
 import { CONNECTION_HELP_BACK_TITLE } from "@/components/camera/cameraLibraryModel";
 import { shouldAllowGateBypassSegment } from "@/components/onboarding/connectionErrors";
 import { OnboardingProvider, useOnboarding } from "@/components/onboarding/OnboardingProvider";
@@ -34,7 +33,8 @@ import {
   installConsoleAppLogCapture,
 } from "@/components/diagnostics/appLogStore";
 import { DemoModeProvider, useDemoMode } from "@/context/DemoModeContext";
-import { Palette, Type } from "@/constants/Theme";
+import { Type } from "@/constants/Theme";
+import { ThemeProvider, useTheme } from "@/src/contexts/ThemeContext";
 
 export function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   useEffect(() => {
@@ -57,32 +57,6 @@ export const unstable_settings = {
 };
 
 SplashScreen.preventAutoHideAsync();
-
-const LaneoryLight = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    primary: Palette.light.brand,
-    background: Palette.light.bg,
-    card: Palette.light.surface,
-    text: Palette.light.text,
-    border: Palette.light.border,
-    notification: Palette.light.live,
-  },
-};
-
-const LaneoryDark = {
-  ...DarkTheme,
-  colors: {
-    ...DarkTheme.colors,
-    primary: Palette.dark.brand,
-    background: Palette.dark.bg,
-    card: Palette.dark.surface,
-    text: Palette.dark.text,
-    border: Palette.dark.border,
-    notification: Palette.dark.live,
-  },
-};
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -107,16 +81,18 @@ export default function RootLayout() {
   }
 
   return (
-    <OnboardingProvider>
-      <DemoModeProvider>
-        <RootLayoutNav />
-      </DemoModeProvider>
-    </OnboardingProvider>
+    <ThemeProvider>
+      <OnboardingProvider>
+        <DemoModeProvider>
+          <RootLayoutNav />
+        </DemoModeProvider>
+      </OnboardingProvider>
+    </ThemeProvider>
   );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const { theme, isDark } = useTheme();
   const { ready, gateActive } = useOnboarding();
   const { cameraBootstrapDone } = useDemoMode();
   const segments = useSegments();
@@ -174,16 +150,41 @@ function RootLayoutNav() {
     return <StartupLoadingScreen onLayout={hideNativeSplash} />;
   }
 
+  // Bridge custom theme to React Navigation's ThemeProvider
+  const navTheme = isDark ? {
+    ...NavDarkTheme,
+    colors: {
+      ...NavDarkTheme.colors,
+      primary: theme.colors.brand,
+      background: theme.colors.bg,
+      card: theme.colors.surface,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      notification: theme.colors.brand,
+    },
+  } : {
+    ...NavDefaultTheme,
+    colors: {
+      ...NavDefaultTheme.colors,
+      primary: theme.colors.brand,
+      background: theme.colors.bg,
+      card: theme.colors.surface,
+      text: theme.colors.text,
+      border: theme.colors.border,
+      notification: theme.colors.brand,
+    },
+  };
+
   return (
-    <ThemeProvider value={colorScheme === "dark" ? LaneoryDark : LaneoryLight}>
+    <NavThemeProvider value={navTheme}>
       <Stack
         screenOptions={{
           headerTitleStyle: { fontFamily: Type.fontSemi },
           headerStyle: {
-            backgroundColor: colorScheme === "dark" ? Palette.dark.bg : Palette.light.bg,
+            backgroundColor: theme.colors.bg,
           },
           contentStyle: {
-            backgroundColor: colorScheme === "dark" ? Palette.dark.bg : Palette.light.bg,
+            backgroundColor: theme.colors.bg,
           },
         }}
       >
@@ -207,6 +208,6 @@ function RootLayoutNav() {
           options={{ presentation: "fullScreenModal", headerShown: false, title: "Player" }}
         />
       </Stack>
-    </ThemeProvider>
+    </NavThemeProvider>
   );
 }

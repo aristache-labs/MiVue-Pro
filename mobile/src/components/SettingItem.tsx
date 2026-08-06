@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { View, Text, Switch, TouchableOpacity, StyleSheet } from 'react-native';
+import { useTheme } from '../hooks/useTheme';
 
 interface SettingItemProps {
   label: string;
@@ -22,6 +23,8 @@ export const SettingItem = memo<SettingItemProps>(({
   disabled = false,
   icon,
 }) => {
+  const { theme } = useTheme();
+
   const handlePress = useCallback(() => {
     if (!disabled && onPress) {
       onPress();
@@ -42,9 +45,12 @@ export const SettingItem = memo<SettingItemProps>(({
             value={value as boolean}
             onValueChange={handleToggle}
             disabled={disabled}
-            trackColor={{ false: '#e0e0e0', true: '#34C759' }}
-            thumbColor="#fff"
-            ios_backgroundColor="#e0e0e0"
+            trackColor={{ 
+              false: theme.colors.border, 
+              true: theme.colors.brand 
+            }}
+            thumbColor="#ffffff"
+            ios_backgroundColor={theme.colors.border}
             accessibilityLabel={`${label} toggle`}
             accessibilityRole="switch"
             accessibilityState={{ disabled, checked: value as boolean }}
@@ -56,17 +62,34 @@ export const SettingItem = memo<SettingItemProps>(({
         return (
           <View style={styles.valueContainer}>
             {value !== undefined && (
-              <Text style={[styles.valueText, disabled && styles.disabledText]}>
+              <Text 
+                style={[
+                  styles.valueText, 
+                  { color: disabled ? theme.colors.textFaint : theme.colors.textMuted }
+                ]}
+              >
                 {value}
               </Text>
             )}
-            <Text style={[styles.chevron, disabled && styles.disabledText]}>›</Text>
+            <Text 
+              style={[
+                styles.chevron, 
+                { color: disabled ? theme.colors.textFaint : theme.colors.textMuted }
+              ]}
+            >
+              ›
+            </Text>
           </View>
         );
       
       case 'info':
         return value !== undefined ? (
-          <Text style={[styles.valueText, disabled && styles.disabledText]}>
+          <Text 
+            style={[
+              styles.valueText, 
+              { color: disabled ? theme.colors.textFaint : theme.colors.textMuted }
+            ]}
+          >
             {value}
           </Text>
         ) : null;
@@ -91,17 +114,34 @@ export const SettingItem = memo<SettingItemProps>(({
 
   return (
     <Container 
-      style={[styles.container, disabled && styles.containerDisabled]} 
+      style={[
+        styles.container, 
+        {
+          backgroundColor: theme.colors.surfaceElevated,
+          borderBottomColor: theme.colors.borderSoft,
+        },
+        disabled && styles.containerDisabled
+      ]} 
       {...containerProps}
     >
       <View style={styles.leftContent}>
         {icon && <Text style={styles.icon}>{icon}</Text>}
         <View style={styles.textContainer}>
-          <Text style={[styles.label, disabled && styles.disabledText]}>
+          <Text 
+            style={[
+              styles.label, 
+              { color: disabled ? theme.colors.textFaint : theme.colors.text }
+            ]}
+          >
             {label}
           </Text>
           {description && (
-            <Text style={[styles.description, disabled && styles.disabledText]}>
+            <Text 
+              style={[
+                styles.description, 
+                { color: disabled ? theme.colors.textFaint : theme.colors.textMuted }
+              ]}
+            >
               {description}
             </Text>
           )}
@@ -111,7 +151,6 @@ export const SettingItem = memo<SettingItemProps>(({
     </Container>
   );
 }, (prevProps, nextProps) => {
-  // Custom comparison for optimal rendering
   return (
     prevProps.label === nextProps.label &&
     prevProps.value === nextProps.value &&
@@ -131,11 +170,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#fff',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#e0e0e0',
     minHeight: 56,
   },
   containerDisabled: {
@@ -156,12 +193,10 @@ const styles = StyleSheet.create({
   },
   label: {
     fontSize: 16,
-    color: '#333',
     fontWeight: '500',
   },
   description: {
     fontSize: 13,
-    color: '#666',
     marginTop: 2,
     lineHeight: 18,
   },
@@ -171,15 +206,10 @@ const styles = StyleSheet.create({
   },
   valueText: {
     fontSize: 16,
-    color: '#666',
     marginRight: 4,
   },
   chevron: {
     fontSize: 24,
-    color: '#999',
     fontWeight: '300',
-  },
-  disabledText: {
-    color: '#999',
   },
 });
