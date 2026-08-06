@@ -26,7 +26,7 @@ export const ThemeToggle = memo(() => {
 
   const knobTranslate = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [2, 32],
+    outputRange: [2, 28],
   });
 
   const sunOpacity = progress.interpolate({
@@ -68,7 +68,7 @@ export const ThemeToggle = memo(() => {
         style={[styles.iconLayer, styles.moonLayer, { opacity: moonOpacity }]}
         pointerEvents="none"
       >
-        <Ionicons name="moon" size={15} color={colors.brand} />
+        <Ionicons name="moon" size={17} color={colors.brand} />
       </Animated.View>
 
       {/* Sun icon (visible in light mode) */}
@@ -76,7 +76,7 @@ export const ThemeToggle = memo(() => {
         style={[styles.iconLayer, styles.sunLayer, { opacity: sunOpacity }]}
         pointerEvents="none"
       >
-        <Ionicons name="sunny" size={15} color={colors.warn} />
+        <Ionicons name="sunny" size={18} color={colors.warn} />
       </Animated.View>
 
       {/* Sliding knob */}
@@ -99,17 +99,17 @@ ThemeToggle.displayName = 'ThemeToggle';
 
 const styles = StyleSheet.create({
   track: {
-    width: 64,
-    height: 34,
+    width: 56,
+    height: 30,
     borderRadius: 30,
     borderWidth: 1,
     justifyContent: 'center',
   },
   knob: {
     position: 'absolute',
-    width: 30,
-    height: 30,
-    borderRadius: 15,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
     left: 0,
     top: 1,
     shadowOffset: { width: 0, height: 2 },
@@ -121,17 +121,17 @@ const styles = StyleSheet.create({
   },
   iconLayer: {
     position: 'absolute',
-    width: 30,
+    width: 26,
     height: 30,
     alignItems: 'center',
     justifyContent: 'center',
   },
   moonLayer: {
-    left: 5,
-    top: 9,
+    left: 4,
+    top: 0,
   },
   sunLayer: {
-    right: 5,
-    top: 9,
+    right: 3,
+    top: -1,
   },
 });
