@@ -159,6 +159,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         categoryAccent={catAccent}
         durationLabel={duration}
         selected={selecting && selected}
+        selecting={selecting}
         onThumbPress={selecting ? handlePress : openThumbnail}
         onThumbLongPress={handleLongPress}
         thumbAccessibilityLabel={previewA11y}

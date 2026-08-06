@@ -116,6 +116,7 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
           durationSec !== undefined && durationSec > 0 ? formatDuration(durationSec) : undefined
         }
         selected={selecting && selected}
+        selecting={selecting}
         thumbnail={
           <VideoThumbnail
             uri={item.uri}

@@ -36,6 +36,8 @@ export interface MediaCardProps {
   /** Right-column actions (download / share-delete). Pure slot — no business logic. */
   readonly actions?: ReactNode;
   readonly selected?: boolean;
+  /** Selection mode — outer card is the interactive checkbox; hide nested interactive regions from screen readers. */
+  readonly selecting?: boolean;
   readonly testID?: string;
 }
 
@@ -60,6 +62,7 @@ export const MediaCard = memo(function MediaCard({
   bodyAccessibilityLabel,
   actions,
   selected = false,
+  selecting = false,
   testID,
 }: MediaCardProps) {
   const { colors, radius } = useAppTheme();
@@ -85,8 +88,10 @@ export const MediaCard = memo(function MediaCard({
           disabled={!onThumbPress && !onThumbLongPress}
           accessibilityRole={onThumbPress ? "button" : undefined}
           accessibilityLabel={onThumbPress ? thumbAccessibilityLabel : undefined}
-          accessible={Boolean(onThumbPress)}
-          importantForAccessibility={onThumbPress ? "yes" : "no-hide-descendants"}
+          accessible={Boolean(onThumbPress) && !selecting}
+          importantForAccessibility={
+            onThumbPress ? (selecting ? "no-hide-descendants" : "yes") : "no-hide-descendants"
+          }
           style={({ pressed }) => [
             styles.thumbPress,
             { opacity: pressed && onThumbPress ? 0.82 : 1 },
@@ -111,8 +116,10 @@ export const MediaCard = memo(function MediaCard({
           disabled={!onBodyPress && !onBodyLongPress}
           accessibilityRole={onBodyPress ? "button" : undefined}
           accessibilityLabel={onBodyPress ? bodyAccessibilityLabel : undefined}
-          accessible={Boolean(onBodyPress)}
-          importantForAccessibility={onBodyPress ? "yes" : "no-hide-descendants"}
+          accessible={Boolean(onBodyPress) && !selecting}
+          importantForAccessibility={
+            onBodyPress ? (selecting ? "no-hide-descendants" : "yes") : "no-hide-descendants"
+          }
           style={styles.body}
         >
           <Text style={[styles.name, { color: colors.text }]} numberOfLines={1}>
