@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet } from 'react-native';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useTheme } from '@/src/hooks/useTheme';
 import { useAppTheme } from '@/constants/Theme';
@@ -10,7 +10,7 @@ import { useAppTheme } from '@/constants/Theme';
  * a sliding knob, sun/moon icons, smooth transitions.
  */
 export const ThemeToggle = memo(() => {
-  const { isDark, themeName, setTheme } = useTheme();
+  const { isDark, setTheme } = useTheme();
   const { colors } = useAppTheme();
 
   const progress = useRef(new Animated.Value(isDark ? 1 : 0)).current;
@@ -26,7 +26,7 @@ export const ThemeToggle = memo(() => {
 
   const knobTranslate = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [2, 28],
+    outputRange: [1, 27],
   });
 
   const sunOpacity = progress.interpolate({
@@ -53,7 +53,7 @@ export const ThemeToggle = memo(() => {
       accessibilityLabel="Theme toggle"
       accessibilityState={{ checked: isDark }}
       accessibilityHint={`Switch to ${isDark ? 'light' : 'dark'} mode`}
-      hitSlop={8}
+      hitSlop={12}
       style={({ pressed }) => [
         styles.track,
         {
@@ -99,17 +99,17 @@ ThemeToggle.displayName = 'ThemeToggle';
 
 const styles = StyleSheet.create({
   track: {
-    width: 56,
-    height: 30,
-    borderRadius: 30,
+    width: 54,
+    height: 28,
+    borderRadius: 24,
     borderWidth: 1,
     justifyContent: 'center',
   },
   knob: {
     position: 'absolute',
-    width: 26,
-    height: 26,
-    borderRadius: 13,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
     left: 0,
     top: 1,
     shadowOffset: { width: 0, height: 2 },
@@ -121,17 +121,17 @@ const styles = StyleSheet.create({
   },
   iconLayer: {
     position: 'absolute',
-    width: 26,
-    height: 30,
+    width: 24,
+    height: 28,
     alignItems: 'center',
     justifyContent: 'center',
   },
   moonLayer: {
     left: 4,
-    top: 0,
+    top: -0.5,
   },
   sunLayer: {
-    right: 3,
-    top: -1,
+    right: 4,
+    top: -0.5,
   },
 });
