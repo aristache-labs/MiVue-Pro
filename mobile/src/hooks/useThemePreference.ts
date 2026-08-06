@@ -8,36 +8,42 @@ export type ThemeMode = 'light' | 'dark' | 'auto';
 export type ResolvedTheme = 'light' | 'dark';
 
 /**
- * Hook that provides the effective theme (light/dark) based on user preference.
- * Returns only the resolved theme, not the full theme object.
+ * Lightweight theme resolver used by the app-wide palette (constants/Theme).
+ * Reads the persisted preference + system scheme. This hook is intentionally
+ * decoupled from ThemeContext to avoid a circular import chain.
  */
 export function useThemePreference(): ResolvedTheme {
   const systemColorScheme = useRNColorScheme();
   const [themeMode, setThemeMode] = useState<ThemeMode>('auto');
 
-  // Load theme preference from storage
   useEffect(() => {
-    AsyncStorage.getItem(THEME_STORAGE_KEY).then((stored) => {
-      if (stored === 'light' || stored === 'dark' || stored === 'auto') {
-        setThemeMode(stored);
-      }
-    });
+    let active = true;
 
-    // Listen for storage changes (from ThemeContext)
-    const interval = setInterval(async () => {
-      const stored = await AsyncStorage.getItem(THEME_STORAGE_KEY);
-      if (stored && (stored === 'light' || stored === 'dark' || stored === 'auto')) {
-        setThemeMode(stored);
+    const load = async () => {
+      try {
+        const stored = await AsyncStorage.getItem(THEME_STORAGE_KEY);
+        if (active && stored && (stored === 'light' || stored === 'dark' || stored === 'auto')) {
+          setThemeMode(stored);
+        }
+      } catch {
+        // ignore storage errors
       }
-    }, 500);
+    };
 
-    return () => clearInterval(interval);
+    void load();
+
+    // Re-check shortly after mount + on foreground, to pick up
+    // preference changes made elsewhere in the app.
+    const interval = setInterval(load, 800);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
-  // Resolve theme based on mode
   if (themeMode === 'auto') {
     return systemColorScheme === 'dark' ? 'dark' : 'light';
   }
-  
+
   return themeMode;
 }

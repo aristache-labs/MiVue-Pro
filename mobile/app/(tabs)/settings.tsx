@@ -18,6 +18,7 @@ import {
 } from "@/components/settings";
 import { SettingsScroll } from "@/components/settings/SettingsScroll";
 import { useDemoMode } from "@/context/DemoModeContext";
+import { ThemeToggle } from "@/src/components/ThemeToggle";
 
 export default function SettingsHubScreen() {
   const navigation = useNavigation();
@@ -52,7 +53,7 @@ export default function SettingsHubScreen() {
 
   useLayoutEffect(() => {
     navigation.setOptions({
-      header: () => <TabScreenHeader title="Settings" />,
+      header: () => <TabScreenHeader title="Settings" right={<ThemeToggle />} />,
     });
   }, [navigation]);
 
@@ -69,13 +70,6 @@ export default function SettingsHubScreen() {
       </SettingsSection>
 
       <SettingsSection title="App">
-        <SettingsCategoryRow
-          icon="color-palette-outline"
-          title="Appearance"
-          summary="System, Dark, Light theme"
-          onPress={() => push("/settings/appearance")}
-          accessibilityLabel="Appearance"
-        />
         <SettingsCategoryRow
           icon="folder-outline"
           title="Downloads & Storage"
