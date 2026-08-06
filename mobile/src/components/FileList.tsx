@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from 'react';
-import { View, Text, FlatList, StyleSheet, TouchableOpacity, ListRenderItemInfo } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
 import { useTheme } from '../hooks/useTheme';
 import type { CameraFile } from '../types';
 
@@ -146,23 +147,15 @@ export const FileList = memo<FileListProps>(({
   }
 
   return (
-    <FlatList
+    <FlashList
       data={files}
       renderItem={renderItem}
       keyExtractor={keyExtractor}
       ListEmptyComponent={renderEmpty}
       ItemSeparatorComponent={renderSeparator}
       contentContainerStyle={files.length === 0 ? styles.emptyContentContainer : styles.contentContainer}
-      removeClippedSubviews={true}
-      maxToRenderPerBatch={10}
-      updateCellsBatchingPeriod={50}
-      initialNumToRender={15}
-      windowSize={21}
-      getItemLayout={(data, index) => ({
-        length: 80,
-        offset: 80 * index,
-        index,
-      })}
+      drawDistance={500}
+      overrideProps={{ initialDrawBatchSize: 10 }}
     />
   );
 });
