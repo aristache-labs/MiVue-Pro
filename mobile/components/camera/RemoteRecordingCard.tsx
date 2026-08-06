@@ -16,6 +16,7 @@ import { formatRecordingDateTime } from "@/components/media/recordingDateTime";
 import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
+import { Haptics } from "@/src/utils/haptics";
 
 function displayMediaName(name: string): string {
   return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
@@ -104,6 +105,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
       return;
     }
     if (selecting) {
+      Haptics.selection();
       onToggleSelect?.(file.path);
       return;
     }
@@ -113,9 +115,11 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   const handleLongPress = useCallback(() => {
     suppressPressRef.current = true;
     if (selecting) {
+      Haptics.selection();
       onToggleSelect?.(file.path);
       return;
     }
+    Haptics.medium();
     onLongPressSelect?.(file.path);
   }, [selecting, onToggleSelect, onLongPressSelect, file.path]);
 

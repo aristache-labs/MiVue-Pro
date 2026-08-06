@@ -14,6 +14,7 @@ import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { useAppTheme } from "@/constants/Theme";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
+import { Haptics } from "@/src/utils/haptics";
 
 function displayMediaName(name: string): string {
   return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
@@ -64,6 +65,7 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
       return;
     }
     if (selecting) {
+      Haptics.selection();
       onToggleSelect(item.uri);
       return;
     }
@@ -73,9 +75,11 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
   const handleLongPress = () => {
     suppressPressRef.current = true;
     if (selecting) {
+      Haptics.selection();
       onToggleSelect(item.uri);
       return;
     }
+    Haptics.medium();
     onEnterSelection(item.uri);
   };
 
