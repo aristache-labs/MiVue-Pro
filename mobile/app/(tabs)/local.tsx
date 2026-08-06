@@ -740,7 +740,10 @@ export default function LocalLibraryScreen() {
           refreshControl={
             <RefreshControl
               refreshing={refreshing}
-              onRefresh={() => void runRefresh()}
+              onRefresh={() => {
+                Haptics.light();
+                void runRefresh();
+              }}
               enabled={!selecting}
               tintColor={colors.brand}
               colors={[colors.brand]}

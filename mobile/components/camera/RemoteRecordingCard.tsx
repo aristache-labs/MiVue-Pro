@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useCallback, useRef } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 
 import { CompactDownloadAction } from "@/components/camera/CompactDownloadAction";
 import { CameraThumb } from "@/components/camera/CameraThumb";
@@ -17,6 +17,7 @@ import { CATEGORY_LABEL, categoryColor } from "@/constants/CategoryStyle";
 import { useAppTheme } from "@/constants/Theme";
 import type { RemoteFile } from "@/packages/parsers/src/index";
 import { Haptics } from "@/src/utils/haptics";
+import { usePressAnimation } from "@/src/hooks/usePressAnimation";
 
 function displayMediaName(name: string): string {
   return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
@@ -64,6 +65,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   const isDownloaded = downloadState.kind === "downloaded";
   const isPhoto = file.category === "photo";
   const suppressPressRef = useRef(false);
+  const { animatedStyle, handlePressIn, handlePressOut } = usePressAnimation();
 
   const openBody = useCallback(() => {
     if (suppressPressRef.current) {
@@ -128,10 +130,13 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
   const previewA11y = isPhoto ? `View ${file.name}` : `Play ${file.name}`;
 
   return (
-    <Pressable
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      delayLongPress={LOCAL_LONG_PRESS_MS}
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onLongPress={handleLongPress}
+        delayLongPress={LOCAL_LONG_PRESS_MS}
       accessibilityRole={selecting ? "checkbox" : "button"}
       accessibilityLabel={
         selecting
@@ -238,6 +243,7 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
         }
       />
     </Pressable>
+    </Animated.View>
   );
 });
 

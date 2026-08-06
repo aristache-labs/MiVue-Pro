@@ -1,6 +1,6 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { memo, useRef } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import { Animated, Pressable, StyleSheet, View } from "react-native";
 import { router } from "expo-router";
 
 import { formatDuration } from "@/components/mediaMeta";
@@ -15,6 +15,7 @@ import { useAppTheme } from "@/constants/Theme";
 import type { LocalMediaFile } from "@/context/DemoModeContext";
 import type { FileCategory } from "@/packages/parsers/src/index";
 import { Haptics } from "@/src/utils/haptics";
+import { usePressAnimation } from "@/src/hooks/usePressAnimation";
 
 function displayMediaName(name: string): string {
   return name.replace(/\.(mp4|mov|m4v|jpg|jpeg|png|webp)$/iu, "");
@@ -58,6 +59,7 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
   const catAccent = categoryColor(category, scheme);
   const playA11y = item.kind === "image" ? `View ${item.name}` : `Play ${item.name}`;
   const suppressPressRef = useRef(false);
+  const { animatedStyle, handlePressIn, handlePressOut } = usePressAnimation();
 
   const handlePress = () => {
     if (suppressPressRef.current) {
@@ -84,10 +86,13 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
   };
 
   return (
-    <Pressable
-      onPress={handlePress}
-      onLongPress={handleLongPress}
-      delayLongPress={LOCAL_LONG_PRESS_MS}
+    <Animated.View style={animatedStyle}>
+      <Pressable
+        onPress={handlePress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        onLongPress={handleLongPress}
+        delayLongPress={LOCAL_LONG_PRESS_MS}
       accessibilityRole={selecting ? "checkbox" : "button"}
       accessibilityLabel={
         selecting
@@ -204,6 +209,7 @@ export const LocalLibraryCard = memo(function LocalLibraryCard({
         }
       />
     </Pressable>
+    </Animated.View>
   );
 });
 

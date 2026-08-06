@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { Haptics } from "@/src/utils/haptics";
 import { CameraConnectionHeaderButton } from "@/components/camera/CameraConnectionHeaderButton";
 import { CameraConnectionSheet } from "@/components/camera/CameraConnectionSheet";
 import { CameraFilterSheet } from "@/components/camera/CameraFilterSheet";
@@ -815,6 +816,7 @@ export default function LibraryScreen() {
         counts={counts}
         onSelect={(id) => {
           if (selecting) return;
+          Haptics.selection();
           setCategory(id);
         }}
         disabled={!libraryInteractive || selecting}
@@ -937,7 +939,10 @@ export default function LibraryScreen() {
               canPullToRefresh ? (
                 <RefreshControl
                   refreshing={isRefreshingCamera}
-                  onRefresh={() => void runRefresh()}
+                  onRefresh={() => {
+                    Haptics.light();
+                    void runRefresh();
+                  }}
                   tintColor={colors.brand}
                 />
               ) : undefined
