@@ -11,14 +11,16 @@ import {
 import { Card } from "@/components/ui";
 import { Type, useAppTheme } from "@/constants/Theme";
 import type { GpsSample } from "@/packages/parsers/src/index";
+import { formatDistance, formatSpeed, type RouteStats } from "./routeStats";
 
 interface TelemetryPanelProps {
   readonly frame: GpsSample | undefined;
   readonly videoTimeSec: number;
   readonly clipName: string;
+  readonly routeStats?: RouteStats | null;
 }
 
-export function TelemetryPanel({ frame, videoTimeSec, clipName }: TelemetryPanelProps) {
+export function TelemetryPanel({ frame, videoTimeSec, clipName, routeStats }: TelemetryPanelProps) {
   const { colors } = useAppTheme();
   const speed = formatSpeedParts(frame?.speedKmh);
   const alt = formatAltitudeParts(frame?.altitudeMeters);
@@ -49,6 +51,34 @@ export function TelemetryPanel({ frame, videoTimeSec, clipName }: TelemetryPanel
           accessibilityLabel={cameraTimeA11yLabel(cameraTime)}
         />
       </View>
+      {routeStats ? (
+        <>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <View style={styles.row}>
+            <Metric
+              label="Distance"
+              value={formatDistance(routeStats.totalDistanceKm)}
+              unit=""
+              colors={colors}
+              accessibilityLabel={`Total distance ${formatDistance(routeStats.totalDistanceKm)}`}
+            />
+            <Metric
+              label="Avg speed"
+              value={formatSpeed(routeStats.avgSpeedKmh)}
+              unit=""
+              colors={colors}
+              accessibilityLabel={`Average speed ${formatSpeed(routeStats.avgSpeedKmh)}`}
+            />
+            <Metric
+              label="Max speed"
+              value={formatSpeed(routeStats.maxSpeedKmh)}
+              unit=""
+              colors={colors}
+              accessibilityLabel={`Maximum speed ${formatSpeed(routeStats.maxSpeedKmh)}`}
+            />
+          </View>
+        </>
+      ) : null}
     </Card>
   );
 }
@@ -90,6 +120,7 @@ function Metric({
 const styles = StyleSheet.create({
   card: { marginBottom: 10, borderRadius: 14 },
   row: { flexDirection: "row", gap: 8 },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 12 },
   metric: { flex: 1, minWidth: 0 },
   metricLabel: {
     fontFamily: Type.fontSemi,

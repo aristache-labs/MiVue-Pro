@@ -82,6 +82,7 @@ import { Badge, Card } from "@/components/ui";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { HitSlop44, Type, useAppTheme } from "@/constants/Theme";
 import { useDemoMode, type LocalMediaFile } from "@/context/DemoModeContext";
+import { Haptics } from "@/src/utils/haptics";
 import { SelectionToolbar } from "@/components/selection/SelectionToolbar";
 import {
   localDeleteCtaA11yLabel,

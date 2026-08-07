@@ -38,6 +38,7 @@ import {
   type NormalizedGpsTrack,
 } from "@/components/gps/sampleIndex";
 import type { MapFollowPose } from "@/components/gps/OnlineMapWebView";
+import { calculateRouteStats } from "@/components/gps/routeStats";
 import { CompactMediaCategoryBadge } from "@/components/media/CompactMediaCategoryBadge";
 import { PlayerMetaCard } from "@/components/player/PlayerMetaCard";
 import { truncatePlayerFilename } from "@/components/player/playerMeta";
@@ -332,6 +333,11 @@ function VideoWithGps({
   const [following, setFollowing] = useState(true);
   const [mapPose, setMapPose] = useState<MapFollowPose | null>(null);
   const [telemetryFrame, setTelemetryFrame] = useState<GpsSample | undefined>(undefined);
+
+  const routeStats = useMemo(() => {
+    if (!track || track.samples.length < 2) return null;
+    return calculateRouteStats(track.samples);
+  }, [track]);
 
   const wasPlayingRef = useRef(false);
   const mountedRef = useRef(true);
@@ -668,7 +674,12 @@ function VideoWithGps({
             </Pressable>
           </View>
 
-          <TelemetryPanel frame={frame} videoTimeSec={videoTimeSec} clipName={clipName} />
+          <TelemetryPanel
+            frame={frame}
+            videoTimeSec={videoTimeSec}
+            clipName={clipName}
+            routeStats={routeStats}
+          />
 
           <View style={{ height: spacing.sm }} />
 
