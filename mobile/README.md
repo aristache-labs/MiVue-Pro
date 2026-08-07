@@ -3,7 +3,7 @@
 **Subtitle:** For Mio MiVue 866  
 **Short description:** Independent local dashcam library for compatible Mio MiVue cameras.
 
-Aplicație independentă, read-only, pentru interoperabilitate locală cu camere testate (vezi `../docs/compatibility.md`). Nu este afiliată Mio/MiTAC.
+Aplicație independentă pentru interoperabilitate locală cu camere testate (vezi `../docs/compatibility.md`). Operațiile mutative confirmate trec prin validare centralizată, verificare post-execuție și audit. Nu este afiliată Mio/MiTAC.
 
 **ADR:** `../docs/mobile/adr-001-framework.md`  
 **Prototype notes:** `../docs/mobile/phase2b-prototype-notes.md`
@@ -88,12 +88,59 @@ Verificare în app: banner **Live — native HTTP/1.0** (nu „Expo Go Fetch pro
 
 **Amânat** — nu există device de test. Nu rula `build:dev:android` până există hardware.
 
-## Teste automate (fără cameră)
+## Funcționalități și îmbunătățiri
+
+### Design și experiență
+
+- Design system centralizat: paleta originală Laneory, typography, spacing, elevation și motion tokens.
+- Temă light/dark persistentă, cu dark mode optimizat pentru OLED și toggle compact în Settings.
+- Haptic feedback pentru selecție, long press, refresh și schimbarea categoriilor.
+- Micro-animații de apăsare pentru cardurile Library și Local.
+- Date/time pickers adaptate explicit temei pentru vizibilitate corectă pe iOS.
+- Accessibility îmbunătățită pentru carduri și modul multi-select.
+
+### Library și performanță
+
+- `FlashList` pentru listele mari de fișiere.
+- Memoization cu `React.memo`, `useMemo` și `useCallback` în componentele și hook-urile complexe.
+- Preview video/photo în Library și Local.
+- Multi-select prin long press pe întreaga suprafață a cardului, inclusiv thumbnail și body.
+- Download, playback, share și management local al fișierelor.
+
+### Player și GPS
+
+- Player `expo-video` cu controalele native pentru play/pause, seek, playback speed și Picture-in-Picture unde platforma permite.
+- Hartă online Leaflet/OpenStreetMap și hartă schematică locală offline.
+- Playback sincronizat cu traseul GPS.
+- Telemetrie unificată într-un singur panel cu Speed, Altitude, Camera Time, Distance, Average Speed și Max Speed.
+- Export GPX pentru traseele disponibile.
+
+### Settings și storage
+
+- Breakdown pentru biblioteca locală și fișierele listate de pe cardul SD, grupate pe Normal, Parking, Events și Photos.
+- Ștergerea validată a bibliotecii locale și curățarea cache-ului de thumbnails.
+- Formatarea cardului SD disponibilă numai prin fluxul centralizat de mutații, cu verificare de capabilitate și confirmare întărită.
+
+## Verificări automate (fără cameră)
 
 ```powershell
-cd mobile
+Set-Location mobile
 npm test
+npm run typecheck
 ```
+
+Unele verificări complete pot raporta erori baseline cunoscute în fișiere legacy. Înainte de un EAS Update, verifică întotdeauna că fișierele modificate nu introduc erori noi.
+
+## EAS Update preview
+
+Pentru modificări OTA-compatible validate din `mobile/`:
+
+```powershell
+Set-Location mobile
+npx eas-cli update --branch preview --message "Descriere modificare"
+```
+
+Nu publica pe `development` sau `production` fără o cerere explicită. Modificările native, plugin-urile Expo, permisiunile și dependențele native necesită un EAS Build compatibil, nu doar un update OTA.
 
 ## Online map (Leaflet + OpenStreetMap)
 
