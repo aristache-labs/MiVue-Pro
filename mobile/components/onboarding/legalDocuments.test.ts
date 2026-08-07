@@ -79,7 +79,7 @@ describe("legal documents draft", () => {
 
   it("new TERMS_VERSION forces reacceptance", () => {
     assert.equal(TERMS_VERSION, "0.2-draft");
-    const acceptedOld = acceptTerms(DEFAULT_ONBOARDING_STATE);
+    const acceptedOld = acceptTerms(DEFAULT_ONBOARDING_STATE, new Date().toISOString());
     // Simulate older acceptance still on disk
     const stale = {
       ...acceptedOld,

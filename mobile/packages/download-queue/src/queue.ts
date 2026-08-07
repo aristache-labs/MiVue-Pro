@@ -413,7 +413,7 @@ export class DownloadQueue {
         return;
       }
       const aborted = controller.signal.aborted || isAbortError(error);
-      const intent = this.abortIntent;
+      const intent = this.abortIntent as "cancel" | "pause" | "stall" | "connection_lost";
       this.abortIntent = "cancel";
       const rawMessage = error instanceof Error ? error.message : String(error);
 

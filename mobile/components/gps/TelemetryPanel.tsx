@@ -118,18 +118,20 @@ function Metric({
 }
 
 const styles = StyleSheet.create({
-  card: { marginBottom: 10, borderRadius: 14 },
-  row: { flexDirection: "row", gap: 8 },
-  divider: { height: StyleSheet.hairlineWidth, marginVertical: 12 },
-  metric: { flex: 1, minWidth: 0 },
+  card: { marginBottom: 10, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
+  row: { flexDirection: "row", alignItems: "stretch" },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: 10 },
+  metric: { flex: 1, minWidth: 0, alignItems: "center", justifyContent: "center", paddingVertical: 4 },
   metricLabel: {
     fontFamily: Type.fontSemi,
     fontSize: 9,
     letterSpacing: 0.4,
     textTransform: "uppercase",
-    marginBottom: 2,
+    textAlign: "center",
+    marginBottom: 4,
+    width: "100%",
   },
-  valueRow: { flexDirection: "row", alignItems: "baseline", flexWrap: "wrap" },
-  metricValue: { fontFamily: Type.monoMed, fontSize: 14 },
-  metricUnit: { fontFamily: Type.font, fontSize: 11 },
+  valueRow: { flexDirection: "row", alignItems: "baseline", justifyContent: "center", flexWrap: "wrap", width: "100%" },
+  metricValue: { fontFamily: Type.monoMed, fontSize: 14, textAlign: "center" },
+  metricUnit: { fontFamily: Type.font, fontSize: 11, textAlign: "center" },
 });
