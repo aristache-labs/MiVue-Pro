@@ -142,57 +142,133 @@ Using `SourceSans3` and `IBMPlexMono` (for tabular data/clocks):
 
 ### Project Structure
 
+Structura completă a fișierelor, folderelor și subfolderelor proiectului `mobile/` la zi:
+
 ```text
 mobile/
-├── app/                        # Expo Router file-based UI navigation
-│   ├── (tabs)/                 # Main bottom tabs
-│   │   ├── index.tsx           # 1. Camera Library
-│   │   ├── local.tsx           # 2. Local Files
-│   │   ├── two.tsx             # 3. Download Queue
-│   │   └── settings.tsx        # 4. Settings Hub
-│   ├── settings/               # Nested setting screens
-│   │   ├── camera.tsx          # IP & Hardware Settings
-│   │   ├── storage.tsx         # Storage Breakdown & Format SD
-│   │   ├── maps-privacy.tsx    # Online/Offline map toggle
-│   │   ├── dev-logs.tsx        # Diagnostic internal logs
-│   │   └── about.tsx           # Legal & version info
-│   ├── onboarding/             # Initial setup flow
-│   ├── player.tsx              # Fullscreen Video & GPS Player
-│   └── _layout.tsx             # Root layout and theme injection
-│
-├── components/                 # Reusable UI features
-│   ├── camera/                 # Remote file items, filtering, sync logic
-│   ├── local/                  # Local file management
-│   ├── queue/                  # Download queue presentation
-│   ├── player/                 # Media player controls
-│   ├── gps/                    # Telemetry panels and maps
-│   └── settings/               # Settings rows, sheets, and logic
-│
-├── constants/                  
-│   └── Theme.ts                # Token system & specific values
-│
-├── contexts/                   
-│   ├── DemoModeContext.tsx     # Provides camera state (Live/Demo), link health
-│   ├── ThemeContext.tsx        # Provides user-selected theme and applier
-│   └── SelectionTabChromeContext.tsx # Contextual headers during multi-select
-│
-├── hooks/                      # Custom logic (e.g. useBackToTop, useVerticalOverflow)
-│
-├── packages/                   # Internal abstracted packages
-│   ├── protocol/               # Client for MiVue CGI parsing and mutations
-│   ├── parsers/                # XML (file lists), Text (settings), NMEA (GPS)
-│   ├── download-queue/         # Resilient download worker and state
-│   ├── camera-transport/       # Base network fetching & native streaming stub
-│   ├── local-db/               # SQLite/AsyncStorage queue state persistence
-│   └── demo/                   # Fixtures and synthetic file servers
-│
-├── modules/                    # Native Expo modules
-│   ├── background-download-spike/ # Background URLSession module (iOS focus)
-│   ├── http10-tcp/             # Native TCP socket for streaming
-│   └── wifi-ssid/              # Reading connected network name
-│
-├── eas.json                    # EAS configuration (dev, preview, prod profiles)
-└── package.json
+├── .claude/
+│   └── settings.json                     # Setări specifice asistentului Claude
+├── .vscode/
+│   ├── extensions.json                   # Extensii VS Code recomandate
+│   └── settings.json                     # Setări formatare workspace
+├── app/                                  # Expo Router - Navigare UI bazată pe fișiere
+│   ├── (tabs)/                           # Layout-ul de tab-uri principale
+│   │   ├── _layout.tsx                   # Configurația barei de navigare (TabBar)
+│   │   ├── index.tsx                     # 1. Camera Library (Tab principal - lista fișiere remote)
+│   │   ├── local.tsx                     # 2. Local Files (Fișiere descărcate)
+│   │   ├── settings.tsx                  # 4. Settings Hub (Centrul de setări)
+│   │   └── two.tsx                       # 3. Download Queue (Coada descărcărilor)
+│   ├── onboarding/                       # Fluxul de Setup Inițial (Wizard)
+│   │   ├── _layout.tsx                   # Layout flux onboarding
+│   │   ├── add-camera.tsx                # Interfață adăugare manuală cameră
+│   │   ├── connect.tsx                   # Procesul de conectare IP/Wi-Fi
+│   │   ├── index.tsx                     # Ecran de start onboarding
+│   │   ├── select-camera.tsx             # Selectare model cameră
+│   │   ├── success.tsx                   # Confirmare setup reușit
+│   │   └── terms.tsx                     # Termeni și condiții utilizare
+│   ├── settings/                         # Sub-ecrane din interiorul Settings
+│   │   ├── _layout.tsx                   # Layout navigare stack setări
+│   │   ├── about.tsx                     # Informații versiune, legal și contact
+│   │   ├── camera.tsx                    # Configurare IP, diagnoză IP și update status hardware
+│   │   ├── dev-logs.tsx                  # Acces vizual la jurnalele Developer
+│   │   ├── diagnostics.tsx               # Diagnoză stare rețea și status aplicație
+│   │   ├── legal.tsx                     # Centralizator documente legale
+│   │   ├── maps-privacy.tsx              # Confidențialitate hărți și comutare opt-in
+│   │   └── storage.tsx                   # Vizualizare spațiu stocare, cache și formatare SD
+│   ├── +html.tsx                         # Template root HTML pentru exportul web
+│   ├── +not-found.tsx                    # Fallback 404 standard (Unmatched Route)
+│   ├── _layout.tsx                       # Layout Root al aplicației (Provideri globali)
+│   ├── connection-help.tsx               # Ghid de depanare pentru problemele de conexiune
+│   ├── legal-document.tsx                # Vizualizator generic pentru documente tip T&C
+│   ├── modal.tsx                         # Bază pentru vizualizare tip Modal (prezentare UI)
+│   └── player.tsx                        # Video Player Fullscreen + Telemetrie GPS & Hartă
+├── assets/                               # Resurse statice brute incluse la build
+│   ├── brand/                            # Logo-uri, lockup-uri și identitatea Laneory
+│   ├── fonts/                            # Fonturi statice TTF (ex. SpaceMono-Regular)
+│   ├── images/                           # Iconițele de aplicație (Android/iOS) și splash screen-ul
+│   └── map/                              # Template harta HTML offline (online-map.html)
+├── components/                           # Baza de componente React UI (incl. fișiere de test *.test.ts)
+│   ├── camera/                           # UI specific conexiunii, badge status și items remote (Cards)
+│   ├── diagnostics/                      # Formatoare loguri sistem și sheet-uri de detalii erori
+│   ├── environment/                      # Detectare mediu runtime (Expo Go vs Build Nativ)
+│   ├── feedback/                         # Componente de feedback vizual neintruziv (ex. ScreenToast)
+│   ├── gps/                              # Vizualizare rută GPS (WebView, Schematic, TelemetryStats)
+│   ├── library/                          # Bare cu tab-uri, controale de sortare și selecție
+│   ├── local/                            # Gestiune stocare internă (ștergere, share, header dată)
+│   ├── media/                            # Layout-uri generice media, badge-uri timestamp și categorii
+│   ├── navigation/                       # Componente custom de nav (LaneoryTabBar, Headere statice)
+│   ├── onboarding/                       # Fragmente de UI refolosite in wizard-ul de conexiune
+│   ├── player/                           # Sub-componentele Player-ului video (butoane PIP, scrubbing)
+│   ├── queue/                            # Componente pentru Download Queue (thumbnail, stare, progres)
+│   ├── selection/                        # Bare de instrumente active pe timpul selecției multiple (Bulk)
+│   ├── settings/                         # Layout sub-setări, ecrane slide-up (Sheets) și afișaj valori
+│   ├── sheets/                           # Template-uri pentru Bottom Sheets personalizate Laneory
+│   ├── startup/                          # View-uri afișate in starea de boostrap (capsule loader)
+│   ├── ui/                               # Primitive UI Laneory (Button, Card, Badge, ProgressBar)
+│   ├── EditScreenInfo.tsx                # Helper UI utilizat la dezvoltare
+│   ├── ExternalLink.tsx                  # Wrapper pentru deschiderea de link-uri web in siguranță
+│   ├── QueueThumbnail.tsx                # Previzualizare card pentru elemente in descărcare
+│   ├── StyledText.tsx                    # Alias de tipografie mapat la fontul Laneory
+│   ├── Themed.tsx                        # Componente primitive (View, Text) auto-adaptabile Dark/Light
+│   ├── VideoThumbnail.tsx                # Componentă de previzualizare cadre din fluxurile locale
+│   ├── cameraThumb.ts                    # Helper preluare/generare URL-uri miniaturi cameră
+│   ├── contrast.ts                       # Helper algoritmic calcul contrast culori text/background
+│   ├── mediaMeta.ts                      # Parsare proprietăți metadata clip (rezoluție, durată)
+│   ├── useClientOnlyValue.ts             # Hook prevenire diferențe server/client in medii web
+│   ├── useColorScheme.ts                 # Hook citire setare temă sistem
+│   └── videoThumbCache.ts                # Subsistem de stocare/invalidare caching fișiere
+├── constants/                            # Declarația constantelor globale de sistem
+│   ├── Brand.ts                          # Numele produsului și atribute brand string
+│   ├── CategoryStyle.ts                  # Harta culorilor per categorie (Normal, Event, Parking)
+│   ├── Colors.ts                         # Token-urile legacy de culoare (in proces de înlocuire)
+│   └── Theme.ts                          # Sistemul Master de Design Tokens (Spacing, Shadows, Colors)
+├── context/                              # React Contexts legacy și wrapper stări extinse
+│   ├── DemoModeContext.tsx               # Context ce dictează sursa datelor (Cameră vs Fișiere Mock)
+│   ├── demoModeRemoteClear.test.ts       # Suită teste validare refresh UI
+│   └── SelectionTabChromeContext.tsx     # Context pentru blocarea UI-ului in timpul Select-All
+├── generated/                            # Director automatizat în timpul build-ului
+│   └── thirdPartyLicenses.*              # JSON/TS cu lista componentelor Open Source (licențe)
+├── hooks/                                # Custom Hook-uri reutilizabile react (State, UI behavior)
+│   ├── useBackToTop.ts                   # Helper navigare sus in FlatList-uri lungi (inclusiv teste)
+│   ├── useLibraryFilters.ts              # Logica state-ului intern de filtre
+│   └── useVerticalOverflow.ts            # Evaluare scroll necesar pe conținut
+├── modules/                              # Expo Native Modules (Cod specific OS scris în Kotlin/Swift)
+│   ├── background-download-spike/        # Execuție Sesiuni Background URLSession (Exclusiv iOS)
+│   ├── http10-tcp/                       # Implementare TCP Client Nativ pentru streaming HTTP/1.0
+│   └── wifi-ssid/                        # Extragere nume rețea Wi-Fi curentă
+├── packages/                             # Pachete interne cu responsabilitate logică fixă
+│   ├── camera-transport/                 # Adaptoare rețea HTTP/TCP, stream bypass, validări Path/CGI
+│   ├── demo/                             # Mock-uri date, generatoare coordonate false (Demo Mode)
+│   ├── download-queue/                   # Sistem enqueueing, retry timeout, resume file offset
+│   ├── local-db/                         # Salvare/Încărcare persistentă (AsyncStorage) stări descărcări
+│   ├── parsers/                          # Analizoare de XML, Config Text (CGI format) și GPS NMEA
+│   └── protocol/                         # Validarea strictă a cererilor mutative (Mutații config cameră)
+├── plugins/                              # Config plugins Expo pentru injectări și modificări native Info.plist / Manifest
+│   ├── withBackgroundDownloadSpike.js    # Injects background session app capabilities
+│   ├── withLocalNetworkCleartext.js      # Allows local IP unencrypted HTTP traffic (bypasses ATS)
+│   └── withWifiSsidAccess.js             # Adds precise location/network entitlements for SSID reading
+├── scripts/                              # Rutine Node.js de automatizare rulate la pre-build
+│   └── generate-third-party-licenses.cjs # Analizează package.json și extrage licențele OSS
+├── src/                                  # Arhitectura nouă / refactorizare TypeScript strictă
+│   ├── components/                       # Componente specifice refactorizate (ThemeSelector, ConnectionStatus)
+│   ├── contexts/                         # Modern ThemeContext implementation
+│   ├── hooks/                            # Modern app hooks (useCamera, useTheme, useFiles, usePressAnimation)
+│   ├── services/                         # Wrapper logic de servicii (cameraSettings, fileManagement)
+│   ├── theme/                            # Definiții tipizate extinse pentru Theme Design System
+│   ├── types/                            # Interfețe globale Laneory
+│   └── utils/haptics.ts                  # Wrapper centralizat și safe pentru Haptics
+├── .env.example                          # Template pentru structura variabilelor de mediu opționale
+├── .gitignore                            # Fișiere/directoare ignorate de git
+├── AGENTS.md                             # Policy de asistență tehnică AI specific codebase-ului
+├── CLAUDE.md                             # Regulamentul de prioritizare fișiere pentru asistentul Claude
+├── LICENSE                               # Declarația licenței de utilizare a codului sursă
+├── README.md                             # Documentația principală tehnică a proiectului (Acest fișier)
+├── app.json                              # Fișier manifest Expo (Metadata OS, SDK ver, bundle ID)
+├── eas.json                              # Profiluri EAS pentru cloud build (development, preview, production)
+├── metro.config.js                       # Configurație Metro bundler pentru rezolvarea modulelor interne
+├── package-lock.json                     # Arborele de dependențe NPM lock
+├── package.json                          # Dependențe NPM, configurări pachete interne și scripturi build
+└── tsconfig.json                         # Configurația de tratare TypeScript strict a întregului monorepo
 ```
 
 ### Data Flow
