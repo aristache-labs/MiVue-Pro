@@ -64,10 +64,7 @@ jobs:
           if [ -d "$APP_PATH" ]; then
             mkdir -p Payload
             cp -r "$APP_PATH" Payload/
-            cd Payload
-            zip -r ../Laneory-unsigned.ipa Laneory.app
-            cd ..
-            rm -rf Payload
+            zip -r Laneory-unsigned.ipa Payload/
             ls -lh Laneory-unsigned.ipa
           else
             echo "App not found at $APP_PATH"
