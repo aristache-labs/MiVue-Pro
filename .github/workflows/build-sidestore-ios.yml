@@ -50,14 +50,30 @@ jobs:
             -sdk iphoneos \
             OTHER_CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO || true
+
+      - name: Check build artifacts
+        run: |
+          echo "Looking for build artifacts..."
+          find ios/build -name "*.app" -type d || echo "No .app found"
+          find . -name "Laneory*" -o -name "*.ipa" 2>/dev/null || echo "No IPA found"
 
       - name: Create IPA from build
         run: |
-          mkdir -p Payload
-          cp -r ios/build/Build/Products/Release-iphoneos/Laneory.app Payload/
-          zip -r ../Laneory-unsigned.ipa Payload/
-          rm -rf Payload
+          APP_PATH="ios/build/Build/Products/Release-iphoneos/Laneory.app"
+          if [ -d "$APP_PATH" ]; then
+            mkdir -p Payload
+            cp -r "$APP_PATH" Payload/
+            cd Payload
+            zip -r ../Laneory-unsigned.ipa Laneory.app
+            cd ..
+            rm -rf Payload
+            ls -lh Laneory-unsigned.ipa
+          else
+            echo "App not found at $APP_PATH"
+            exit 1
+          fi
+        working-directory: mobile
 
       - name: Upload IPA to artifacts
         if: success()
@@ -69,7 +85,7 @@ jobs:
 
       - name: Create release
         if: success()
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ios-build-${{ github.run_number }}
           name: iOS Build ${{ github.run_number }}
@@ -85,5 +101,4 @@ jobs:
           prerelease: true
           files: |
             mobile/Laneory-unsigned.ipa
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GITHUB_TOKEN }}
