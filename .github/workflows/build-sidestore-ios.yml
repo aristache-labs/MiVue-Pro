@@ -51,8 +51,8 @@ jobs:
           npx eas build \
             --platform ios \
             --profile development \
-            --wait \
-            --output ./dist/Laneory.ipa
+            --wait
+          
 
       - name: Upload IPA to artifacts
         if: success()
