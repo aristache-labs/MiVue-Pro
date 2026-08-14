@@ -31,35 +31,40 @@ jobs:
 
       - name: Setup Expo
         run: npm install -g eas-cli
-
-      - name: Configure EAS credentials
         env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-        run: |
-          mkdir -p ~/.eas
-          echo "Credentials configured from secrets"
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
 
       - name: Prebuild iOS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         run: npx expo prebuild --clean --platform ios
 
-      - name: Build iOS with EAS
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      - name: Build iOS IPA
         run: |
-          npx eas build \
-            --platform ios \
-            --profile development \
-            --wait \
-            --output ./dist/Laneory.ipa
+          cd ios
+          xcodebuild -workspace Laneory.xcworkspace \
+            -scheme Laneory \
+            -configuration Release \
+            -derivedDataPath build \
+            -arch arm64 \
+            -sdk iphoneos \
+            OTHER_CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Create IPA from build
+        run: |
+          mkdir -p Payload
+          cp -r ios/build/Build/Products/Release-iphoneos/Laneory.app Payload/
+          zip -r ../Laneory-unsigned.ipa Payload/
+          rm -rf Payload
 
       - name: Upload IPA to artifacts
         if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: Laneory-iOS-${{ github.run_number }}
-          path: mobile/dist/Laneory.ipa
+          name: Laneory-iOS-unsigned-${{ github.run_number }}
+          path: mobile/Laneory-unsigned.ipa
           retention-days: 7
 
       - name: Create release
@@ -72,6 +77,10 @@ jobs:
           release_name: iOS Build ${{ github.run_number }}
           body: |
             Built for SideStore sideloading
+            
+            **NOTE:** This is an UNSIGNED .ipa
+            Use SideStore to sign and install on your device.
+            
             Run: ${{ github.run_number }}
             Trigger: ${{ github.event_name }}
           draft: false
@@ -84,6 +93,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./mobile/dist/Laneory.ipa
-          asset_name: Laneory-${{ github.run_number }}.ipa
+          asset_path: ./mobile/Laneory-unsigned.ipa
+          asset_name: Laneory-${{ github.run_number }}-unsigned.ipa
           asset_content_type: application/octet-stream
