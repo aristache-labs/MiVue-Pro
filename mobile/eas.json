@@ -10,15 +10,23 @@
       "channel": "development",
       "ios": {
         "simulator": false,
-        "resourceClass": "m-medium"
+        "resourceClass": "m-medium",
+        "credentialsSource": "local",
+        "enterpriseProvisioning": "adhoc"
       }
     },
     "preview": {
       "distribution": "internal",
-      "channel": "preview"
+      "channel": "preview",
+      "ios": {
+        "credentialsSource": "local"
+      }
     },
     "production": {
-      "channel": "production"
+      "channel": "production",
+      "ios": {
+        "credentialsSource": "local"
+      }
     }
   },
   "submit": {

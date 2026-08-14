@@ -1,0 +1,89 @@
+name: Build iOS for SideStore
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_name:
+        description: 'Build name/version'
+        required: false
+        default: 'manual-build'
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: ./mobile
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'mobile/package-lock.json'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Setup Expo
+        run: npm install -g eas-cli
+
+      - name: Configure EAS credentials
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          mkdir -p ~/.eas
+          echo "Credentials configured from secrets"
+
+      - name: Prebuild iOS
+        run: npx expo prebuild --clean --platform ios
+
+      - name: Build iOS with EAS
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+        run: |
+          npx eas build \
+            --platform ios \
+            --profile development \
+            --wait \
+            --output ./dist/Laneory.ipa
+
+      - name: Upload IPA to artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Laneory-iOS-${{ github.run_number }}
+          path: mobile/dist/Laneory.ipa
+          retention-days: 7
+
+      - name: Create release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ios-build-${{ github.run_number }}
+          release_name: iOS Build ${{ github.run_number }}
+          body: |
+            Built for SideStore sideloading
+            Run: ${{ github.run_number }}
+            Trigger: ${{ github.event_name }}
+          draft: false
+          prerelease: true
+
+      - name: Upload IPA to release
+        if: success()
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./mobile/dist/Laneory.ipa
+          asset_name: Laneory-${{ github.run_number }}.ipa
+          asset_content_type: application/octet-stream
