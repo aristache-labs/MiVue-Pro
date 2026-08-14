@@ -83,22 +83,17 @@ jobs:
           path: mobile/Laneory-unsigned.ipa
           retention-days: 7
 
-      - name: Create release
+      - name: Build summary
         if: success()
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ios-build-${{ github.run_number }}
-          name: iOS Build ${{ github.run_number }}
-          body: |
-            Built for SideStore sideloading
-            
-            **NOTE:** This is an UNSIGNED .ipa
-            Use SideStore to sign and install on your device.
-            
-            Run: ${{ github.run_number }}
-            Trigger: ${{ github.event_name }}
-          draft: false
-          prerelease: true
-          files: |
-            mobile/Laneory-unsigned.ipa
-          token: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "✅ Build completed successfully!"
+          echo ""
+          echo "📥 Download the .ipa from:"
+          echo "   GitHub → Actions → workflow run → Artifacts"
+          echo ""
+          echo "📱 Next steps:"
+          echo "   1. Download Laneory-iOS-unsigned-${{ github.run_number }}.ipa"
+          echo "   2. Open SideStore on your iOS device"
+          echo "   3. Tap '+' to add app"
+          echo "   4. Select the downloaded .ipa"
+          echo "   5. SideStore signs and installs"
