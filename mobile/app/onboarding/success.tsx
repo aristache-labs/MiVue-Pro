@@ -1,5 +1,5 @@
 import Ionicons from "@expo/vector-icons/Ionicons";
-import { CommonActions } from "@react-navigation/native";
+import { CommonActions } from "expo-router/build/react-navigation/routers";
 import { router, useNavigation } from "expo-router";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";

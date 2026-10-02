@@ -3,7 +3,7 @@ const {
   withEntitlementsPlist,
   withInfoPlist,
   AndroidConfig,
-} = require("@expo/config-plugins");
+} = require("expo/config-plugins");
 
 /**
  * Access Wi‑Fi Information (iOS) + minimal Android Wi‑Fi/location permissions

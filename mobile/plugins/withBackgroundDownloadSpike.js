@@ -1,4 +1,4 @@
-const { withInfoPlist } = require("@expo/config-plugins");
+const { withInfoPlist } = require("expo/config-plugins");
 
 /**
  * Stage 0 feasibility only — documents the stable background URLSession identifier.

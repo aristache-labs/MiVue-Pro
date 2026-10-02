@@ -20,7 +20,6 @@
     "expo-font": "~57.0.4",
     "expo-haptics": "~57.0.3",
     "expo-linking": "~57.0.11",
-    "expo-modules-core": "~57.0.20",
     "expo-router": "~57.0.24",
     "expo-sharing": "~57.0.22",
     "expo-splash-screen": "~57.0.9",
@@ -43,11 +42,10 @@
     "wifi-ssid": "file:./modules/wifi-ssid"
   },
   "devDependencies": {
-    "@expo/config-plugins": "~57.0.9",
     "@types/node": "^24.0.0",
     "@types/react": "~19.2.0",
     "tsx": "^4.20.0",
-    "typescript": "~5.9.2"
+    "typescript": "~6.0.3"
   },
   "scripts": {
     "start": "expo start --go",

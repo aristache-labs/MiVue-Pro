@@ -8,7 +8,8 @@ import {
   SourceSans3_600SemiBold,
   SourceSans3_700Bold,
 } from "@expo-google-fonts/source-sans-3";
-import { DarkTheme as NavDarkTheme, DefaultTheme as NavDefaultTheme, ThemeProvider as NavThemeProvider } from "@react-navigation/native";
+import { ThemeProvider as NavThemeProvider } from "expo-router/build/react-navigation/core";
+import { DarkTheme as NavDarkTheme, DefaultTheme as NavDefaultTheme } from "expo-router/build/react-navigation/native";
 import { useFonts } from "expo-font";
 import {
   ErrorBoundary as RouterErrorBoundary,
