@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import React from "react";
+import type { ColorValue } from "react-native";
 
 import { Type } from "@/constants/Theme";
 import { useClientOnlyValue } from "@/components/useClientOnlyValue";
@@ -10,7 +11,7 @@ import { useTheme } from "@/src/contexts/ThemeContext";
 
 function TabBarIcon(props: {
   readonly name: React.ComponentProps<typeof Ionicons>["name"];
-  readonly color: string;
+  readonly color: ColorValue;
 }) {
   return <Ionicons size={23} name={props.name} color={props.color} />;
 }

@@ -796,7 +796,7 @@ const styles = StyleSheet.create({
   },
   videoView: { width: "100%", height: "100%" },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: "rgba(0,0,0,0.35)",
@@ -907,7 +907,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
   },
   noGpsText: { fontSize: 13, fontFamily: Type.font, textAlign: "center" },
-  menuBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  menuBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.45)" },
   menuCard: {
     position: "absolute",
     left: 24,

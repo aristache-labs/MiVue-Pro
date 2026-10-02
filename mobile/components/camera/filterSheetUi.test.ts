@@ -161,7 +161,7 @@ test("backdrop is sibling of sheet host — not nested inside animated tree as o
   const shell = readFileSync(join(__dirname, "../media/StaticBackdropSheet.tsx"), "utf8");
   assert.match(shell, /styles\.scrim/);
   assert.match(shell, /styles\.sheetHost/);
-  assert.match(shell, /absoluteFillObject/);
+  assert.match(shell, /absoluteFill/);
   // Scrim style must not include transform
   const scrimBlock = shell.slice(shell.indexOf("scrim:"), shell.indexOf("sheetHost:"));
   assert.equal(scrimBlock.includes("transform"), false);

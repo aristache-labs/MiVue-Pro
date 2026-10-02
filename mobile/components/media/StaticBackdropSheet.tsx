@@ -245,7 +245,7 @@ export function StaticBackdropSheet({
 const styles = StyleSheet.create({
   root: { flex: 1, justifyContent: "flex-end" },
   scrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: MEDIA_SCRIM_COLOR,
   },
   sheetHost: {

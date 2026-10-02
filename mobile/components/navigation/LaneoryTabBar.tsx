@@ -7,8 +7,8 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
-import { BottomTabBar } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
+import { BottomTabBar } from "expo-router/build/react-navigation/bottom-tabs";
 
 import { ContextualTabAction } from "@/components/selection/ContextualTabAction";
 import {
@@ -117,7 +117,7 @@ export function LaneoryTabBar(props: BottomTabBarProps) {
         accessibilityElementsHidden={tabsHidden}
         importantForAccessibility={tabsHidden ? "no-hide-descendants" : "auto"}
         style={[
-          StyleSheet.absoluteFillObject,
+          StyleSheet.absoluteFill,
           {
             opacity: tabsOpacity,
             transform: [{ translateY: tabsY }],
@@ -142,7 +142,7 @@ export function LaneoryTabBar(props: BottomTabBarProps) {
           pointerEvents={tabsHidden ? "auto" : "none"}
           accessibilityElementsHidden={!tabsHidden}
           style={[
-            StyleSheet.absoluteFillObject,
+            StyleSheet.absoluteFill,
             {
               opacity: actionOpacity,
               transform: [{ translateY: actionY }],

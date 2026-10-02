@@ -249,12 +249,12 @@ export const RemoteRecordingCard = memo(function RemoteRecordingCard({
 
 const styles = StyleSheet.create({
   thumbScrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     top: undefined,
     height: 28,
   },
   playHit: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     alignItems: "center",
     justifyContent: "center",
   },

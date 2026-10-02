@@ -411,7 +411,7 @@ export function OnlineMapWebView({
 const styles = StyleSheet.create({
   wrap: { width: "100%", overflow: "hidden", borderWidth: StyleSheet.hairlineWidth },
   web: { flex: 1, backgroundColor: "transparent" },
-  loading: { ...StyleSheet.absoluteFillObject, alignItems: "center", justifyContent: "center" },
+  loading: { ...StyleSheet.absoluteFill, alignItems: "center", justifyContent: "center" },
   recenter: {
     position: "absolute",
     right: 8,

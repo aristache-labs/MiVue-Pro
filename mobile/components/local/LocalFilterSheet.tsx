@@ -682,7 +682,7 @@ const styles = StyleSheet.create({
   rangeRow: { flexDirection: "row", gap: 8 },
   applyBtn: { alignItems: "center", justifyContent: "center", marginBottom: 8 },
   applyText: { fontSize: 16, fontFamily: Type.fontBold },
-  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  pickerBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.45)" },
   iosPickerSheet: { marginTop: "auto", width: "100%", paddingTop: 4 },
   iosPickerHeader: {
     flexDirection: "row",

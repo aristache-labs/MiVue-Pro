@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     fontFamily: Type.font,
   },
   headerTitleAbsolute: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     textAlign: "center",
     textAlignVertical: "center",
     fontSize: 17,

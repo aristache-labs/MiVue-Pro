@@ -700,7 +700,7 @@ const styles = StyleSheet.create({
   issue: { fontSize: 12, fontFamily: Type.font, marginBottom: 6 },
   applyBtn: { alignItems: "center", justifyContent: "center", marginTop: 4, borderRadius: 12 },
   applyText: { fontSize: 15, fontFamily: Type.fontSemi },
-  pickerBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.45)" },
+  pickerBackdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0,0,0,0.45)" },
   iosPickerSheet: { marginTop: "auto", width: "100%", paddingTop: 4 },
   iosPickerHeader: {
     flexDirection: "row",

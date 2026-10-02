@@ -207,7 +207,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   scrim: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: MEDIA_SCRIM_COLOR,
   },
   card: {
