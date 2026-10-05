@@ -12,7 +12,6 @@
       "policy": "sdkVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/70081a2a-e7ee-42f5-a599-900b9995a1c2",
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD"
     },
@@ -73,8 +72,9 @@
     "extra": {
       "subtitle": "For Mio MiVue 866",
       "shortDescription": "Independent local dashcam library for compatible Mio MiVue cameras.",
+      "router": {},
       "eas": {
-        "projectId": "70081a2a-e7ee-42f5-a599-900b9995a1c2"
+        "projectId": "6f489817-ecbc-4ba5-8ba8-481f607142db"
       }
     }
   }
