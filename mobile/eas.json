@@ -19,7 +19,7 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "credentialsSource": "local"
+        "credentialsSource": "remote"
       }
     },
     "production": {
