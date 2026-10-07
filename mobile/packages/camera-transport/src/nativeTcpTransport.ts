@@ -27,6 +27,28 @@ type NativeHttp10 = {
   }): Promise<{ bytesWritten: number }>;
 };
 
+/** `file:///var/...` → `/var/...` so FileManager / java.io.File can write. */
+export function nativePathFromFileUri(uri: string): string {
+  if (!uri.startsWith("file://")) return uri;
+  let path = uri.slice("file://".length);
+  if (path.startsWith("localhost")) path = path.slice("localhost".length);
+  try {
+    path = decodeURIComponent(path);
+  } catch {
+    // Keep the raw path when a percent-escape is malformed.
+  }
+  return path;
+}
+
+/** Worst-case ~150 KiB/s on the camera AP, capped at 10 minutes. */
+export function nativeDownloadTimeoutMs(expectedBytes: number | undefined): number {
+  if (expectedBytes === undefined || !Number.isFinite(expectedBytes) || expectedBytes <= 0) {
+    return 600_000;
+  }
+  const estimatedMs = Math.ceil((expectedBytes / (150 * 1024)) * 1000) + 60_000;
+  return Math.min(Math.max(estimatedMs, 180_000), 600_000);
+}
+
 function getAppOwnership(): string | null {
   try {
     // Lazy: must not load react-native during Node unit tests
@@ -109,14 +131,23 @@ export class NativeTcpTransport implements StreamingTransport {
     if (!options.remotePath.startsWith("/SD/") || options.remotePath.includes("..")) {
       throw new TransportError("Unsafe remote path", "PATH");
     }
+    const destinationPath = nativePathFromFileUri(options.destinationPath);
+    // Native download reports bytes only when the file is finished. Touch progress
+    // so the queue stall timer does not treat a live transfer as a dead connection.
+    const heartbeat = setInterval(() => {
+      options.onProgress?.({
+        bytesReceived: 0,
+        ...(options.expectedBytes === undefined ? {} : { totalBytes: options.expectedBytes }),
+      });
+    }, 2_000);
     try {
       const result = await this.native.downloadToFile({
         host: this.options.host,
         port: this.port,
         path: options.remotePath,
-        destinationPath: options.destinationPath,
+        destinationPath,
         ...(options.expectedBytes === undefined ? {} : { expectedBytes: options.expectedBytes }),
-        timeoutMs: Math.max(this.timeoutMs, 60_000),
+        timeoutMs: nativeDownloadTimeoutMs(options.expectedBytes),
         userAgent: this.userAgent,
       });
       options.onProgress?.({
@@ -127,6 +158,8 @@ export class NativeTcpTransport implements StreamingTransport {
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       throw new TransportError(`Native download failed: ${message}`, "NATIVE_DOWNLOAD", { cause: error });
+    } finally {
+      clearInterval(heartbeat);
     }
   }
 }

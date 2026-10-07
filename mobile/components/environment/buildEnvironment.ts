@@ -13,22 +13,16 @@ export type BuildEnvironmentInput = {
 };
 
 /**
- * Internal tools (Diagnostics hub, Reset onboarding, etc.) are enabled when any of:
- * - `__DEV__`
- * - Expo Go (`appOwnership === "expo"`)
- * - Updates channel `development` or `preview`
+ * Internal tools (Diagnostics hub, Developer Logs) are enabled unless the
+ * updates channel is explicitly `production`.
  *
- * Disabled for `production` channel and for release builds where none of the
- * internal conditions apply (including undefined channel in a release).
+ * A preview binary built without an embedded EAS Update URL reports a null
+ * channel. That build still needs Developer Logs. `__DEV__` and Expo Go stay on.
  */
 export function areInternalToolsEnabled(input: BuildEnvironmentInput): boolean {
   if (input.isDev === true) return true;
   if (input.appOwnership === "expo") return true;
 
   const channel = typeof input.updatesChannel === "string" ? input.updatesChannel.trim().toLowerCase() : "";
-  if (channel === "development" || channel === "preview") return true;
-  if (channel === "production") return false;
-
-  // Undefined / empty / unknown channel in a non-dev, non–Expo Go build → off.
-  return false;
+  return channel !== "production";
 }

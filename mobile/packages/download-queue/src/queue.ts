@@ -326,10 +326,10 @@ export class DownloadQueue {
     let lastProgressBytes = startBytes;
     let lastProgressAt = Date.now();
     const noteProgress = (bytes: number) => {
-      if (bytes > lastProgressBytes) {
-        lastProgressBytes = bytes;
-        lastProgressAt = Date.now();
-      }
+      // Any callback means the transfer is still alive. Native TCP only learns
+      // the byte count at the end, so a same-value heartbeat must reset the stall timer.
+      lastProgressAt = Date.now();
+      if (bytes > lastProgressBytes) lastProgressBytes = bytes;
     };
     const stallWatch = setInterval(() => {
       if (Date.now() - lastProgressAt < this.progressStallMs) return;
@@ -369,7 +369,9 @@ export class DownloadQueue {
           keepPartialOnAbort: true,
           onProgress: (progress) => {
             noteProgress(progress.bytesReceived);
-            this.patch(item.id, { bytesReceived: progress.bytesReceived });
+            if (progress.bytesReceived > 0) {
+              this.patch(item.id, { bytesReceived: progress.bytesReceived });
+            }
           },
         });
         if (this.activeId !== runGeneration) return;

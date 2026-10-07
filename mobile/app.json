@@ -13,7 +13,8 @@
     },
     "updates": {
       "fallbackToCacheTimeout": 0,
-      "checkAutomatically": "ON_LOAD"
+      "checkAutomatically": "ON_LOAD",
+      "url": "https://u.expo.dev/6f489817-ecbc-4ba5-8ba8-481f607142db"
     },
     "ios": {
       "supportsTablet": true,

@@ -59,14 +59,14 @@ describe("areInternalToolsEnabled", () => {
     );
   });
 
-  it("disables for undefined channel in a release", () => {
+  it("enables when a release binary did not embed a channel", () => {
     assert.equal(
       areInternalToolsEnabled({
         isDev: false,
         appOwnership: "standalone",
         updatesChannel: undefined,
       }),
-      false,
+      true,
     );
     assert.equal(
       areInternalToolsEnabled({
@@ -74,7 +74,7 @@ describe("areInternalToolsEnabled", () => {
         appOwnership: null,
         updatesChannel: null,
       }),
-      false,
+      true,
     );
     assert.equal(
       areInternalToolsEnabled({
@@ -82,7 +82,7 @@ describe("areInternalToolsEnabled", () => {
         appOwnership: "standalone",
         updatesChannel: "  ",
       }),
-      false,
+      true,
     );
   });
 });
