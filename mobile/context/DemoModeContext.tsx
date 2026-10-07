@@ -64,6 +64,7 @@ import {
   NativeTcpTransport,
   isNativeTcpAvailable,
   isPrivateIpv4,
+  type StreamingTransport,
   type Transport,
 } from "../packages/camera-transport/src/index";
 import { DEMO_FILES, DemoTransport } from "../packages/demo/src/index";
@@ -193,6 +194,16 @@ interface DemoModeContextValue {
 
 const DemoModeContext = createContext<DemoModeContextValue | undefined>(undefined);
 
+function createFileTransport(host: string, timeoutMs: number): ExpoFsStreamingTransport {
+  return new ExpoFsStreamingTransport({
+    host,
+    port: 80,
+    timeoutMs,
+    userAgent: APP_USER_AGENT,
+    fs: FileSystem,
+  });
+}
+
 function createLiveTransport(host: string, timeoutMs = 30_000): Transport {
   if (isNativeTcpAvailable()) {
     return new NativeTcpTransport({
@@ -203,13 +214,27 @@ function createLiveTransport(host: string, timeoutMs = 30_000): Transport {
     });
   }
   // Expo Go: CGI via Fetch; file body via FileSystem download (progress + less JS RAM).
-  return new ExpoFsStreamingTransport({
+  return createFileTransport(host, timeoutMs);
+}
+
+/**
+ * Queue transport. Native `downloadToFile` blocks the Http10Tcp queue until the
+ * file ends, so the UI stays on "Starting download…" and pause, cancel, and log
+ * export wait. HEAD stays on native TCP. The body uses the FileSystem downloader.
+ */
+function createQueueTransport(host: string, timeoutMs: number): StreamingTransport {
+  const files = createFileTransport(host, timeoutMs);
+  if (!isNativeTcpAvailable()) return files;
+  const native = new NativeTcpTransport({
     host,
     port: 80,
-    timeoutMs,
+    timeoutMs: 5_000,
     userAgent: APP_USER_AGENT,
-    fs: FileSystem,
   });
+  return {
+    request: (request) => native.request(request),
+    downloadToFile: (options) => files.downloadToFile(options),
+  };
 }
 
 async function fetchCameraPreviewCapability(
@@ -1260,8 +1285,7 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             notifyCameraDisconnected(message);
             return;
           }
-          const timeoutMs = nativeTcpReady ? 5_000 : fetchTimeoutForBytes(file.sizeBytes);
-          queue.setTransport(createLiveTransport(cameraHost, timeoutMs));
+          queue.setTransport(createQueueTransport(cameraHost, fetchTimeoutForBytes(file.sizeBytes)));
           if (!nativeTcpReady) {
             setConnectionNote(
               `Expo Go download with live progress (FileSystem). Max ~${formatMiB(FETCH_MAX_DOWNLOAD_BYTES)} per file.`,
@@ -1363,8 +1387,9 @@ export function DemoModeProvider({ children }: { readonly children: React.ReactN
             notifyCameraDisconnected(message);
             return;
           }
-          const timeoutMs = nativeTcpReady ? 5_000 : fetchTimeoutForBytes(item.expectedBytes);
-          queue.setTransport(createLiveTransport(cameraHost, timeoutMs));
+          queue.setTransport(
+            createQueueTransport(cameraHost, fetchTimeoutForBytes(item.expectedBytes)),
+          );
         } else {
           queue.setTransport(new DemoTransport());
         }
