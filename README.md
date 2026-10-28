@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <div align="center">
 
 <img src="mobile/assets/brand/laneory-mark-icon.png" width="76" alt="Laneory">
@@ -282,7 +281,7 @@ Report reproducible bugs, share model and firmware test results from your own ca
 
 [repo]: https://github.com/pateutz1/MiVue-Pro
 [issues]: https://github.com/pateutz1/MiVue-Pro/issues
-=======
+
 # Laneory
 
 **Professional dashcam companion app for MiVue cameras**
