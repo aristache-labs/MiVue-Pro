@@ -410,23 +410,31 @@ function syncSettingsPanel(online, message) {
 async function loadDashboard(fresh = false) {
   showSkeleton();
   setStatus(fresh ? "Se reîmprospătează lista…" : "Se citesc camera și înregistrările…");
+  const infoPromise = api("/api/info").catch(() => null);
   try {
     // Serverul AIT vechi răspunde intermitent cu 404 la cereri CGI concurente.
-    const info = await api("/api/info");
     const listing = await api(fresh ? "/api/files?refresh=1" : "/api/files");
     state.files = listing.files;
-    updateLibraryStats(info.endpoint.host);
-    elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
-    syncSettingsPanel(true, "Camera conectată");
-    setStatus("");
     renderFiles();
-    void refreshCameraAdmin();
+    const info = await infoPromise;
+    if (info?.endpoint?.host) {
+      updateLibraryStats(info.endpoint.host);
+      elements.dot.classList.add("online"); elements.connection.textContent = "Camera conectată";
+      syncSettingsPanel(true, "Camera conectată");
+      setStatus("");
+    } else {
+      updateLibraryStats();
+      elements.dot.classList.remove("online"); elements.connection.textContent = "Fișiere locale";
+      syncSettingsPanel(false, "Camera indisponibilă");
+      setStatus("Camera nu răspunde. Se afișează fișierele din downloads/.");
+    }
   } catch (error) {
+    await infoPromise;
     elements.dot.classList.remove("online"); elements.connection.textContent = "Camera indisponibilă";
     syncSettingsPanel(false, "Camera indisponibilă");
     setStatus(error.message, true);
-    void refreshCameraAdmin();
   }
+  void refreshCameraAdmin();
 }
 
 function showSkeleton() {

@@ -27,6 +27,14 @@ import { MiVueProtocolError } from "../protocol/errors.js";
 
 type ConcreteCategory = Exclude<FileCategory, "unknown">;
 
+/** Local file is already in downloads/. Callers should not contact the camera. */
+export class LocalThumbnailUnavailable extends Error {
+  constructor() {
+    super("Miniatură indisponibilă");
+    this.name = "LocalThumbnailUnavailable";
+  }
+}
+
 export interface DashboardFile extends RemoteFile {
   readonly locallyAvailable: boolean;
   readonly localName?: string;
@@ -82,7 +90,7 @@ export class CameraService {
       host: endpoint.host,
       port: endpoint.httpPort,
       timeoutMs,
-      attempts: READONLY_HTTP_ATTEMPTS,
+      attempts: 1,
       // Video thumbs are small; photo thumbs reuse the full JPG (no /thumb on camera).
       maxBodyBytes: 8 * 1024 * 1024,
       logger,
@@ -108,10 +116,16 @@ export class CameraService {
       return this.listCache.files;
     }
 
-    const result = await this.client.listAllFiles({
-      pageSize: 64,
-      ...(category === undefined ? {} : { categories: [category] }),
-    });
+    let remoteFiles: readonly RemoteFile[] = [];
+    try {
+      const result = await this.client.listAllFiles({
+        pageSize: 64,
+        ...(category === undefined ? {} : { categories: [category] }),
+      });
+      remoteFiles = result.files;
+    } catch (error) {
+      this.logger.debug(`Lista camerei indisponibilă, se folosesc fișierele din downloads/: ${errorMessage(error)}`);
+    }
     const localNames = new Map<string, string>();
     try {
       for (const entry of await readdir(this.downloadsDirectory, { withFileTypes: true })) {
@@ -122,7 +136,7 @@ export class CameraService {
     }
 
     const coveredStems = new Set<string>();
-    const mapped = result.files.map((file) => {
+    const mapped = remoteFiles.map((file) => {
       const originalName = posix.basename(file.path);
       const aacName = originalName.replace(/\.[^.]+$/u, "-AAC.MP4");
       const localName = localNames.get(aacName.toLowerCase()) ?? localNames.get(originalName.toLowerCase());
@@ -190,7 +204,15 @@ export class CameraService {
   }
 
   async thumbnail(remotePath: string): Promise<Uint8Array> {
-    assertRemoteThumbnailPath(remotePath);
+    const localRequest = remotePath.startsWith("/local/");
+    const mediaPath = localRequest ? remotePath.slice("/local/".length) : remotePath;
+    if (localRequest) {
+      if (mediaPath === "" || mediaPath !== posix.basename(mediaPath) || mediaPath.includes("..")) {
+        throw new Error("Cale locală invalidă");
+      }
+    } else {
+      assertRemoteThumbnailPath(remotePath);
+    }
     await mkdir(this.downloadsDirectory, { recursive: true });
     const cacheName = `thumb-${createHash("sha256").update(remotePath).digest("hex").slice(0, 20)}.jpg`;
     const cachedMemory = this.thumbMemory.get(cacheName);
@@ -203,9 +225,9 @@ export class CameraService {
       return fromDisk;
     }
 
-    const isPhoto = /\.(?:JPG|JPEG)$/i.test(remotePath);
+    const isPhoto = /\.(?:JPG|JPEG)$/i.test(mediaPath);
     if (isPhoto) {
-      const localOriginal = safeLocalFile(this.downloadsDirectory, posix.basename(remotePath));
+      const localOriginal = safeLocalFile(this.downloadsDirectory, posix.basename(mediaPath));
       if (await exists(localOriginal)) {
         const fromDisk = await readFile(localOriginal);
         if (fromDisk.byteLength >= 4 && fromDisk[0] === 0xff && fromDisk[1] === 0xd8) {
@@ -218,6 +240,11 @@ export class CameraService {
           return fromDisk;
         }
       }
+    }
+
+    const mediaName = posix.basename(mediaPath);
+    if (localRequest || await this.localMediaPresent(mediaName)) {
+      throw new LocalThumbnailUnavailable();
     }
 
     await this.acquireThumbnailSlot();
@@ -246,6 +273,12 @@ export class CameraService {
     } finally {
       this.releaseThumbnailSlot();
     }
+  }
+
+  private async localMediaPresent(name: string): Promise<boolean> {
+    if (await exists(safeLocalFile(this.downloadsDirectory, name))) return true;
+    const aacName = name.replace(/\.[^.]+$/u, "-AAC.MP4");
+    return aacName !== name && await exists(safeLocalFile(this.downloadsDirectory, aacName));
   }
 
   private acquireThumbnailSlot(): Promise<void> {

@@ -6,7 +6,7 @@ import { extname, join } from "node:path";
 import { gzipSync } from "node:zlib";
 import type { FileCategory } from "../protocol/types.js";
 import type { Logger } from "../utils/logger.js";
-import type { PreparedMedia, PrepareProgress, PrepareProgressCallback } from "./cameraService.js";
+import { LocalThumbnailUnavailable, type PreparedMedia, type PrepareProgress, type PrepareProgressCallback } from "./cameraService.js";
 import type { GpsSample } from "../protocol/nmea.js";
 import type { RemoteFile } from "../protocol/types.js";
 import { safeLocalFile } from "./pathSafety.js";
@@ -217,7 +217,16 @@ async function handleRequest(
       sendJson(response, request, 400, { error: "path lipsește" });
       return;
     }
-    const image = await service.thumbnail(remotePath);
+    let image: Uint8Array;
+    try {
+      image = await service.thumbnail(remotePath);
+    } catch (error) {
+      if (error instanceof LocalThumbnailUnavailable) {
+        sendJson(response, request, 404, { error: error.message });
+        return;
+      }
+      throw error;
+    }
     response.writeHead(200, {
       "Content-Type": "image/jpeg",
       "Content-Length": image.byteLength,
